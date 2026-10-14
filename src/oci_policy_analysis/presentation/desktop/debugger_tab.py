@@ -59,6 +59,8 @@ class DebuggerTab(BaseUITab):
             'Policy Repo Dynamic Groups',
             'Policy Repo: Defined Aliases',
             'Policy Repo Cross-Tenancy Statements',
+            'Policy Corpus',
+            'Cross-Tenancy Corpus',
             'Reference Data',
             'Simulation History',
             'Simulation: Prospective Statements',
@@ -81,6 +83,49 @@ class DebuggerTab(BaseUITab):
         )
         self.refdata_subset_combo.pack_forget()  # Hide unless active
 
+        self.ct_section_var = tk.StringVar(value='summary')
+        self.ct_section_combo = ttk.Combobox(
+            control_row,
+            textvariable=self.ct_section_var,
+            width=18,
+            state='readonly',
+            values=[
+                'summary',
+                'local_tenancy',
+                'definitions',
+                'statements',
+                'relationships',
+                'findings',
+                'diagnostics',
+                'All',
+            ],
+        )
+        self.ct_section_combo.bind('<<ComboboxSelected>>', lambda evt: self._refresh_display())
+
+        self.corpus_section_var = tk.StringVar(value='summary')
+        self.corpus_section_combo = ttk.Combobox(
+            control_row,
+            textvariable=self.corpus_section_var,
+            width=19,
+            state='readonly',
+            values=['summary', 'facts', 'effective_facts', 'exclusions'],
+        )
+        self.corpus_section_combo.bind('<<ComboboxSelected>>', self._on_corpus_section_change)
+        self._corpus_page = 0
+        self._corpus_page_size = 100
+        self.corpus_nav_frame = ttk.Frame(self)
+        self.corpus_prev_btn = ttk.Button(
+            self.corpus_nav_frame, text='◀', width=3, command=lambda: self._change_corpus_page(-1)
+        )
+        self.corpus_next_btn = ttk.Button(
+            self.corpus_nav_frame, text='▶', width=3, command=lambda: self._change_corpus_page(1)
+        )
+        self.corpus_page_var = tk.StringVar(value='')
+        self.corpus_page_label = ttk.Label(self.corpus_nav_frame, textvariable=self.corpus_page_var)
+        self.corpus_prev_btn.pack(side='left', padx=(0, 4))
+        self.corpus_page_label.pack(side='left', padx=(0, 4))
+        self.corpus_next_btn.pack(side='left', padx=(0, 4))
+
         ttk.Label(control_row, text='View:').pack(side='left', padx=(2, 4))
         self.view_mode_combo = ttk.Combobox(
             control_row, textvariable=self.view_mode_var, values=['Text', 'Tree'], width=9, state='readonly'
@@ -91,7 +136,8 @@ class DebuggerTab(BaseUITab):
 
         # Search box
         self.search_var = tk.StringVar()
-        self.search_var.trace_add('write', lambda *args: self._refresh_display())
+        self._search_after = None
+        self.search_var.trace_add('write', self._on_search_change)
         ttk.Label(control_row, text='Search:').pack(side='left', padx=(8, 2))
         self.search_entry = ttk.Entry(control_row, textvariable=self.search_var, width=26)
         self.search_entry.pack(side='left', padx=(0, 2))
@@ -149,6 +195,30 @@ class DebuggerTab(BaseUITab):
                 return self.app.policy_compartment_analysis.defined_aliases
             elif source == 'Policy Repo Cross-Tenancy Statements':
                 return self.app.policy_compartment_analysis.cross_tenancy_statements
+            elif source == 'Policy Corpus':
+                corpus = getattr(getattr(self.app, 'app_context', None), 'corpus', None)
+                if corpus is None:
+                    return {
+                        'note': (
+                            'No policy corpus has been built yet. Load or reload policy data, then refresh this view.'
+                        )
+                    }
+                section = self.corpus_section_var.get()
+                if section == 'summary':
+                    return {'schema_version': corpus.schema_version, 'built_at': corpus.built_at, **corpus.summary()}
+                return corpus.inspect_page(
+                    section,
+                    page=self._corpus_page,
+                    page_size=self._corpus_page_size,
+                    query=self.search_var.get(),
+                )
+            elif source == 'Cross-Tenancy Corpus':
+                corpus = getattr(getattr(self.app, 'app_context', None), 'cross_tenancy_corpus', None)
+                if corpus is None:
+                    return {
+                        'note': 'No cross-tenancy corpus has been built. Load or reload policy data, then refresh this view.'
+                    }
+                return corpus.to_dict(self.ct_section_var.get())
             elif source == 'Policy Repo Compartments':
                 return self.app.policy_compartment_analysis.compartments
 
@@ -187,10 +257,23 @@ class DebuggerTab(BaseUITab):
     def _refresh_display(self):
         data = self._get_source_data()
         search_text = self.search_var.get().strip()
-        if search_text:
+        corpus_section = self.source_var.get() == 'Policy Corpus' and self.corpus_section_var.get() != 'summary'
+        if search_text and not corpus_section:
             filtered = self._filter_data(data, search_text)
         else:
             filtered = data
+        self._display_data = filtered
+        if corpus_section and isinstance(data, dict) and 'records' in data:
+            total = data.get('total')
+            count = len(data['records'])
+            label = f'Page {data["page"]} · {count} record(s)'
+            if total is not None:
+                label += f' of {total}'
+            elif search_text:
+                label += ' matching search'
+            self.corpus_page_var.set(label)
+            self.corpus_prev_btn.configure(state='normal' if self._corpus_page else 'disabled')
+            self.corpus_next_btn.configure(state='normal' if data.get('has_more') else 'disabled')
         view_mode = self.view_mode_var.get()
         # Remove/hide both output widgets
         self.text_area.pack_forget()
@@ -202,6 +285,12 @@ class DebuggerTab(BaseUITab):
             except Exception as ex:
                 pretty = f'(error serializing: {ex})'
             self.text_area.delete(1.0, tk.END)
+            max_chars = 500_000
+            if len(pretty) > max_chars:
+                pretty = (
+                    pretty[:max_chars]
+                    + '\n\n[Display limited to 500,000 characters. Select a smaller section or page.]'
+                )
             self.text_area.insert(1.0, pretty)
             self.text_area.pack(fill='both', expand=True, padx=12, pady=4)
         else:
@@ -247,8 +336,7 @@ class DebuggerTab(BaseUITab):
         if not path:  # Root may be empty path
             return
         # Fetch data at this path in the JSON source
-        data = self._get_source_data()
-        current = data
+        current = self._display_data
         try:
             for p in path:
                 current = current[p]
@@ -338,12 +426,44 @@ class DebuggerTab(BaseUITab):
 
     def _on_source_combo(self, evt=None):
         src = self.source_var.get()
+        self._corpus_page = 0
         if src == 'Reference Data' and self.refdata_subsets_list:
             self.refdata_subset_combo.pack(side='left', padx=(0, 10))
         else:
             self.refdata_subset_combo.pack_forget()
+        if src == 'Cross-Tenancy Corpus':
+            self.ct_section_combo.pack(side='left', padx=(0, 10))
+        else:
+            self.ct_section_combo.pack_forget()
+        if src == 'Policy Corpus':
+            self.corpus_section_combo.pack(side='left', padx=(0, 8))
+        else:
+            self.corpus_section_combo.pack_forget()
+        self._update_corpus_pager()
         if src == 'Reference Data':
             # Ensure valid value always set
             if not self.refdata_subset_var.get() and self.refdata_subsets_list:
                 self.refdata_subset_var.set(self.refdata_subsets_list[0])
         self._refresh_display()
+
+    def _on_corpus_section_change(self, _event=None):
+        self._corpus_page = 0
+        self._update_corpus_pager()
+        self._refresh_display()
+
+    def _update_corpus_pager(self):
+        visible = self.source_var.get() == 'Policy Corpus' and self.corpus_section_var.get() != 'summary'
+        if visible:
+            self.corpus_nav_frame.pack(fill='x', padx=12, pady=(0, 4), before=self.search_help_label)
+        else:
+            self.corpus_nav_frame.pack_forget()
+
+    def _change_corpus_page(self, direction: int):
+        self._corpus_page = max(0, self._corpus_page + direction)
+        self._refresh_display()
+
+    def _on_search_change(self, *_args):
+        self._corpus_page = 0
+        if self._search_after is not None:
+            self.after_cancel(self._search_after)
+        self._search_after = self.after(250, self._refresh_display)

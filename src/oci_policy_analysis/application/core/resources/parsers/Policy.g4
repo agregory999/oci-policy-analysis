@@ -23,11 +23,15 @@ grammar Policy;
 
 compartmentSubject      : COMPARTMENT (WORD | HCL_VAR);
 
- admitExpression
+admitExpression
      : (ADMIT | DENY ADMIT)
         subject (OF endorseScope)?
         (TO endorseVerb resource | TO? permissionList)
-        IN scope
+        // An admit association can name the foreign endpoint (for example
+        // "in tenancy Requestor") as well as the local endpoint.  The
+        // regular `scope` rule only accepts a bare `tenancy`, which rejected
+        // valid cross-tenancy association statements before normalization.
+        IN endorseScope
         (WITH resource IN endorseScope)?
         (WHERE condition)? (COMMENT)? NEWLINE?
      ;

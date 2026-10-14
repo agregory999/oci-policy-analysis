@@ -11,13 +11,30 @@ from oci_policy_analysis.application.core.support.logger import get_logger
 
 @dataclass
 class IntelligenceResult:
-    """Result wrapper for intelligence overlay runs."""
+    """Intelligence result containing the engine's current overlay.
+
+    Attributes:
+        overlay: Findings and recommendations from the current engine run.
+    """
 
     overlay: dict[str, Any]
 
 
 class IntelligenceService:
-    """Run intelligence overlays without UI coupling."""
+    """Run or inspect intelligence strategies over the loaded repository.
+
+    Args:
+        context: Runtime containing the policy repository and intelligence engine.
+
+    Attributes:
+        context: Shared runtime read for each operation.
+        logger: Component logger for strategy execution.
+
+    Notes:
+        run_all updates the intelligence engine and its permissions report. It does
+        not replace context.corpus or context.simulation; use the post-load pipeline
+        to rebuild all derived state together after changing repository data.
+    """
 
     def __init__(self, context: AppContext) -> None:
         """Initialize the intelligence service.

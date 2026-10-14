@@ -393,7 +393,7 @@ class MaintenanceTab(ttk.Frame):
                 for line in f:
                     try:
                         entry = json.loads(line)
-                        key = f"{entry['tenancy_name']}_{entry['cache_date']}"
+                        key = f'{entry["tenancy_name"]}_{entry["cache_date"]}'
                         preserved_map[key] = entry.get('preserved', False)
                     except Exception:
                         continue
@@ -657,8 +657,8 @@ class MaintenanceTab(ttk.Frame):
                 for check in related_checks:
                     permissions = ', '.join(check.get('permissions') or []) or '[none]'
                     related_lines.append(
-                        f"- {check.get('resource') or '[resource unknown]'}: {permissions}; "
-                        f"applies when: {check.get('applies_when') or 'conditional dependency'}"
+                        f'- {check.get("resource") or "[resource unknown]"}: {permissions}; '
+                        f'applies when: {check.get("applies_when") or "conditional dependency"}'
                     )
                 note = '\n'.join([line for line in [note, *related_lines] if line])
         self.apiop_note_label.config(text=note if note else '')
@@ -692,7 +692,7 @@ class MaintenanceTab(ttk.Frame):
             self.permissions_overlap_text.insert(tk.END, f'Error: {ex}')
             return
         output = f'Overlap between:\n  {sel1} | {verb1} | {action1}\n  {sel2} | {verb2} | {action2}\n\n'
-        output += f"Common permissions: {', '.join(sorted(p.upper() for p in overlap)) if overlap else '(none)'}"
+        output += f'Common permissions: {", ".join(sorted(p.upper() for p in overlap)) if overlap else "(none)"}'
         logger.info(f'Overlap result = {output}')
 
         # Display result

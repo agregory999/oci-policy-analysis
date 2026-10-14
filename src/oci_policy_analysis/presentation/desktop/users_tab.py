@@ -365,7 +365,7 @@ class UsersTab(BaseUITab):
             """When a Group is selected, update the selected groups and filtered policy statements."""
             groups_for_filter = []
             for row in selected_rows:
-                logger.debug(f"Selected Group: {row.get('Domain Name')} / {row.get('Group Name')}")
+                logger.debug(f'Selected Group: {row.get("Domain Name")} / {row.get("Group Name")}')
                 if 'Group Name' in row:
                     groups_for_filter.append(
                         {'domain_name': row.get('Domain Name'), 'group_name': row.get('Group Name')}
@@ -378,7 +378,7 @@ class UsersTab(BaseUITab):
             """When a User is selected, update the selected groups (from user) and filtered policy statements."""
             users_for_filter = []
             for row in selected_rows:
-                logger.debug(f"Selected User: {row.get('Domain Name')} / {row.get('Username')}")
+                logger.debug(f'Selected User: {row.get("Domain Name")} / {row.get("Username")}')
                 if 'Username' in row:
                     users_for_filter.append({'domain_name': row.get('Domain Name'), 'user_name': row.get('Username')})
             logger.info(f'Users for filter: {users_for_filter}')
@@ -462,7 +462,7 @@ class UsersTab(BaseUITab):
 
         def selection_callback(selected_rows: list[dict]) -> None:
             for row in selected_rows:
-                logger.info(f"Selected policy statement: {row.get('Statement Text')}")
+                logger.info(f'Selected policy statement: {row.get("Statement Text")}')
                 # Update the policy box
                 self.app.ai_additional_instructions = 'Analyze the selected OCI policy statement. Show how the statement breaks down into its components such as action, subject, verb, resource, conditions, and effective path. Explain its implications on permissions within the OCI environment.'
                 self.app.policy_query_label_text.set('Policy Statement\nInsights:')

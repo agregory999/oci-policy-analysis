@@ -1,4 +1,7 @@
 .git
+run/.env
+run/.container-private-ip
+run/.container-instance-id
 .github
 .venv
 __pycache__/
@@ -16,3 +19,9 @@ old/
 usage-par.txt
 OCI Policy Analysis.spec
 
+
+# Shared operator configuration and generated deployment state
+run-build/.env
+run-build/*.json
+env.sh
+run/container.env

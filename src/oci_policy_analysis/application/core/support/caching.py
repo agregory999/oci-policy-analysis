@@ -59,11 +59,11 @@ class CacheManager:
             subject_value = str(subject or '')
 
         return (
-            f"{item.get('policy_ocid') or item.get('policy_name') or ''}|"
-            f"{item.get('compartment_ocid') or item.get('compartment_path') or ''}|"
-            f"{item.get('subject_type') or ''}|{subject_value}|"
-            f"{item.get('location_type') or ''}|{item.get('location') or ''}|"
-            f"{item.get('conditions') or ''}|{item.get('comments') or ''}"
+            f'{item.get("policy_ocid") or item.get("policy_name") or ""}|'
+            f'{item.get("compartment_ocid") or item.get("compartment_path") or ""}|'
+            f'{item.get("subject_type") or ""}|{subject_value}|'
+            f'{item.get("location_type") or ""}|{item.get("location") or ""}|'
+            f'{item.get("conditions") or ""}|{item.get("comments") or ""}'
         )
 
     @staticmethod
@@ -79,16 +79,15 @@ class CacheManager:
             return hashlib.sha256(identity.encode('utf-8')).hexdigest()
         if section == 'defined_aliases':
             return (
-                f"{item.get('policy_ocid') or item.get('policy_name') or ''}|"
-                f"{item.get('defined_type') or ''}|{item.get('defined_name') or ''}|{item.get('ocid_alias') or ''}"
+                f'{item.get("policy_ocid") or item.get("policy_name") or ""}|'
+                f'{item.get("defined_type") or ""}|{item.get("defined_name") or ""}|{item.get("ocid_alias") or ""}'
             )
         if section == 'cross_tenancy_statements':
             return (
                 str(item.get('internal_id') or '')
                 or hashlib.sha256(
                     (
-                        f"{item.get('policy_ocid') or item.get('policy_name') or ''}|"
-                        f"{item.get('statement_text') or ''}"
+                        f'{item.get("policy_ocid") or item.get("policy_name") or ""}|{item.get("statement_text") or ""}'
                     ).encode()
                 ).hexdigest()
             )
@@ -96,15 +95,15 @@ class CacheManager:
             return str(item.get('id') or item.get('display_name') or item.get('name') or '')
         if section == 'groups':
             return str(item.get('group_ocid') or item.get('group_id') or '') or (
-                f"{item.get('domain_name') or ''}/{item.get('group_name') or ''}"
+                f'{item.get("domain_name") or ""}/{item.get("group_name") or ""}'
             )
         if section == 'dynamic_groups':
             return str(item.get('dynamic_group_ocid') or item.get('dynamic_group_id') or '') or (
-                f"{item.get('domain_name') or ''}/{item.get('dynamic_group_name') or ''}"
+                f'{item.get("domain_name") or ""}/{item.get("dynamic_group_name") or ""}'
             )
         if section == 'users':
             return str(item.get('user_ocid') or item.get('user_id') or '') or (
-                f"{item.get('domain_name') or ''}/{item.get('user_name') or ''}"
+                f'{item.get("domain_name") or ""}/{item.get("user_name") or ""}'
             )
         return ''
 
@@ -265,7 +264,7 @@ class CacheManager:
         state['history'].append(run_record)
         self.save_consolidation_state(tenancy_ocid, state)
         logger.info(
-            f"Added run_record ({run_record.get('consolidation_effort_id', 'unknown')}) for tenancy_ocid={tenancy_ocid}"
+            f'Added run_record ({run_record.get("consolidation_effort_id", "unknown")}) for tenancy_ocid={tenancy_ocid}'
         )
 
     def update_run_record(self, tenancy_ocid: str, consolidation_effort_id: str, updates: dict) -> bool:
@@ -460,7 +459,7 @@ class CacheManager:
         # Date of the cache
         CACHE_DATE = datetime.now(UTC).strftime('%Y-%m-%d-%H-%M-%S-%Z')
 
-        # BREAKING: Only support new structure: "policies" (BasePolicy objects), "policy_statements" (statements list)
+        # Supported snapshot structure: "policies" (BasePolicy objects), "policy_statements" (statements list)
         policies = self._annotate_stable_keys('policies', policy_analysis.policies)
         policy_statements = self._annotate_stable_keys('policy_statements', policy_analysis.regular_statements)
         dynamic_groups = self._annotate_stable_keys('dynamic_groups', policy_analysis.dynamic_groups)
@@ -516,7 +515,7 @@ class CacheManager:
             'tenancy_policy_limits': getattr(policy_analysis, 'tenancy_policy_limits', {}),
         }
         logger.info(
-            'Saving cache with BREAKING format: "policies"=BasePolicy objects, "policy_statements"=statement list. Old cache files are no longer supported.'
+            'Saving combined cache: version=2, schema_version=3, "policies"=BasePolicy objects, "policy_statements"=statement list.'
         )
 
         def _serialize_for_json(obj):
@@ -580,7 +579,7 @@ class CacheManager:
                 try:
                     cache = json.loads(line)
                     if cache.get('tenancy_name') == tenancy_name and cache.get('preserved'):
-                        preserved_files.add(f"combined_cache_{cache['tenancy_name']}_{cache['cache_date']}.json")
+                        preserved_files.add(f'combined_cache_{cache["tenancy_name"]}_{cache["cache_date"]}.json')
                 except Exception:
                     continue
 
@@ -654,7 +653,7 @@ class CacheManager:
                 with open(combined_cache_file, encoding='utf-8') as filehandle:
                     cache_data = json.load(filehandle)
                     # Grab all of the elements of the cache
-                    # BREAKING: Require new structure - "policies" and "policy_statements" must be present
+                    # Required snapshot fields: "policies" and "policy_statements" must be present
                     if 'policies' not in cache_data or 'policy_statements' not in cache_data:
                         logger.error(
                             "Loaded cache file is missing required keys: 'policies' and/or 'policy_statements'."
@@ -734,7 +733,7 @@ class CacheManager:
         """
         try:
             # Grab all of the elements of the cache
-            # BREAKING: Require both "policies" and "policy_statements" keys
+            # Require both "policies" and "policy_statements" keys
             if 'policies' not in loaded_json or 'policy_statements' not in loaded_json:
                 logger.error("Loaded cache (from JSON) missing required keys: 'policies' and/or 'policy_statements'.")
                 raise RuntimeError(
@@ -807,7 +806,7 @@ class CacheManager:
                 for line in f:
                     try:
                         entry = json.loads(line)
-                        key = f"{entry['tenancy_name']}_{entry['cache_date']}"
+                        key = f'{entry["tenancy_name"]}_{entry["cache_date"]}'
                         if entry.get('preserved', False):
                             preserved_files.add(key)
                     except Exception:
@@ -928,7 +927,7 @@ class CacheManager:
                 for line in entry_lines:
                     try:
                         cache = json.loads(line)
-                        entry_name = f"{cache['tenancy_name']}_{cache['cache_date']}"
+                        entry_name = f'{cache["tenancy_name"]}_{cache["cache_date"]}'
                         if entry_name == named_cache:
                             updated = True
                             continue  # Skip (remove) this entry
@@ -965,7 +964,7 @@ class CacheManager:
             for line in entry_lines:
                 try:
                     cache = json.loads(line)
-                    entry_name = f"{cache['tenancy_name']}_{cache['cache_date']}"
+                    entry_name = f'{cache["tenancy_name"]}_{cache["cache_date"]}'
                     if entry_name == new_named_cache:
                         logger.error(
                             f'Refusing to rename: entry already exists in cache_entries.json as {new_named_cache}'
@@ -990,7 +989,7 @@ class CacheManager:
                 for line in entry_lines:
                     try:
                         cache = json.loads(line)
-                        entry_name = f"{cache['tenancy_name']}_{cache['cache_date']}"
+                        entry_name = f'{cache["tenancy_name"]}_{cache["cache_date"]}'
                         if entry_name == old_named_cache:
                             # Must split new_named_cache into tenancy_name, cache_date
                             tn, cd = new_named_cache.split('_', 1)
@@ -1023,7 +1022,7 @@ class CacheManager:
                 for line in entry_lines:
                     try:
                         cache = json.loads(line)
-                        entry_name = f"{cache['tenancy_name']}_{cache['cache_date']}"
+                        entry_name = f'{cache["tenancy_name"]}_{cache["cache_date"]}'
                         if entry_name == named_cache:
                             cache['preserved'] = preserve
                             line = json.dumps(cache, ensure_ascii=False) + '\n'

@@ -60,6 +60,7 @@ class RecommendationsService:
             'risk_policy': self._policy_risk_rows(),
             'risk_statement': self._statement_risk_rows(),
             'supersession': self._supersession_rows(),
+            'cross_tenancy': self._cross_tenancy_rows(),
             'consolidation': build_consolidation_opportunities(overlay, repo),
             'cleanup': self._cleanup_rows(),
             'limits': self._limits_rows(),
@@ -82,6 +83,11 @@ class RecommendationsService:
             len(payload['limits']),
         )
         return payload
+
+    def _cross_tenancy_rows(self) -> list[dict[str, Any]]:
+        """Return cross-tenancy findings with concise display fields and full evidence."""
+        overlay = getattr(self.context.intelligence, 'overlay', {}) or {}
+        return [dict(row) for row in (overlay.get('cross_tenancy_findings', []) or [])]
 
     def _tenancy_policy_limits_payload(self) -> dict[str, Any]:
         """Return snapshot-specific limits and whether this source may edit them."""
@@ -131,7 +137,7 @@ class RecommendationsService:
                     'Statement Text': (statement.get('statement_text') or '')[:500],
                     'Classification': finding.get('classification') or '',
                     'Superseded By': ', '.join(
-                        f"{item.get('policy_name') or 'Unknown'} ({item.get('relationship') or 'Applicable scope'})"
+                        f'{item.get("policy_name") or "Unknown"} ({item.get("relationship") or "Applicable scope"})'
                         for item in evidence
                     ),
                     'Candidate Permissions': list(finding.get('candidate_permissions') or []),
@@ -313,7 +319,7 @@ class RecommendationsService:
             rows.append(
                 {
                     'Type': 'Group w/ No Users',
-                    'Name': f"{group.get('domain_name', 'Default')}/{group.get('group_name', '[unknown]')}",
+                    'Name': f'{group.get("domain_name", "Default")}/{group.get("group_name", "[unknown]")}',
                     'Reason': 'Group has zero user members.',
                     'Action': 'Remove, repurpose, or assign users.',
                 }
@@ -322,7 +328,7 @@ class RecommendationsService:
             rows.append(
                 {
                     'Type': 'Unused Dynamic Group',
-                    'Name': f"{dg.get('domain_name', 'Default')}/{dg.get('dynamic_group_name', '[unknown]')}",
+                    'Name': f'{dg.get("domain_name", "Default")}/{dg.get("dynamic_group_name", "[unknown]")}',
                     'Reason': 'Not referenced by any policy statement.',
                     'Action': 'Delete dynamic group or document why kept.',
                 }

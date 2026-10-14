@@ -17,7 +17,14 @@ PostLoadProfile = str
 
 @dataclass
 class LoadResult:
-    """Result wrapper for policy load operations."""
+    """Outcome of a repository load and its selected enrichment profile.
+
+    Attributes:
+        success: Whether the load operation reported success; not a completeness claim.
+        message: Human-readable outcome or failure description.
+        summary: Entity counts when available, otherwise None. Counts do not establish
+            complete IAM or compartment coverage.
+    """
 
     success: bool
     message: str
@@ -25,7 +32,27 @@ class LoadResult:
 
 
 class LoadService:
-    """Orchestrate tenancy/cache/compliance loads without UI coupling."""
+    """Replace and enrich the active snapshot without presentation coupling.
+
+    Args:
+        context: Runtime containing the repositories and services to update.
+
+    Attributes:
+        context: Shared runtime mutated by load operations.
+        logger: Component logger for loading and progress diagnostics.
+
+    Notes:
+        Loads reset repository/derived state and discard prospective state. Failures
+        are not transactional and may leave an empty or partially populated context.
+        Methods return LoadResult for handled load failures; errors from enrichment
+        or caller callbacks can propagate.
+
+        The full profile runs intelligence, compiles corpora, builds the permissions
+        report, and replaces simulation. Minimal compiles query foundations/corpora
+        without full recommendations. None skips enrichment. Unknown profile names
+        fall back to full. Setting run_post_load_intelligence=False also skips it.
+        A successful load does not guarantee complete or current OCI data.
+    """
 
     def __init__(self, context: AppContext) -> None:
         """Initialize the load service.
@@ -74,6 +101,8 @@ class LoadService:
         repo._cleanup_reload_api_errors = []
         self.context.intelligence = PolicyIntelligenceEngine(repo)
         self.context.simulation = PolicySimulationEngine(repo, getattr(self.context, 'reference_data', None))
+        self.context.corpus = None
+        self.context.cross_tenancy_corpus = None
         self.context._prospective_service = None
         self.context.data_generation = getattr(self.context, 'data_generation', 0) + 1
         on_reset = getattr(self.context, 'on_data_reset', None)
@@ -327,7 +356,7 @@ class LoadService:
         summary = self._build_summary(repo)
         self._emit_stage(
             stage='Complete',
-            detail=f"Loaded {summary.get('policies', 0)} policies and {summary.get('statements', 0)} statements",
+            detail=f'Loaded {summary.get("policies", 0)} policies and {summary.get("statements", 0)} statements',
             state='success',
             on_stage=on_stage,
         )

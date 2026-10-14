@@ -313,19 +313,17 @@ The **Cross Tenancy Tab** highlights **trust relationships between tenancies**.
 - Support security and compliance reviews around external access.
 
 **General Flow**  
-1. Load the cross-tenancy view to see all detected cross-tenancy statements.  
-2. Filter by direction (incoming vs outgoing trust), remote tenancy, or statement type (define/endorse/admit).  
-3. Select an entry to see its full statement text and normalized breakdown.  
-4. Use links to pivot to Policy, Policy Browser, or Permissions Report tabs to inspect the broader impact.
+1. Load a dataset and open the three-lane Canvas graph. The local tenancy is in the center, Admit references are on the left, and Endorse references are on the right. Dotted lines mark Associate relationships.
+2. Click a tenancy, link, child entity, unplaced entity, or orphan definition to filter the statement table. The relationship selector offers keyboard access to the same source sets.
+3. Narrow further with the statement-text search or defined-entity selector. Use **Clear** to remove filters.
+4. Select a statement or finding to inspect its full source and parsed details in the right-side pane.
+5. Use **Refresh view** after a load to redraw the in-memory snapshot. Live OCI reload is a separate action.
 
-**Key Widgets and Right-Click Actions**  
-- **Cross-Tenancy Summary Table:** Lists each cross-tenancy relationship with columns for local/remote tenancy identifiers, principal, resource, and type (define/endorse/admit).  
-- **Detail Pane:** Shows parsed statement components and any detected risk or configuration notes.  
-- **Right-click on a Row:**
-  - "Open in Policy Tab" – focus on the originating policy and related statements.  
-  - "Open in Permissions Report" – drill down into effective permissions associated with that cross-tenancy relationship.
+The **JSON Debugger** exposes a versioned **Cross-Tenancy Corpus** with summary, definition, statement, relationship, finding, and diagnostic sections. Definitions with no provable owner show `<not associated>`; any inferred association is labeled as deduced. A local statement does not establish that a reciprocal policy exists in another tenancy.
 
 Use this tab when you’re asking **“Where do we trust or get trusted by other tenancies?”**
+
+In the **web Cross-Tenancy Analysis** page, the loaded tenancy appears in the center of a relationship graph. Admit references appear on the left, Endorse references on the right, and dotted lines show Associate participants on both sides. Clicking a tenancy filters the single statement table below. Defined tenancy, group, dynamic-group, and compartment aliases appear as graph nodes or defined-entity chips; clicking a chip or using the compact defined-entity selector filters the table. The text filter searches statement text only. Select a statement or finding to open its source details in the right-side inspector. These links describe local policy statements and do not prove that a reciprocal policy exists in the remote tenancy.
 
 ### Permissions Report Tab
 <!-- Anchor link; do not change or remove this line! -->
@@ -521,6 +519,20 @@ Use Settings to review web options and manage saved caches before or after loadi
 
 Use Policy Analysis to filter and inspect policy statements by text, subject, resource, verb, permission, path, or parsed conditions. Use the advanced panels for structured-principal, tag, and workload-identity searches.
 
+### Policy Graph Desktop Tab
+
+Open **Policy Graph**, beside Policy Analysis, after loading live or cached policy data. The tab uses the same graphical search and direct-grant projection as the web page. Enter at least two characters or select a filter value to populate the graph. The initial guidance cards are not interactive. Start with Principal, Resource or permission (for example `OBJECT_CREATE`), or Effective path (for example `network`); policy/statement text and effect can narrow the results further.
+
+Graph cards fill their corresponding filters. Middle cards select the resource and allow/deny effect, preserving the other filters. Principal and effective-path filters offer suggestions from all matching grants, including later pages. Both graph columns also include matches across all pages. All matching grants appear in the table without pagination; use its vertical scrollbar for long results. The effective-path lane scrolls independently. The graph has no visible scrollbars; use the mouse wheel or trackpad to scroll long results. **Clear filters** restores the initial guidance. **Refresh view** reads the current loaded corpus without making OCI requests.
+
+The **Conditional** column indicates whether a grant has a condition. Right-click a result-table row and choose **Show Detailed Analysis** to open modal grant details, including the full condition. Conditional rows also offer **Test Condition in Condition Tester Tab**, which fills the existing tester and generates its inputs. The handoff extracts only the condition expression, removing a leading `where`; it can recover the clause from the original statement if the separate condition field is empty. On macOS, Control-click also works. Left-click selects a row; Enter or Space opens details for keyboard users. The popup preserves original statement text and lists permissions last in a scrollable area. Close it with Escape or Close. Conditions, deny rules, and inheritance still need review before concluding that a principal has effective access.
+
+### Policy Graph Page
+
+Use Policy Graph to explore the loaded regular policy corpus as principal → grant → effective path relationships. The initial view shows passive guidance and examples in each column; enter at least two search characters or select a filter value to display grants. Filters narrow by principal key, effective path, resource or permission, effect, or policy and statement text. The Resource or permission filter matches resource names and direct permissions case-insensitively, including partial names such as `OBJECT_` or a full permission such as `OBJECT_CREATE`. Matching grants retain their complete permission list. Principal and effective-path searches match any part of the name or path. Their suggestions and graph columns include matches across all result pages, rather than only the first 12 grants. For example, searching `network` can find `ROOT/lz2-top/lz092026-network-cmp` even when its grant is beyond the first page. Clicking a principal or effective path focuses the graph on it.
+
+The Resources & Permissions column and table include all matching direct grants. The web table has a fixed maximum height with vertical scrolling. Clicking a middle graph card adds its resource and effect to the filters, preserving the other filters. The **Conditional** column shows Yes/No. Select a table row to open the right-side details panel with its original source statement, full condition, and expanded permissions. Right-click a conditional row and choose **Test Condition in Condition Tester** to fill the tester with that condition. Permissions appear last in the scrollable panel; close it with the close button or Escape. Excluded statements are counted separately; inherited effective facts are not drawn. The graph does not prove effective access without reviewing conditions, deny rules, and inheritance.
+
 ### Cross-Tenancy Analysis Page
 
 Use this page to filter and inspect `define`, `endorse`, and `admit` statements, then open the supporting policy details when a trust relationship needs review.
@@ -594,3 +606,7 @@ Use MCP when you want AI tooling or automation to query the same policy model fr
 ---
 
 For the underlying logic, data model, and architecture see the [Architecture page](./architecture.md).
+
+## Consolidated source operations
+
+Use `run-build/.env.example` and the single ignored `run-build/.env` for local run/build, PyInstaller and container operations. See [the complete run guide](https://github.com/agregory999/oci-policy-analysis/blob/main/run/README.md). Existing root command scripts delegate to `run/`. Local OCI API signing-key use does not require container configuration.

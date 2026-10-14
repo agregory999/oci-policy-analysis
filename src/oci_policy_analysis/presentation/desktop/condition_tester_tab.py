@@ -293,11 +293,11 @@ class ConditionTesterTab(BaseUITab):
 
         # Do NOT clear previous log; append a timestamped header and result.
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        self.results_text.insert(tk.END, f"\n{'='*20} {now} {'='*20}\n", 'log_head')
+        self.results_text.insert(tk.END, f'\n{"=" * 20} {now} {"=" * 20}\n', 'log_head')
         cond_str = result_dict.get('Condition String')
         self.results_text.insert(tk.END, f'Condition: {cond_str}\n', 'log_head')
         # Color result
-        outcome_str = f"Access Result: {result_dict.get('Policy Result')}\n"
+        outcome_str = f'Access Result: {result_dict.get("Policy Result")}\n'
         if result_dict.get('Policy Result') == 'GRANTED':
             self.results_text.insert(tk.END, outcome_str, 'log_granted')
         else:
@@ -326,7 +326,7 @@ class ConditionTesterTab(BaseUITab):
                     self.results_text.insert(tk.END, f"  [{status}] Variable '{var or '?'}' is MISSING.\n")
                 elif all(x == '?' or x == '' for x in [sim_val, operator, expected, var]):
                     # All details are unknown or missing - just give result
-                    self.results_text.insert(tk.END, f"  [{status}] {'Comparison performed; details unavailable'}\n")
+                    self.results_text.insert(tk.END, f'  [{status}] {"Comparison performed; details unavailable"}\n')
                 else:
                     self.results_text.insert(tk.END, f'  [{status}] {sim_val} {operator} {expected} -> {result}\n')
         else:

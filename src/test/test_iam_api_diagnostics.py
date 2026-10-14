@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 from oci.exceptions import ServiceError
+
 from oci_policy_analysis.application.core.repo.policy_analysis_repository import PolicyAnalysisRepository
 
 

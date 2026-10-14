@@ -1,4 +1,5 @@
 import pytest
+
 from oci_policy_analysis.application.core.engine.strategies.base import (
     BaseConsolidationStrategy,
     PlacementResult,

@@ -4,6 +4,7 @@ import json
 from types import MethodType, SimpleNamespace
 
 import pytest
+
 from oci_policy_analysis.application.core.repo.policy_analysis_repository import PolicyAnalysisRepository
 from oci_policy_analysis.application.core.support.caching import CacheManager
 from oci_policy_analysis.application.services.load_service import LoadService

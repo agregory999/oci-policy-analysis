@@ -1136,7 +1136,7 @@ class PoliciesTab(BaseUITab):
 
         def selection_callback(selected_rows: list[dict]) -> None:
             for row in selected_rows:
-                logger.info(f"Selected policy statement: {row.get('Statement Text')}")
+                logger.info(f'Selected policy statement: {row.get("Statement Text")}')
                 # Update the policy box
                 self.app.ai_additional_instructions = 'Analyze the selected OCI policy statement. Show how the statement breaks down into its components such as action, subject, verb, resource, conditions, and effective path. Explain its implications on permissions within the OCI environment.'
                 self.app.policy_query_label_text.set('Policy Statement\nInsights:')
@@ -1625,10 +1625,12 @@ class PoliciesTab(BaseUITab):
             )
             prospective_filtered = self.timed_step(
                 'filter_prospective_statements',
-                lambda: self.analysis_service.filter_policy_statements_subset(
-                    filters=filters,
-                    statements=prospective_like,
-                ).statements,
+                lambda: (
+                    self.analysis_service.filter_policy_statements_subset(
+                        filters=filters,
+                        statements=prospective_like,
+                    ).statements
+                ),
             )
             logger.info(
                 'PoliciesTab: %d prospective statements matched after filter',
@@ -1723,7 +1725,7 @@ class PoliciesTab(BaseUITab):
 
         header = ttk.Label(
             outer,
-            text=f"Policy: {row.get('Policy Name') or 'Unknown'}",
+            text=f'Policy: {row.get("Policy Name") or "Unknown"}',
             font=('TkDefaultFont', 11, 'bold'),
         )
         header.pack(anchor='w', pady=(0, 6))

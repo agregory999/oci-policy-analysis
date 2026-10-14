@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import time
 from datetime import UTC, datetime
@@ -14,7 +15,7 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse
 
-from oci_policy_analysis._version import get_app_version
+from oci_policy_analysis._version import get_app_version, get_image_build_metadata
 from oci_policy_analysis.application.core.models.models import (
     DynamicGroup,
     DynamicGroupSearch,
@@ -40,12 +41,14 @@ from oci_policy_analysis.application.services.condition_tester_service import Co
 from oci_policy_analysis.application.services.consolidation_workbench_service import (
     ConsolidationWorkbenchService,
 )
+from oci_policy_analysis.application.services.cross_tenancy_analysis_service import CrossTenancyAnalysisService
 from oci_policy_analysis.application.services.historical_analysis_service import HistoricalAnalysisService
 from oci_policy_analysis.application.services.intelligence_service import IntelligenceService
 from oci_policy_analysis.application.services.load_service import LoadService
 from oci_policy_analysis.application.services.logging_service import LoggingService
 from oci_policy_analysis.application.services.permissions_report_service import PermissionsReportService
 from oci_policy_analysis.application.services.policy_browser_service import PolicyBrowserService
+from oci_policy_analysis.application.services.policy_graph_service import PolicyGraphService
 from oci_policy_analysis.application.services.principal_analysis_service import PrincipalAnalysisService
 from oci_policy_analysis.application.services.prospective_builder_service import ProspectiveBuilderService
 from oci_policy_analysis.application.services.prospective_statements_service import ProspectiveStatementsService
@@ -244,7 +247,7 @@ def app_metadata() -> dict[str, str]:
         dict[str, str]: Application metadata including version and server start time.
     """
 
-    return {'version': get_app_version(), 'server_started_at': SERVER_STARTED_AT}
+    return {'version': get_app_version(), 'server_started_at': SERVER_STARTED_AT, **get_image_build_metadata()}
 
 
 @router.post('/auth/login')
@@ -1520,81 +1523,48 @@ def filter_policies_by_subjects(payload: dict[str, object]) -> dict[str, object]
 
 @router.get('/analysis/cross-tenancy')
 def get_cross_tenancy_basic() -> dict[str, object]:
-    """Return basic cross-tenancy rows for web display with stable keys."""
+    """Return the shared cross-tenancy interpretation for desktop and web consumers."""
     logger.info('GET /analysis/cross-tenancy')
     ctx = get_context()
-    repo = ctx.policy_repo
+    overlay = getattr(ctx.intelligence, 'overlay', {}) or {}
+    return CrossTenancyAnalysisService(
+        ctx.policy_repo,
+        overlay.get('cross_tenancy_findings', []) or [],
+        corpus=ctx.cross_tenancy_corpus,
+    ).get_analysis_payload()
 
-    defines_raw = list(getattr(repo, 'defined_aliases', []) or [])
-    ct_raw = list(getattr(repo, 'cross_tenancy_statements', []) or [])
 
-    define_rows: list[dict[str, str]] = []
-    for item in defines_raw:
-        define_rows.append(
-            {
-                'policy_name': str(item.get('policy_name') or ''),
-                'defined_type': str(item.get('defined_type') or ''),
-                'defined_name': str(item.get('defined_name') or ''),
-                'ocid_alias': str(item.get('ocid_alias') or ''),
-                'statement_text': str(item.get('statement_text') or ''),
-                'creation_time': str(item.get('creation_time') or ''),
-            }
-        )
-
-    admit_rows: list[dict[str, object]] = []
-    endorse_rows: list[dict[str, object]] = []
-    unknown_rows: list[dict[str, object]] = []
-
-    for item in ct_raw:
-        statement_text = str(item.get('statement_text') or '')
-        text_cf = statement_text.casefold()
-        policy_ocid = str(item.get('policy_ocid') or '')
-        parsed_fields = {
-            str(k): v
-            for k, v in dict(item).items()
-            if str(k)
-            not in {
-                'policy_name',
-                'policy_ocid',
-                'statement_text',
-                'creation_time',
-                'parsed',
-            }
-        }
-        row: dict[str, object] = {
-            'policy_name': str(item.get('policy_name') or ''),
-            'policy_ocid': policy_ocid,
-            'statement_text': statement_text,
-            'creation_time': str(item.get('creation_time') or ''),
-            'parsed': bool(item.get('parsed', False)),
-            'parsed_fields': parsed_fields,
-            'stable_key': _build_cross_tenancy_stable_key(policy_ocid, statement_text),
-        }
-        if text_cf.startswith('admit') or text_cf.startswith('deny admit'):
-            admit_rows.append(row)
-        elif text_cf.startswith('endorse') or text_cf.startswith('deny endorse'):
-            endorse_rows.append(row)
-        else:
-            unknown_rows.append(row)
-
-    return {
-        'defines': define_rows,
-        'admit_statements_basic': admit_rows,
-        'endorse_statements_basic': endorse_rows,
-        'unknown_statements_basic': unknown_rows,
-        'counts': {
-            'defines': len(define_rows),
-            'admit': len(admit_rows),
-            'endorse': len(endorse_rows),
-            'unknown': len(unknown_rows),
-        },
-    }
+@router.get('/analysis/policy-graph')
+def get_policy_graph(
+    principal: str = '',
+    path: str = '',
+    resource: str = '',
+    query: str = '',
+    effect: str = '',
+    page: int = 1,
+    overview: bool = False,
+    all_results: bool = False,
+) -> dict[str, object]:
+    """Return direct graph grants, optionally all matches for the graphical search UI."""
+    return PolicyGraphService(get_context().corpus).get_page(
+        principal=principal,
+        path=path,
+        resource=resource,
+        query=query,
+        effect=effect,
+        page=page,
+        overview=overview,
+        all_results=all_results,
+    )
 
 
 @router.get('/analysis/permissions-report/tree')
 def get_permissions_report_tree(
     show_inherited_principals: bool = False,
     principal_query: str = '',
+    path_query: str = '',
+    principal_type: str = '',
+    include_prospective: bool = False,
 ) -> dict[str, object]:
     """Return permissions report tree rows grouped by effective path.
 
@@ -1608,10 +1578,15 @@ def get_permissions_report_tree(
     """
     logger.info('GET /analysis/permissions-report/tree')
     ctx = get_context()
+    if include_prospective and getattr(ctx.policy_repo, 'tenancy_ocid', None):
+        _get_or_init_prospective_service(ctx)
     service = PermissionsReportService(ctx)
     return service.get_tree(
         show_inherited_principals=show_inherited_principals,
         principal_query=principal_query,
+        path_query=path_query,
+        principal_type=principal_type,
+        include_prospective=include_prospective,
     )
 
 
@@ -1621,6 +1596,8 @@ def get_permissions_report_details(
     subject_key: str = '',
     permission_query: str = '',
     principal_query: str = '',
+    include_prospective: bool = False,
+    include_inherited: bool = False,
 ) -> dict[str, object]:
     """Return allow/deny detail rows for one path and principal key.
 
@@ -1650,16 +1627,20 @@ def get_permissions_report_details(
             raise HTTPException(status_code=400, detail='subject_key does not match principal_query.')
 
     ctx = get_context()
+    if include_prospective and getattr(ctx.policy_repo, 'tenancy_ocid', None):
+        _get_or_init_prospective_service(ctx)
     service = PermissionsReportService(ctx)
     return service.get_details(
         path_key=path_key,
         subject_key=selected_subject_key,
         permission_query=permission_query,
+        include_prospective=include_prospective,
+        include_inherited=include_inherited,
     )
 
 
 @router.get('/analysis/permissions-report/export')
-def get_permissions_report_export() -> dict[str, object]:
+def get_permissions_report_export(include_prospective: bool = False) -> dict[str, object]:
     """Return raw permissions report payload for export workflows.
 
     Returns:
@@ -1667,8 +1648,19 @@ def get_permissions_report_export() -> dict[str, object]:
     """
     logger.info('GET /analysis/permissions-report/export')
     ctx = get_context()
+    if include_prospective and getattr(ctx.policy_repo, 'tenancy_ocid', None):
+        _get_or_init_prospective_service(ctx)
     service = PermissionsReportService(ctx)
-    return service.get_export_payload()
+    return service.get_export_payload(include_prospective=include_prospective)
+
+
+@router.get('/analysis/permissions-report/exclusions')
+def get_permissions_report_exclusions(include_prospective: bool = False) -> dict[str, object]:
+    """Return corpus statements excluded from permission grant facts."""
+    ctx = get_context()
+    if include_prospective and getattr(ctx.policy_repo, 'tenancy_ocid', None):
+        _get_or_init_prospective_service(ctx)
+    return {'exclusions': PermissionsReportService(ctx).get_exclusions(include_prospective=include_prospective)}
 
 
 @router.get('/analysis/recommendations/dashboard')
@@ -1964,6 +1956,8 @@ def get_logging_logs(lines: int = 300) -> dict[str, object]:
 @router.get('/profiles')
 def list_profiles() -> dict[str, list[str]]:
     """Return available OCI CLI profiles from ~/.oci/config."""
+    if _resource_principal_only():
+        return {'profiles': []}
     config_path = Path('~/.oci/config').expanduser()
     profiles: list[str] = []
     if config_path.exists():
@@ -1974,19 +1968,31 @@ def list_profiles() -> dict[str, list[str]]:
     return {'profiles': profiles}
 
 
+def _resource_principal_only() -> bool:
+    """Use the Container Instance identity for every web tenancy load when enabled."""
+    return os.environ.get('WEB_RESOURCE_PRINCIPAL_ONLY', '').strip().lower() in {'1', 'true', 'yes'}
+
+
+@router.get('/load/auth-mode')
+def get_load_auth_mode() -> dict[str, bool]:
+    """Return whether web tenancy loading is restricted to Resource Principal."""
+    return {'resource_principal_only': _resource_principal_only()}
+
+
 @router.post('/load/tenancy')
 def load_tenancy(payload: dict[str, object]) -> dict[str, object]:
-    """Load tenancy data using profile or instance principal."""
+    """Load tenancy data using the configured web identity mode."""
     ctx = get_context()
     service = LoadService(ctx)
-    use_instance_principal = bool(payload.get('instance_principal'))
-    profile = payload.get('profile')
+    use_resource_principal = _resource_principal_only()
+    use_instance_principal = False if use_resource_principal else bool(payload.get('instance_principal'))
+    profile = None if use_resource_principal else payload.get('profile')
     profile = profile if isinstance(profile, str) else None
-    session_token = payload.get('session_token')
+    session_token = None if use_resource_principal else payload.get('session_token')
     session_token = session_token if isinstance(session_token, str) else None
-    recursive = bool(payload.get('recursive'))
-    load_all_users = payload.get('load_all_users')
-    depth_raw = payload.get('compartment_domain_search_depth', 1)
+    recursive = bool(payload.get('recursive', ctx.settings.get('recursive', False)))
+    load_all_users = payload.get('load_all_users', ctx.settings.get('load_all_users', True))
+    depth_raw = payload.get('compartment_domain_search_depth', ctx.settings.get('domain_compartment_depth', 1))
     try:
         depth = max(1, min(int(depth_raw) if isinstance(depth_raw, (int | str)) else 1, 6))
     except (TypeError, ValueError):
@@ -1996,6 +2002,7 @@ def load_tenancy(payload: dict[str, object]) -> dict[str, object]:
     started = time.perf_counter()
     result = service.load_from_tenancy(
         use_instance_principal=use_instance_principal,
+        use_resource_principal=use_resource_principal,
         profile=profile,
         session_token=session_token,
         recursive=recursive,
@@ -2651,7 +2658,7 @@ def load_compliance(payload: dict[str, object]) -> dict[str, object]:
     service = LoadService(ctx)
     dir_path_raw = payload.get('dir_path')
     dir_path = dir_path_raw if isinstance(dir_path_raw, str) else ''
-    load_all_users = payload.get('load_all_users')
+    load_all_users = payload.get('load_all_users', ctx.settings.get('load_all_users', True))
     run_post_load_intelligence = payload.get('run_post_load_intelligence')
     if not dir_path:
         _track_web_operation('/load/compliance', status='error', ctx=ctx, source='compliance')

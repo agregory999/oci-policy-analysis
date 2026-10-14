@@ -1,8 +1,8 @@
 # Generated from Policy.g4 by ANTLR 4.13.2
-import sys
-
+# encoding: utf-8
 from antlr4 import *
-
+from io import StringIO
+import sys
 if sys.version_info[1] > 5:
     from typing import TextIO
 else:
@@ -89,10 +89,10 @@ def serializedATN():
         174,1,0,0,0,166,167,5,30,0,0,167,168,3,12,6,0,168,169,3,46,23,0,
         169,175,1,0,0,0,170,172,5,30,0,0,171,170,1,0,0,0,171,172,1,0,0,0,
         172,173,1,0,0,0,173,175,3,16,8,0,174,166,1,0,0,0,174,171,1,0,0,0,
-        175,176,1,0,0,0,176,177,5,32,0,0,177,183,3,18,9,0,178,179,5,35,0,
-        0,179,180,3,46,23,0,180,181,5,32,0,0,181,182,3,20,10,0,182,184,1,
-        0,0,0,183,178,1,0,0,0,183,184,1,0,0,0,184,187,1,0,0,0,185,186,5,
-        34,0,0,186,188,3,48,24,0,187,185,1,0,0,0,187,188,1,0,0,0,188,190,
+        175,176,1,0,0,0,176,177,5,32,0,0,177,183,3,20,10,0,178,179,5,35,
+        0,0,179,180,3,46,23,0,180,181,5,32,0,0,181,182,3,20,10,0,182,184,
+        1,0,0,0,183,178,1,0,0,0,183,184,1,0,0,0,184,187,1,0,0,0,185,186,
+        5,34,0,0,186,188,3,48,24,0,187,185,1,0,0,0,187,188,1,0,0,0,188,190,
         1,0,0,0,189,191,5,19,0,0,190,189,1,0,0,0,190,191,1,0,0,0,191,193,
         1,0,0,0,192,194,5,18,0,0,193,192,1,0,0,0,193,194,1,0,0,0,194,11,
         1,0,0,0,195,198,3,14,7,0,196,198,5,44,0,0,197,195,1,0,0,0,197,196,
@@ -415,7 +415,7 @@ class PolicyParser ( Parser ):
                 self.state = 78
                 self._errHandler.sync(self)
                 _la = self._input.LA(1)
-                if not (((_la) & ~0x3f) == 0 and ((1 << _la) & 35184875405312) != 0):
+                if not ((((_la) & ~0x3f) == 0 and ((1 << _la) & 35184875405312) != 0)):
                     break
 
             self.state = 80
@@ -941,8 +941,11 @@ class PolicyParser ( Parser ):
             else:
                 return self.getToken(PolicyParser.IN, i)
 
-        def scope(self):
-            return self.getTypedRuleContext(PolicyParser.ScopeContext,0)
+        def endorseScope(self, i:int=None):
+            if i is None:
+                return self.getTypedRuleContexts(PolicyParser.EndorseScopeContext)
+            else:
+                return self.getTypedRuleContext(PolicyParser.EndorseScopeContext,i)
 
 
         def ADMIT(self):
@@ -971,13 +974,6 @@ class PolicyParser ( Parser ):
 
         def OF(self):
             return self.getToken(PolicyParser.OF, 0)
-
-        def endorseScope(self, i:int=None):
-            if i is None:
-                return self.getTypedRuleContexts(PolicyParser.EndorseScopeContext)
-            else:
-                return self.getTypedRuleContext(PolicyParser.EndorseScopeContext,i)
-
 
         def WITH(self):
             return self.getToken(PolicyParser.WITH, 0)
@@ -1079,7 +1075,7 @@ class PolicyParser ( Parser ):
             self.state = 176
             self.match(PolicyParser.IN)
             self.state = 177
-            self.scope()
+            self.endorseScope()
             self.state = 183
             self._errHandler.sync(self)
             _la = self._input.LA(1)
@@ -1240,7 +1236,7 @@ class PolicyParser ( Parser ):
             self.enterOuterAlt(localctx, 1)
             self.state = 199
             _la = self._input.LA(1)
-            if not(((_la) & ~0x3f) == 0 and ((1 << _la) & 85761906966528) != 0):
+            if not((((_la) & ~0x3f) == 0 and ((1 << _la) & 85761906966528) != 0)):
                 self._errHandler.recoverInline(self)
             else:
                 self._errHandler.reportMatch(self)
@@ -1404,7 +1400,7 @@ class PolicyParser ( Parser ):
 
                 self.state = 216
                 _la = self._input.LA(1)
-                if not(((_la) & ~0x3f) == 0 and ((1 << _la) & 31525197392642048) != 0):
+                if not((((_la) & ~0x3f) == 0 and ((1 << _la) & 31525197392642048) != 0)):
                     self._errHandler.recoverInline(self)
                 else:
                     self._errHandler.reportMatch(self)
@@ -1417,7 +1413,7 @@ class PolicyParser ( Parser ):
                     self.match(PolicyParser.T__3)
                     self.state = 218
                     _la = self._input.LA(1)
-                    if not(((_la) & ~0x3f) == 0 and ((1 << _la) & 31525197392642048) != 0):
+                    if not((((_la) & ~0x3f) == 0 and ((1 << _la) & 31525197392642048) != 0)):
                         self._errHandler.recoverInline(self)
                     else:
                         self._errHandler.reportMatch(self)
@@ -1555,7 +1551,7 @@ class PolicyParser ( Parser ):
 
                 self.state = 236
                 _la = self._input.LA(1)
-                if not(((_la) & ~0x3f) == 0 and ((1 << _la) & 31525197392642048) != 0):
+                if not((((_la) & ~0x3f) == 0 and ((1 << _la) & 31525197392642048) != 0)):
                     self._errHandler.recoverInline(self)
                 else:
                     self._errHandler.reportMatch(self)
@@ -1568,7 +1564,7 @@ class PolicyParser ( Parser ):
                     self.match(PolicyParser.T__3)
                     self.state = 238
                     _la = self._input.LA(1)
-                    if not(((_la) & ~0x3f) == 0 and ((1 << _la) & 31525197392642048) != 0):
+                    if not((((_la) & ~0x3f) == 0 and ((1 << _la) & 31525197392642048) != 0)):
                         self._errHandler.recoverInline(self)
                     else:
                         self._errHandler.reportMatch(self)
@@ -2491,7 +2487,7 @@ class PolicyParser ( Parser ):
             self.enterOuterAlt(localctx, 1)
             self.state = 327
             _la = self._input.LA(1)
-            if not(((_la) & ~0x3f) == 0 and ((1 << _la) & 31525197391593472) != 0):
+            if not((((_la) & ~0x3f) == 0 and ((1 << _la) & 31525197391593472) != 0)):
                 self._errHandler.recoverInline(self)
             else:
                 self._errHandler.reportMatch(self)

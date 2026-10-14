@@ -8,6 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+
 from oci_policy_analysis.application.core.engine.consolidation_engine import ConsolidationEngine
 from oci_policy_analysis.application.core.engine.intelligence_strategies.cleanup_unused_groups import UnusedGroupsCheck
 from oci_policy_analysis.application.core.engine.policy_intelligence_engine import PolicyIntelligenceEngine
@@ -282,7 +283,7 @@ def test_partial_cis_builds_effective_permissions_from_policy_subject_names(tmp_
     grant_rows = report['findings'][0]['grant_rows']
     assert grant_rows
     assert {row['principal_kind'] for row in grant_rows} == {'group', 'dynamic-group'}
-    assert any('Engineering/PlatformOps' in row['principal_key'] for row in grant_rows)
+    assert any('engineering/platformops' in row['principal_key'] for row in grant_rows)
     assert report['item_count'] == len(grant_rows)
 
 

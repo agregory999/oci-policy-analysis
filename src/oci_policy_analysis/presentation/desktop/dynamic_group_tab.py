@@ -275,7 +275,7 @@ class DynamicGroupsTab(BaseUITab):
         def dg_selection_callback(selected_rows: list[dict]) -> None:
             dgs_for_filter = []
             for row in selected_rows:
-                logger.info(f"Selected DG: {row.get('Domain')}, {row.get('DG Name')}")
+                logger.info(f'Selected DG: {row.get("Domain")}, {row.get("DG Name")}')
                 dgs_for_filter.append(
                     {
                         'domain_name': row.get('Domain'),

@@ -600,9 +600,15 @@ Common inputs:
 - `mode`: `simple` for common statement filters, `advanced` for workload principals, parsed condition evidence, and tag-aware searches.
 - `detail_level`: `summary`, `simple`, or `full`.
 - `filters`: action, verb, resource, permission, subject type, policy name, compartment path, effective path, location, comments, condition text, validity, principal selectors, and raw statement text.
-- `limit`: maximum returned rows.
+- `filters.resource`: OCI policy resource type identifiers, not product names. Values are alternatives; for example, `objects`, `buckets`, `object-family`, and `all-resources`.
+- `filters.resource_family`: a catalog family or alias, such as `object storage`. It expands to the family, its member resource types, and `all-resources`.
+- `limit`: maximum match count eligible for detailed rows, capped at 50; it is not pagination. If matches exceed this threshold, the response is a summary without statement rows. A warning reports when a larger value is capped.
+
+An unfiltered search also returns a summary. Inspect `response_type`, `summary_substituted`, `summary_reason`, `total_count`, and `refinement_hint`. Narrow the query by principal, resource, verb, or compartment/effective path and call again to obtain `simple` or `full` rows. Summary breakdowns are bounded to the top 20 values per category; `__other__` counts the remaining statements.
 
 Use structured `principal` filters for human, service, dynamic-group, instance-principal, and resource-principal lookups. Advanced workload-principal results can include `principal_evidence`, `condition_atoms`, `dynamic_group_rule_evidence`, `residual_conditions`, `resolved_compartments`, `match_confidence`, and `match_confidence_reason`.
+
+For “which groups can manage Object Storage,” search allow statements with `filters.action=["allow"]`, `filters.principal={"principal_type":"group"}`, `filters.verb=["manage"]`, and `filters.resource_family="object storage"`. The family expands to `object-family`, `objectstorage-namespaces`, `buckets`, `objects`, and `all-resources`. Results identify matching statements, not guaranteed effective access: review conditions, policy location, compartment scope, and any denies.
 
 Parsed tag filters are also supported: `tag_access_type`, `tag_access_semantics`, `tag_namespace`, `tag_key`, `tag_value`, `tag_operator`, `condition_atom_terms`, `policy_tag`, `policy_defined_tag`, and `policy_freeform_tag`. Advanced/full responses include `tag_conditions` and `tag_context_warnings`.
 
@@ -628,9 +634,13 @@ Example:
 Runs a guided parsed tag-condition search. It accepts the parsed tag filters above plus common policy filters such as `verb`, `resource`, `permission`, `principal_keys`, and `effective_path`. See [Tag-Based Policy Search](tag_based.md) for examples.
 
 ### policy_search_set
-Runs multiple related policy searches and returns a conservative set summary. Use this for install validation, service enablement checks, or any workflow that needs human, service, and workload principal coverage together.
+Prefer this tool when a question contains **two or more related policy checks**: compare groups or services, compare human and workload access, review multiple resource scopes, or check a deployment permission checklist. Use `policy_search` for one lookup. A search set avoids repeated tool calls and keeps each check's results together.
 
-Each search has a `search_id`, label, optional `required` flag, and an embedded `policy_search` query. The result includes per-search counts plus `missing_required_searches`, `missing_or_ambiguous_items`, `likely_ready`, and set-level confidence.
+The schema exposes typed `searches` items with `search_id`, `label`, `required`, and the same `filters`, `mode`, `detail_level` and `limit` fields as `policy_search`. Direct query fields are preferred; legacy `query: {...}` wrappers remain accepted. `product_or_service` is a descriptive label and does not filter policies. Use `detail_level: "summary"` for comparisons; each child search independently uses the detailed-row threshold and summary fallback.
+
+Choose `intent: "access_review"` for comparisons, `"install_validation"` for a permission checklist, or `"workload_analysis"` for workload checks. `evaluation` is optional; its typed fields request confidence and principal-coverage checks. Responses contain `search_results` and `set_summary`, including missing required checks. Matching statements and `likely_ready` are evidence to inspect, **not proof of effective authorization or product installation readiness**; scope, conditions, deny statements, and non-policy requirements still matter.
+
+See [the comparison example](mcp_examples.md#when-to-use-a-policy-search-set). Schema changes require a server build/redeploy (or a published release containing them); refresh/reconnect the MCP client if it cached the previous tool list.
 
 ### policy_history_search
 Runs a single policy search or policy search set against two snapshots and compares the results. Use `left` and `right` snapshot selectors such as `current`, `cache`, or `as_of`, then choose a `diff_mode` such as statement identity comparison.

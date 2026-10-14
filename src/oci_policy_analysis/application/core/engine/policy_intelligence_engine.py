@@ -14,6 +14,7 @@
 ##########################################################################
 
 import time
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from oci_policy_analysis.application.core.common.grouping_helpers import (
@@ -27,7 +28,12 @@ from oci_policy_analysis.application.core.engine.intelligence_strategies.cleanup
 from oci_policy_analysis.application.core.engine.recommendation_actions import catalog_guidance
 from oci_policy_analysis.application.core.models.models import PolicyIntelligence, PolicyOverlap
 from oci_policy_analysis.application.core.parser import collect_tag_conditions, parse_condition_structure
-from oci_policy_analysis.application.core.repo.reference_data_repo import VERB_RISK_WEIGHTS, ReferenceDataRepo
+from oci_policy_analysis.application.core.policy_corpus import (
+    PolicyCorpus,
+    PolicyCorpusBuilder,
+    permissions_report_projection,
+)
+from oci_policy_analysis.application.core.repo.reference_data_repo import VERB_RISK_WEIGHTS
 from oci_policy_analysis.application.core.support.logger import get_logger
 
 if TYPE_CHECKING:
@@ -74,8 +80,8 @@ def _idp_group_mapping_note(repo, declared_domain: object, group_name: object) -
         target_domain = str(mapping.get('target_group_domain') or 'Default')
         if target_name:
             return (
-                f"Resolved group through IdP mapping {mapping.get('identity_provider_name') or LEGACY_IDCS_DOMAIN_NAME}/"
-                f"{group_name} -> {target_domain}/{target_name}"
+                f'Resolved group through IdP mapping {mapping.get("identity_provider_name") or LEGACY_IDCS_DOMAIN_NAME}/'
+                f'{group_name} -> {target_domain}/{target_name}'
             )
     return None
 
@@ -83,13 +89,13 @@ def _idp_group_mapping_note(repo, declared_domain: object, group_name: object) -
 def _idp_mapping_target_note(repo, group_domain: object, group_name: object) -> str | None:
     """Describe explicit IdP sources for a policy subject that names the target group directly."""
     sources = [
-        f"{mapping.get('identity_provider_name') or LEGACY_IDCS_DOMAIN_NAME}/{mapping.get('idp_group_name')}"
+        f'{mapping.get("identity_provider_name") or LEGACY_IDCS_DOMAIN_NAME}/{mapping.get("idp_group_name")}'
         for mapping in getattr(repo, 'idp_group_mappings', []) or []
         if str(mapping.get('target_group_name') or '').casefold() == str(group_name or '').casefold()
         and str(mapping.get('target_group_domain') or 'Default').casefold() == str(group_domain or 'Default').casefold()
     ]
     if sources:
-        return f"Group {group_domain or 'Default'}/{group_name} is an IdP mapping target for: {', '.join(sources)}"
+        return f'Group {group_domain or "Default"}/{group_name} is an IdP mapping target for: {", ".join(sources)}'
     return None
 
 
@@ -109,22 +115,6 @@ def _is_any_principal_statement(statement: dict) -> bool:
     """Return True for any-user/any-group policy subjects."""
 
     return str(statement.get('subject_type') or '').lower() in {'any-user', 'any-group'}
-
-
-def _normalize_subjects(subjects, subject_type: str) -> list[tuple[str | None, str]]:
-    """Return policy subjects as ``(domain, name)`` tuples."""
-
-    if subjects is None:
-        return [('Default', 'UNKNOWN')]
-    if isinstance(subjects, str):
-        return [(None, subjects)]
-    normalized = []
-    for subject in subjects:
-        if isinstance(subject, tuple | list) and len(subject) >= 2:
-            normalized.append((subject[0], subject[1]))
-        else:
-            normalized.append((None, str(subject or subject_type or 'UNKNOWN')))
-    return normalized or [('Default', 'UNKNOWN')]
 
 
 def _condition_atoms(statement: dict) -> list[dict]:
@@ -153,37 +143,12 @@ def _condition_atom_values(statement: dict) -> dict[str, str]:
     return values
 
 
-def _derived_principal_identity(statement: dict, original_subject_key: str, subject_type: str) -> tuple[str, str]:
-    """Return display principal key/kind, deriving resource/workload identities from conditions."""
-
-    if not _is_any_principal_statement(statement):
-        return original_subject_key, subject_type
-    values = _condition_atom_values(statement)
-    principal_type = str(values.get('request.principal.type') or '').strip()
-    if not principal_type:
-        return original_subject_key, subject_type
-    if principal_type.casefold() == 'workload':
-        cluster_id = values.get('request.principal.cluster_id') or 'unknown'
-        namespace = values.get('request.principal.namespace') or 'unknown'
-        service_account = values.get('request.principal.service_account') or 'unknown'
-        return f'oke-workload-identity:{cluster_id}/{namespace}/{service_account}', 'oke-workload-identity'
-    compartment_id = values.get('request.principal.compartment.id') or 'unknown'
-    return f'resource-principal:{principal_type}/{compartment_id}', 'resource-principal'
-
-
 def _path_is_self_or_descendant(candidate_path: str, effective_path: str) -> bool:
     """Return True when candidate path is the effective path or a descendant path."""
 
     candidate = str(candidate_path or '').strip('/').lower()
     effective = str(effective_path or '').strip('/').lower()
     return bool(candidate and effective and (candidate == effective or candidate.startswith(f'{effective}/')))
-
-
-def _path_sort_key(path: str) -> tuple[int, str]:
-    """Sort root before child paths, then alphabetically."""
-
-    clean = str(path or '').strip('/')
-    return (0 if clean.casefold() == 'root' else clean.count('/') + 1, clean.casefold())
 
 
 # OCI Identity Domains system group that cannot be deleted and may have zero members; exclude from cleanup.
@@ -207,6 +172,7 @@ DEFAULT_STRATEGY_RUN_ORDER = [
     'risk_scores',
     'supersession',
     'consolidation_suggestion',
+    'cross_tenancy',
     'invalid_statements',
     'unused_groups',
     'unused_dynamic_groups',
@@ -244,7 +210,12 @@ class PolicyIntelligenceEngine:
         self.policy_repo = policy_repo
         # Explicitly type and instantiate the overlay using the model
         self.overlay: PolicyIntelligence = PolicyIntelligence(
-            overlaps=[], recommendations=[], risk_scores=[], consolidations=[], supersessions=[]
+            overlaps=[],
+            recommendations=[],
+            risk_scores=[],
+            consolidations=[],
+            supersessions=[],
+            cross_tenancy_findings=[],
         )
         self.permissions_report = {}
         self._strategies: dict[str, IntelligenceStrategy] = {}
@@ -302,6 +273,7 @@ class PolicyIntelligenceEngine:
         self,
         enabled_strategy_ids: list[str] | None = None,
         params: dict | None = None,
+        on_stage: Callable[[str], None] | None = None,
     ) -> None:
         """
         Run all enabled intelligence strategies in order and merge results into overlay.
@@ -319,12 +291,21 @@ class PolicyIntelligenceEngine:
         repo = self.policy_repo
         overlay = self.overlay
 
+        def prerequisite(message: str, operation: Callable[[], object]) -> None:
+            if on_stage:
+                on_stage(message)
+            started = time.perf_counter()
+            operation()
+            logger.info(
+                'Policy intelligence prerequisite %s completed in %.2fs', message, time.perf_counter() - started
+            )
+
         # Prerequisites used by one or more strategies
         if not getattr(self, 'compartments_by_path', None) and repo.compartments:
-            self.build_compartment_index()
-        self.resolve_cross_tenancy_aliases()
-        self.find_invalid_statements()
-        self.run_dg_in_use_analysis()
+            prerequisite('Indexing compartments', self.build_compartment_index)
+        prerequisite('Resolving cross-tenancy aliases', self.resolve_cross_tenancy_aliases)
+        prerequisite('Validating policy statements', self.find_invalid_statements)
+        prerequisite('Checking dynamic-group usage', self.run_dg_in_use_analysis)
 
         if not self._strategies:
             # Legacy path: call existing methods in order
@@ -341,6 +322,20 @@ class PolicyIntelligenceEngine:
             return
 
         run_ids = set(enabled_strategy_ids) if enabled_strategy_ids else set(self._strategies)
+        available_capabilities = getattr(repo, 'compliance_capabilities', {}) or {}
+        selected_ids = [
+            strategy_id
+            for strategy_id in self._run_order
+            if strategy_id in self._strategies
+            and strategy_id in run_ids
+            and (
+                not getattr(repo, 'loaded_from_compliance_output', False)
+                or all(
+                    available_capabilities.get(capability)
+                    for capability in getattr(self._strategies[strategy_id], 'required_capabilities', frozenset())
+                )
+            )
+        ]
         logger.info(
             'Policy intelligence run_all starting: enabled_strategy_ids=%s',
             sorted(run_ids),
@@ -354,7 +349,6 @@ class PolicyIntelligenceEngine:
                 continue
             strategy = self._strategies[strategy_id]
             required_capabilities = set(getattr(strategy, 'required_capabilities', frozenset()))
-            available_capabilities = getattr(repo, 'compliance_capabilities', {}) or {}
             missing_capabilities = sorted(
                 capability for capability in required_capabilities if not available_capabilities.get(capability)
             )
@@ -370,15 +364,24 @@ class PolicyIntelligenceEngine:
                 strategy.strategy_id,
                 strategy.display_name,
             )
+            if on_stage:
+                on_stage(f'Check {selected_ids.index(strategy_id) + 1}/{len(selected_ids)}: {strategy.display_name}')
+            strategy_start = time.perf_counter()
             try:
                 strategy.run(repo, overlay, params)  # pyright: ignore[reportArgumentType]
                 logger.info(
-                    'Policy intelligence strategy completed: %s (%s)',
+                    'Policy intelligence strategy completed: %s (%s) in %.2fs',
                     strategy.strategy_id,
                     strategy.display_name,
+                    time.perf_counter() - strategy_start,
                 )
             except Exception as e:
-                logger.warning('Intelligence strategy %s failed: %s', strategy_id, e)
+                logger.warning(
+                    'Intelligence strategy %s failed after %.2fs: %s',
+                    strategy_id,
+                    time.perf_counter() - strategy_start,
+                    e,
+                )
 
     def resolve_cross_tenancy_aliases(self) -> None:
         """Resolve referenced cross-tenancy aliases to define OCIDs.
@@ -390,12 +393,14 @@ class PolicyIntelligenceEngine:
         defined_aliases = list(getattr(repo, 'defined_aliases', []) or [])
         ct_statements = list(getattr(repo, 'cross_tenancy_statements', []) or [])
 
-        alias_map: dict[str, str] = {}
+        alias_definitions: dict[str, set[str]] = {}
         for define in defined_aliases:
+            if str(define.get('defined_type') or '').casefold() != 'tenancy':
+                continue
             alias_name = str(define.get('defined_name') or '').strip()
             alias_ocid = str(define.get('ocid_alias') or '').strip()
             if alias_name:
-                alias_map[alias_name.casefold()] = alias_ocid
+                alias_definitions.setdefault(alias_name.casefold(), set()).add(alias_ocid)
 
         for st in ct_statements:
             aliases = st.get('tenancy_aliases')
@@ -407,9 +412,23 @@ class PolicyIntelligenceEngine:
             resolved_aliases: dict[str, dict[str, str | bool]] = {}
             unresolved: list[str] = []
             for alias in aliases:
-                ocid = alias_map.get(alias.casefold(), '')
-                resolved = bool(ocid)
-                resolved_aliases[alias] = {'alias': alias, 'ocid': ocid, 'resolved': resolved}
+                special = alias.casefold() == 'any-tenancy'
+                ocids = alias_definitions.get(alias.casefold(), set()) - {''}
+                ambiguous = len(ocids) > 1
+                ocid = next(iter(ocids)) if len(ocids) == 1 else ''
+                resolved = special or bool(ocid)
+                resolved_aliases[alias] = {
+                    'alias': alias,
+                    'ocid': ocid,
+                    'resolved': resolved,
+                    'status': 'special'
+                    if special
+                    else 'ambiguous'
+                    if ambiguous
+                    else 'resolved'
+                    if ocid
+                    else 'unresolved',
+                }
                 if not resolved:
                     unresolved.append(alias)
 
@@ -425,7 +444,7 @@ class PolicyIntelligenceEngine:
                         reasons.append(reason)
                 st['invalid_reasons'] = reasons
 
-    def build_permissions_report(self):  # noqa: C901
+    def build_permissions_report(self, corpus: PolicyCorpus | None = None):  # noqa: C901
         """
         Build a detailed nested report of effective permissions for all policy statements.
 
@@ -436,179 +455,25 @@ class PolicyIntelligenceEngine:
             dict: A structure with keys "report", "resource_map", "perm_conditionals", and "perm_statements" containing
             all effective allow/deny permissions and metadata, or empty dicts if no data is present.
         """
-        logger.info('Building permissions report data (centralized)')
-        permission_reference_repo = ReferenceDataRepo()
-        report = {}
-        resource_map = {}
-        perm_conditionals = {}  # (path,subject,perm) -> True/False
-        perm_statements = {}  # (path,subject,perm) -> statement_text
-        direct_grant_rows = []
-        skipped_count = 0
-        allow_count = 0
-        deny_count = 0
-        statements = self.policy_repo.regular_statements
-        logger.info('Permissions report input statements: %d', len(statements or []))
-        for idx, stmt in enumerate(statements or []):
-            try:
-                effective_path = stmt.get('effective_path')
-                if not effective_path or effective_path is None:
-                    effective_path = 'UNKNOWN'
-                action = stmt.get('action', 'allow').lower()
-                subjects = _normalize_subjects(stmt.get('subject', []), str(stmt.get('subject_type') or 'unknown'))
-                subject_type = stmt.get('subject_type', 'unknown')
-                permissions = stmt.get('permission', [])
-                if isinstance(permissions, str):
-                    permissions = [permissions]
-                resource_str = stmt.get('resource')
-                statement_text = stmt.get('statement_text', '')
-                is_conditional = bool(stmt.get('conditions'))
-                if not permissions:
-                    resource = stmt.get('resource', '')
-                    verb = stmt.get('verb', '')
-                    if resource and verb:
-                        permissions = permission_reference_repo.get_permissions(
-                            entity=resource, verb=verb, action=action
-                        )
-                        if not permissions:
-                            permissions = [f'{verb.upper()}_{resource.upper()}']
-                    else:
-                        permissions = ['UNKNOWN_PERMISSION']
-                for subject_domain, subject_name in subjects:
-                    # Use shared helper to ensure principal_key / subject_key
-                    # format is consistent with simulation and UI surfaces.
-                    original_subject_key = self.calculate_principal_key(subject_type, subject_domain, subject_name)
-                    subject_key, principal_kind = _derived_principal_identity(
-                        stmt, original_subject_key, str(subject_type or 'unknown')
-                    )
-                    if effective_path not in report:
-                        report[effective_path] = {}
-                    if subject_key not in report[effective_path]:
-                        report[effective_path][subject_key] = {
-                            'allow': set(),
-                            'deny': set(),
-                            'subject_type': principal_kind,
-                            'original_subject_keys': set(),
-                        }
-                    report[effective_path][subject_key]['original_subject_keys'].add(original_subject_key)
-                    if action == 'deny':
-                        report[effective_path][subject_key]['deny'].update(permissions)
-                        deny_count += len(permissions)
-                    else:
-                        report[effective_path][subject_key]['allow'].update(permissions)
-                        allow_count += len(permissions)
-                    for perm in permissions:
-                        perm_conditionals[(effective_path, subject_key, perm)] = is_conditional
-                        perm_statements[(effective_path, subject_key, perm)] = statement_text
-                        direct_grant_rows.append(
-                            {
-                                'effective_path': effective_path,
-                                'grant_path': effective_path,
-                                'principal_key': subject_key,
-                                'original_subject_key': original_subject_key,
-                                'principal_kind': principal_kind,
-                                'action': 'deny' if action == 'deny' else 'allow',
-                                'resource': resource_str or '',
-                                'permission': perm,
-                                'conditional': is_conditional,
-                                'inherited': False,
-                                'inherited_from': '',
-                                'statement_text': statement_text,
-                                'policy_name': stmt.get('policy_name') or '',
-                                'statement_id': stmt.get('internal_id') or stmt.get('id') or '',
-                            }
-                        )
-                    rsrc = resource_str if resource_str else ('Permissions (select row)' if permissions else '')
-                    resource_map[(effective_path, subject_key)] = rsrc
-            except Exception as exc:
-                skipped_count += 1
-                logger.debug(
-                    'Skipping statement while building permissions report: index=%s policy=%s error=%s statement=%r',
-                    idx,
-                    stmt.get('policy_name') if isinstance(stmt, dict) else '',
-                    exc,
-                    stmt,
-                    exc_info=True,
-                )
-        for path in report:
-            for subject in report[path]:
-                report[path][subject]['allow'] = sorted(
-                    [perm for perm in list(report[path][subject]['allow']) if perm is not None]
-                )
-                report[path][subject]['deny'] = sorted(
-                    [perm for perm in list(report[path][subject]['deny']) if perm is not None]
-                )
-                report[path][subject]['original_subject_keys'] = sorted(report[path][subject]['original_subject_keys'])
-        if skipped_count:
-            logger.warning(
-                'Permissions report skipped %d malformed statement(s); enable DEBUG for details', skipped_count
-            )
-        grant_rows = self._expand_effective_permission_rows(direct_grant_rows)
-        principal_count = sum(len(subjects) for subjects in report.values())
-        logger.info(
-            'Permissions report built: paths=%d principals=%d direct_allow_grants=%d direct_deny_grants=%d effective_rows=%d skipped=%d',
-            len(report),
-            principal_count,
-            allow_count,
-            deny_count,
-            len(grant_rows),
-            skipped_count,
-        )
-        # Store both the report and auxiliary maps for selection/detail lookups:
-        self.permissions_report = {
-            'report': report,
-            'resource_map': resource_map,
-            'perm_conditionals': perm_conditionals,
-            'perm_statements': perm_statements,
-            'grant_rows': grant_rows,
-            'summary': {
-                'statement_count': len(statements or []),
-                'path_count': len(report),
-                'principal_count': principal_count,
-                'allow_grant_count': allow_count,
-                'deny_grant_count': deny_count,
-                'direct_grant_row_count': len(direct_grant_rows),
-                'effective_grant_row_count': len(grant_rows),
-                'skipped_statement_count': skipped_count,
-            },
-        }
+        logger.info('Building permissions report projection from policy corpus')
+        if corpus is None:
+            # Preserve the public engine entrypoint for callers that have not
+            # run the application post-load pipeline. The resulting report is
+            # still a corpus projection, not a second interpretation path.
+            # Lightweight callers (including integrations using a partial
+            # repository object) may already supply an effective path without
+            # the full compartment index. Rebuilding it in that case replaces
+            # good data with a diagnostic string, so enrich only where it is
+            # needed and possible.
+            statements = getattr(self.policy_repo, 'regular_statements', [])
+            paths_missing = any(not str(statement.get('effective_path') or '').strip() for statement in statements)
+            if paths_missing and hasattr(self.policy_repo, 'compartments'):
+                self.calculate_all_effective_compartments()
+                self.find_invalid_statements()
+            corpus = PolicyCorpusBuilder().build(self.policy_repo)
+        self.policy_corpus = corpus
+        self.permissions_report = permissions_report_projection(corpus)
         return self.permissions_report
-
-    def _expand_effective_permission_rows(self, direct_rows: list[dict]) -> list[dict]:
-        """Expand direct grants to each descendant compartment where they are effective."""
-
-        if not direct_rows:
-            return []
-        known_paths = set()
-        for row in direct_rows:
-            grant_path = str(row.get('grant_path') or row.get('effective_path') or '').strip()
-            if grant_path:
-                known_paths.add(grant_path)
-        for path in getattr(self, 'compartments_by_path', {}) or {}:
-            if path:
-                known_paths.add(str(path))
-        for comp in getattr(self.policy_repo, 'compartments', []) or []:
-            path = comp.get('hierarchy_path') if isinstance(comp, dict) else None
-            if path:
-                known_paths.add(str(path).lower())
-
-        expanded_rows = []
-        for row in direct_rows:
-            grant_path = str(row.get('grant_path') or row.get('effective_path') or '').strip()
-            if not grant_path or grant_path == 'UNKNOWN':
-                expanded_rows.append(dict(row))
-                continue
-            descendant_paths = [path for path in known_paths if _path_is_self_or_descendant(path, grant_path)] or [
-                grant_path
-            ]
-            for path in sorted(descendant_paths, key=_path_sort_key):
-                expanded = dict(row)
-                expanded['effective_path'] = path
-                expanded['grant_path'] = grant_path
-                inherited = path.strip('/').casefold() != grant_path.strip('/').casefold()
-                expanded['inherited'] = inherited
-                expanded['inherited_from'] = grant_path if inherited else ''
-                expanded_rows.append(expanded)
-        return expanded_rows
 
     def run_dg_in_use_analysis(self):  # noqa: C901
         """
@@ -1545,7 +1410,7 @@ class PolicyIntelligenceEngine:
                     'Recommendation': 'Review broad all-resources policy statements',
                     'Priority': 'High',
                     'Category': 'Access Scope',
-                    'Notes': f"{len(cleanup['statements_too_open'])} broad all-resources policy statement(s) detected. See cleanup/fix tab for details.",
+                    'Notes': f'{len(cleanup["statements_too_open"])} broad all-resources policy statement(s) detected. See cleanup/fix tab for details.',
                     **catalog_guidance('statements_too_open'),
                 }
             )

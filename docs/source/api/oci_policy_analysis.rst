@@ -14,6 +14,14 @@ Command-line interface
 .. automodule:: oci_policy_analysis.cli
    :members: main
 
+Web application
+---------------
+
+The ASGI application is available as ``oci_policy_analysis.presentation.web.main.app``.
+
+.. automodule:: oci_policy_analysis.presentation.web.main
+   :members: main
+
 Standalone MCP server
 ---------------------
 

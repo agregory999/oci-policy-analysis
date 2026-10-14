@@ -1,0 +1,14 @@
+{
+  "resources": {
+    "audit-events": {
+      "mapping_status": "known_no_permissions",
+      "verbs": {}
+    },
+    "cloud-shell": {
+      "mapping_status": "unresearched",
+      "verbs": {
+        "use": ["UNKNOWN_PERMISSION_CLOUD_SHELL"]
+      }
+    }
+  }
+}

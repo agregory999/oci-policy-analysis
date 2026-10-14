@@ -22,12 +22,17 @@
 from datetime import datetime
 from typing import Any
 
+from oci_policy_analysis.application.core.common.policy_helpers import (
+    calculate_principal_key,
+    canonicalize_principal_key,
+)
 from oci_policy_analysis.application.core.engine.policy_intelligence_engine import PolicyIntelligenceEngine
 from oci_policy_analysis.application.core.parser import (
     PolicyStatementNormalizer,
     evaluate_condition_clause,
     extract_variable_names,
 )
+from oci_policy_analysis.application.core.policy_corpus import PolicyCorpus, PolicyCorpusBuilder
 from oci_policy_analysis.application.core.support.logger import get_logger
 
 logger = get_logger(component='core.engine.policy_simulation_engine')
@@ -111,15 +116,12 @@ class PolicySimulationEngine:
             str: Canonical key (e.g., "user:Default/anita", "any-user:None/any-user")
         """
         if principal_type in ('any-user', 'any-group', 'service', 'resource'):
-            key = f'{principal_type}:None/{principal or principal_type}'
-            return key
+            return calculate_principal_key(principal_type, None, principal or principal_type)
         if isinstance(principal, list | tuple) and len(principal) == 2:
             domain, name = principal
-            if domain is None or (isinstance(domain, str) and domain.lower() == 'default'):
-                domain = 'Default'
-            return f'{principal_type}:{domain}/{name}'
-        elif isinstance(principal, str):
-            return f'{principal_type}:Default/{principal}'
+            return calculate_principal_key(principal_type, domain, name)
+        if isinstance(principal, str):
+            return calculate_principal_key(principal_type, None, principal)
         raise ValueError(f'principal_type/principal combination not recognized: {principal_type}, {principal}')
 
     def get_statements_for_context(self, compartment_path, principal_type, principal=None):
@@ -132,7 +134,7 @@ class PolicySimulationEngine:
             principal (optional): None, string, or (domain, name)
 
         Returns:
-            (principal_key, statements): Tuple with normalized principal key and list of matching statements.
+            tuple[str, list[dict]]: Normalized principal key and matching statement records.
 
         See docs/source/simulation_engine_usage_examples.py for usage.
         """
@@ -151,7 +153,7 @@ class PolicySimulationEngine:
             principal (optional): None, string, or (domain, name)
 
         Returns:
-            (principal_key, required_fields): Tuple with normalized principal key and set of all required where fields.
+            tuple[str, set[str]]: Normalized principal key and required condition-variable names.
 
         See docs/source/simulation_engine_usage_examples.py for usage.
         """
@@ -176,7 +178,7 @@ class PolicySimulationEngine:
         """
         return extract_variable_names(str(cond_str or ''))
 
-    def __init__(self, policy_repo=None, ref_data_repo=None):
+    def __init__(self, policy_repo=None, ref_data_repo=None, corpus: PolicyCorpus | None = None):
         """
         Initialize a PolicySimulationEngine for OCI policy simulation.
 
@@ -198,7 +200,7 @@ class PolicySimulationEngine:
         self.policy_repo = policy_repo
         if policy_repo:
             logger.info(
-                f"policy_repo type: {type(policy_repo)}; hasattr regular_statements: {hasattr(policy_repo, 'regular_statements')}"
+                f'policy_repo type: {type(policy_repo)}; hasattr regular_statements: {hasattr(policy_repo, "regular_statements")}'
             )
             if hasattr(policy_repo, 'regular_statements'):
                 logger.info(
@@ -212,6 +214,8 @@ class PolicySimulationEngine:
             f'self.policy_statements initialized: type={type(self.policy_statements)}, len={len(self.policy_statements)}'
         )
         self.ref_data_repo = ref_data_repo
+        self.policy_corpus = corpus
+        self._prospective_corpus: PolicyCorpus | None = None
         # Prospective (what-if) policy statements, managed via UI/settings and treated
         # identically to regular statements during simulation. Stored as a list of
         # normalized statement dicts with at least: internal_id, compartment_path,
@@ -240,6 +244,24 @@ class PolicySimulationEngine:
         # Shallow copy is enough for UI consumption; engine maintains the
         # authoritative list.
         return list(self._prospective_statements)
+
+    def set_corpus(self, corpus: PolicyCorpus | None) -> None:
+        """Attach the compiled base corpus and invalidate its prospective overlay."""
+        self.policy_corpus = corpus
+        self._prospective_corpus = None
+
+    def get_corpus(self, *, include_prospective: bool = False) -> PolicyCorpus | None:
+        """Return the compiled corpus, optionally with a cached prospective overlay."""
+        if self.policy_corpus is None and self.policy_repo is not None:
+            self.policy_corpus = PolicyCorpusBuilder().build(self.policy_repo)
+        if not include_prospective or not self._prospective_statements or self.policy_repo is None:
+            return self.policy_corpus
+        if self._prospective_corpus is None:
+            self._prospective_corpus = PolicyCorpusBuilder().build(
+                self.policy_repo,
+                additional_statements=self._prospective_statements,
+            )
+        return self._prospective_corpus
 
     def _ensure_prospective_internal_ids(self) -> None:
         """Ensure each prospective statement has a unique internal_id.
@@ -302,7 +324,7 @@ class PolicySimulationEngine:
                 if desc:
                     st['policy_name'] = str(desc)
                 else:
-                    st['policy_name'] = f"Prospective @{st['compartment_path']}"
+                    st['policy_name'] = f'Prospective @{st["compartment_path"]}'
 
             # Run validation so we can track valid/invalid in the prospective set
             try:
@@ -361,6 +383,7 @@ class PolicySimulationEngine:
         self._prospective_statements = norm
         # Assign safe ids after replacing list
         self._ensure_prospective_internal_ids()
+        self._prospective_corpus = None
         # Log the fully-parsed/normalized prospective statements for debug
         # visibility. This is intentionally at INFO so the Simulation tab
         # debugger can see the exact verb/resource/permissions/effective_path
@@ -481,6 +504,12 @@ class PolicySimulationEngine:
             perm_set = set()
             statement_trace = []
             permissions_denied = []
+            simulation_corpus = self.get_corpus(include_prospective=True)
+            corpus_permissions: dict[tuple[str, str], set[str]] = {}
+            if simulation_corpus is not None:
+                for fact in simulation_corpus.facts:
+                    key = (fact.provenance.statement_id, fact.effect)
+                    corpus_permissions.setdefault(key, set()).add(fact.permission)
 
             allow_statements = []
             deny_statements = []
@@ -488,7 +517,7 @@ class PolicySimulationEngine:
                 f'(IN simulate_and_record: pre-mapping) self.policy_statements type: {type(self.policy_statements)} len: {len(self.policy_statements)}'
             )
             for i, s in enumerate(self.policy_statements[:7]):
-                logger.info(f"  self.policy_statements[{i}]: internal_id={s.get('internal_id')}")
+                logger.info(f'  self.policy_statements[{i}]: internal_id={s.get("internal_id")}')
             # Only print stmts diagnostics if we actually derived them above
             if checked_statement_ids is not None and stmts is not None:
                 logger.info(
@@ -496,7 +525,7 @@ class PolicySimulationEngine:
                 )
                 for i, s in enumerate(stmts[:7]):
                     logger.info(
-                        f"  stmts[{i}]: internal_id={s.get('internal_id')} statement_text={s.get('statement_text')}"
+                        f'  stmts[{i}]: internal_id={s.get("internal_id")} statement_text={s.get("statement_text")}'
                     )
             # Build the statement map from the **current** policy repository plus
             # any prospective (what-if) statements, rather than relying solely on
@@ -544,9 +573,9 @@ class PolicySimulationEngine:
                     continue
                 # Print some details about the statement for debugging
                 logger.info(
-                    f"Processing statement ID {internal_id}: action={stmt.get('action')}, "
-                    f"resource={stmt.get('resource')}, verb={stmt.get('verb')}, "
-                    f"statement_text={stmt.get('statement_text')}"
+                    f'Processing statement ID {internal_id}: action={stmt.get("action")}, '
+                    f'resource={stmt.get("resource")}, verb={stmt.get("verb")}, '
+                    f'statement_text={stmt.get("statement_text")}'
                 )
                 if stmt.get('action', 'allow').lower() == 'deny':
                     deny_statements.append((internal_id, stmt))
@@ -566,32 +595,34 @@ class PolicySimulationEngine:
                     'action': 'allow',
                 }
                 # Log the statement evaluation
-                logger.info(f"Evaluating ALLOW stmt: {stmt.get('statement_text', '')}")
+                logger.info(f'Evaluating ALLOW stmt: {stmt.get("statement_text", "")}')
                 passed = True
                 fail_reason = ''
                 if stmt.get('conditions'):
-                    logger.info(f"Evaluating conditions for allow stmt: {stmt.get('statement_text', '')}")
+                    logger.info(f'Evaluating conditions for allow stmt: {stmt.get("statement_text", "")}')
                     passed, fail_reason = self._evaluate_conditions(stmt.get('conditions'), where_context)
                     if not passed:
                         stmt_entry['passed'] = False
                         stmt_entry['fail_reason'] = fail_reason or 'Condition(s) did not pass'
                         statement_trace.append(stmt_entry)
                         continue
-                direct_perms = stmt.get('permission', [])
-                # Log the permissions we are about to add from this statement before we do it
+                if simulation_corpus is not None:
+                    resource_perms = sorted(corpus_permissions.get((str(_internal_id), 'allow'), set()))
+                    direct_perms = []
+                else:
+                    direct_perms = stmt.get('permission', [])
+                    resource_perms = (
+                        self.ref_data_repo.get_permissions(stmt.get('resource'), stmt.get('verb'), action='allow')
+                        if self.ref_data_repo
+                        else []
+                    )
                 logger.info(f'Direct permissions for ALLOW stmt: {direct_perms}')
-
-                resource_perms = (
-                    self.ref_data_repo.get_permissions(stmt.get('resource'), stmt.get('verb'), action='allow')
-                    if self.ref_data_repo
-                    else []
-                )
                 # Log the permissions we got from the reference data repo for this statement before we add them
                 logger.info(f'Resource permissions for ALLOW stmt: {resource_perms}')
                 all_perms = list(direct_perms or []) + list(resource_perms or [])
                 if all_perms:
                     logger.info(
-                        f"Adding permissions from ALLOW: {all_perms} for statement: {stmt.get('statement_text', '')}"
+                        f'Adding permissions from ALLOW: {all_perms} for statement: {stmt.get("statement_text", "")}'
                     )
                 for p in all_perms:
                     perm_set.add(p)
@@ -614,7 +645,7 @@ class PolicySimulationEngine:
                 passed = True
                 fail_reason = ''
                 if stmt.get('conditions'):
-                    logger.debug(f"Evaluating conditions for DENY stmt: {stmt.get('statement_text', '')}")
+                    logger.debug(f'Evaluating conditions for DENY stmt: {stmt.get("statement_text", "")}')
                     passed, fail_reason = self._evaluate_conditions(stmt.get('conditions'), where_context)
                     if not passed:
                         stmt_entry['passed'] = False
@@ -622,12 +653,16 @@ class PolicySimulationEngine:
                         statement_trace.append(stmt_entry)
                         continue
 
-                direct_perms = stmt.get('permission', [])
-                resource_perms = (
-                    self.ref_data_repo.get_permissions(stmt.get('resource'), stmt.get('verb'), action='deny')
-                    if self.ref_data_repo
-                    else []
-                )
+                if simulation_corpus is not None:
+                    resource_perms = sorted(corpus_permissions.get((str(_internal_id), 'deny'), set()))
+                    direct_perms = []
+                else:
+                    direct_perms = stmt.get('permission', [])
+                    resource_perms = (
+                        self.ref_data_repo.get_permissions(stmt.get('resource'), stmt.get('verb'), action='deny')
+                        if self.ref_data_repo
+                        else []
+                    )
 
                 # Special-case: a global deny for "inspect all-resources" should
                 # revoke *everything* that has been granted so far in this
@@ -732,7 +767,7 @@ class PolicySimulationEngine:
             history_entry_payload['simulation_trace'] = trace_obj
 
             entry = {
-                'name': trace_name or f"Simulation {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                'name': trace_name or f'Simulation {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}',
                 'timestamp': datetime.now().isoformat(timespec='seconds'),
                 'scenario_internal_id': scenario_internal_id or '',
                 'scenario_name': scenario_name or '',
@@ -862,7 +897,7 @@ class PolicySimulationEngine:
 
         # Use principal_key as first-class filter to avoid fuzzy subject collisions
         # (e.g. service "database" should not match group names containing "database").
-        return_filter = {'principal_key': [f'{ptype}:{domain if domain is not None else "None"}/{name}']}
+        return_filter = {'principal_key': [calculate_principal_key(ptype, domain, name)]}
         if ptype == 'user' and self.policy_repo:
             # A user's grants are attached to their groups. Resolve memberships
             # before the exact filter, preserving domain and group OCID identity.
@@ -905,10 +940,10 @@ class PolicySimulationEngine:
             keys: set[str] = set()
             for pkey in stmt.get('principal_keys', []) or []:
                 if isinstance(pkey, str) and pkey.strip():
-                    keys.add(pkey.strip())
+                    keys.add(canonicalize_principal_key(pkey))
             key = stmt.get('principal_key')
             if isinstance(key, str) and key.strip():
-                keys.add(key.strip())
+                keys.add(canonicalize_principal_key(key))
 
             principals = stmt.get('principals')
             if isinstance(principals, list):
@@ -917,13 +952,13 @@ class PolicySimulationEngine:
                         continue
                     pkey = principal.get('principal_key')
                     if isinstance(pkey, str) and pkey.strip():
-                        keys.add(pkey.strip())
+                        keys.add(canonicalize_principal_key(pkey))
 
             normalized = stmt.get('normalized')
             if isinstance(normalized, dict):
                 nkey = normalized.get('principal_key')
                 if isinstance(nkey, str) and nkey.strip():
-                    keys.add(nkey.strip())
+                    keys.add(canonicalize_principal_key(nkey))
                 nprincipals = normalized.get('principals')
                 if isinstance(nprincipals, list):
                     for principal in nprincipals:
@@ -931,7 +966,7 @@ class PolicySimulationEngine:
                             continue
                         pkey = principal.get('principal_key')
                         if isinstance(pkey, str) and pkey.strip():
-                            keys.add(pkey.strip())
+                            keys.add(canonicalize_principal_key(pkey))
 
             return keys
 
@@ -969,7 +1004,7 @@ class PolicySimulationEngine:
             def _prospective_matches_principal(pst: dict, principal_key: str) -> bool:  # noqa: C901
                 stored_keys = _statement_principal_keys(pst)
                 if stored_keys:
-                    return principal_key in stored_keys
+                    return canonicalize_principal_key(principal_key) in stored_keys
 
                 # Legacy path: fall back to subject_type/subject matching
                 ptype = (pst.get('subject_type') or pst.get('normalized', {}).get('subject_type') or '').lower()
@@ -1127,18 +1162,18 @@ class PolicySimulationEngine:
         fields = set()
         for stmt in statements:
             logger.info(
-                f"Processing statement for required fields: {stmt.get('statement_text', '')}. Conditions: {stmt.get('conditions')}"
+                f'Processing statement for required fields: {stmt.get("statement_text", "")}. Conditions: {stmt.get("conditions")}'
             )
             cond = stmt.get('conditions') or None
             if cond:
                 logger.info(
-                    f"Extracting fields from condition dict: {cond}.  Statement: {stmt.get('statement_text', '')}"
+                    f'Extracting fields from condition dict: {cond}.  Statement: {stmt.get("statement_text", "")}'
                 )
                 # Placeholder: Here we extract field names used in where clause
                 # Use the canonical extraction path for all conditions
                 self.extract_variable_names(str(cond))
                 fields.update(self.extract_variable_names(str(cond)))
-                logger.info(f"Extracted fields from statement: {stmt.get('statement_text', '')} -> {fields}")
+                logger.info(f'Extracted fields from statement: {stmt.get("statement_text", "")} -> {fields}')
         return fields
 
     def generate_where_clauses_for_statements(self, statements: list[dict]) -> dict:

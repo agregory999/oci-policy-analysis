@@ -1,14 +1,15 @@
 from typing import cast
 
 import pytest
+
 from oci_policy_analysis.application.core.common.policy_helpers import calculate_principal_key
+from oci_policy_analysis.application.core.models.models import RegularPolicyStatement
 from oci_policy_analysis.application.core.parser.policy_statement_normalizer import (
     PolicyStatementNormalizer,
     PolicyStatementParser,
 )
 from oci_policy_analysis.application.core.repo.policy_analysis_repository import PolicyAnalysisRepository
-from oci_policy_analysis.common.helpers import for_display_policy
-from oci_policy_analysis.common.models import RegularPolicyStatement
+from oci_policy_analysis.application.core.support.helpers import for_display_policy
 
 
 @pytest.fixture
@@ -133,7 +134,7 @@ def test_regular_normalization_emits_principal_keys_for_named_group_subjects():
     assert normalized.get('parsed') is True
     keys = normalized.get('principal_keys') or []
     assert isinstance(keys, list)
-    assert 'group:Default/Admins' in keys
+    assert 'group:default/admins' in keys
 
 
 @pytest.mark.parametrize(
@@ -244,6 +245,42 @@ def test_endorse_associate_compartment_of_tenancy_parses_and_normalizes():
     assert 'request.operation' in (normalized.get('where_clause') or '')
 
 
+def test_admit_associate_foreign_tenancy_endpoint_parses_and_normalizes():
+    """Admit association endpoints may explicitly name the foreign tenancy."""
+    normalizer = PolicyStatementNormalizer()
+    base = {
+        'policy_name': 'PeeringAcceptor',
+        'policy_ocid': 'ocid1.policy.oc1..example',
+        'compartment_ocid': 'ocid1.compartment.oc1..example',
+        'compartment_path': 'ROOT',
+        'statement_text': '',
+        'creation_time': '2026-01-01T00:00:00Z',
+        'internal_id': 'lpg-admit',
+        'parsed': False,
+    }
+    statement = (
+        'admit group requestorGrp of tenancy Requestor to associate '
+        'local-peering-gateways in tenancy Requestor with '
+        'local-peering-gateways in compartment acceptorComp'
+    )
+
+    normalized = normalizer.normalize(statement, 'admit', base)
+
+    assert normalized.get('parsed') is True, normalized
+    assert normalized.get('valid') is True
+    assert normalized.get('admitted_tenancy') == 'Requestor'
+    assert normalized.get('admit_action') == 'associate'
+    assert normalized.get('admit_resource') == 'local-peering-gateways'
+    assert normalized.get('admit_location_type') == 'tenancy'
+    assert normalized.get('admit_location') == 'Requestor'
+    assert normalized.get('admit_associate_with_resource') == 'local-peering-gateways'
+    assert normalized.get('admit_associate_with_tenancy') == 'compartment acceptorComp'
+    assert normalized.get('association') == [
+        {'resource': 'local-peering-gateways', 'scope': 'tenancy Requestor'},
+        {'resource': 'local-peering-gateways', 'scope': 'compartment acceptorComp'},
+    ]
+
+
 @pytest.mark.parametrize(
     'stmt',
     [
@@ -277,14 +314,14 @@ def test_policy_statement_compartment_id_location(parser, statement, expected_lo
     assert len(results) > 0
     statement_data = results[0]
     # Try common field names: location_type/location/resource_scope/etc.
-    assert (
-        'location_type' in statement_data or 'resource_scope' in statement_data
-    ), f'Parsed statement missing location_type/resource_scope field: {statement_data!r}'
+    assert 'location_type' in statement_data or 'resource_scope' in statement_data, (
+        f'Parsed statement missing location_type/resource_scope field: {statement_data!r}'
+    )
     # Accept different naming for the field, try both
     location_type = statement_data.get('location_type') or statement_data.get('resource_scope')
-    assert (
-        location_type and expected_location_type in location_type
-    ), f"Expected location_type/resource_scope '{expected_location_type}', got '{location_type}'"
+    assert location_type and expected_location_type in location_type, (
+        f"Expected location_type/resource_scope '{expected_location_type}', got '{location_type}'"
+    )
     # Now check the specific location/ocid is present in the parsed fields somewhere (location or similar field)
     found_location = (
         statement_data.get('location')
@@ -292,9 +329,9 @@ def test_policy_statement_compartment_id_location(parser, statement, expected_lo
         or statement_data.get('resource_scope_id')
         or ''
     )
-    assert expected_location in str(
-        found_location
-    ), f"Expected compartment OCID '{expected_location}' in result, got '{found_location}'"
+    assert expected_location in str(found_location), (
+        f"Expected compartment OCID '{expected_location}' in result, got '{found_location}'"
+    )
 
 
 @pytest.mark.parametrize(
@@ -361,17 +398,17 @@ def test_policy_subject_and_location_fields(
     assert not errors, f'Errors: {errors} for {statement}'
     assert isinstance(results, list) and len(results) > 0
     result = results[0]
-    assert (
-        result.get('subject_type') == expected_subject_type
-    ), f"Expected subject_type '{expected_subject_type}', got '{result.get('subject_type')}' for: {statement}"
-    assert (
-        result.get('subject') == expected_subject
-    ), f'Expected subject {expected_subject}, got {result.get("subject")} for: {statement}'
+    assert result.get('subject_type') == expected_subject_type, (
+        f"Expected subject_type '{expected_subject_type}', got '{result.get('subject_type')}' for: {statement}"
+    )
+    assert result.get('subject') == expected_subject, (
+        f'Expected subject {expected_subject}, got {result.get("subject")} for: {statement}'
+    )
     lt = result.get('location_type')
     loc = result.get('location')
-    assert (
-        lt == expected_location_type
-    ), f"Expected location_type '{expected_location_type}', got '{lt}' for: {statement}"
+    assert lt == expected_location_type, (
+        f"Expected location_type '{expected_location_type}', got '{lt}' for: {statement}"
+    )
     assert loc == expected_location, f"Expected location '{expected_location}', got '{loc}' for: {statement}"
 
 
@@ -418,19 +455,19 @@ def test_policy_subject_id_variants(parser, statement, expected_subject_type, ex
     assert not errors, f'Errors: {errors} for {statement}'
     assert isinstance(results, list) and len(results) > 0
     result = results[0]
-    assert (
-        result.get('subject_type') == expected_subject_type
-    ), f"Expected subject_type '{expected_subject_type}', got '{result.get('subject_type')}'"
+    assert result.get('subject_type') == expected_subject_type, (
+        f"Expected subject_type '{expected_subject_type}', got '{result.get('subject_type')}'"
+    )
     subj = result.get('subject')
     assert isinstance(subj, list), f'Subject is not a list: {subj!r}'
     assert subj == expected_subject, f'Expected subject {expected_subject}, got {subj}'
 
 
 def test_calculate_principal_key_normalizes_default_domain_and_any_user():
-    assert calculate_principal_key('group', None, 'Admins') == 'group:Default/Admins'
-    assert calculate_principal_key('group', 'default', 'Admins') == 'group:Default/Admins'
-    assert calculate_principal_key('any-user', None, 'any-user') == 'any-user:None/any-user'
-    assert calculate_principal_key('service', None, 'someservice') == 'service:None/someservice'
+    assert calculate_principal_key('group', None, 'Admins') == 'group:default/admins'
+    assert calculate_principal_key('group', 'default', 'Admins') == 'group:default/admins'
+    assert calculate_principal_key('any-user', None, 'any-user') == 'any-user:none/any-user'
+    assert calculate_principal_key('service', None, 'someservice') == 'service:none/someservice'
 
 
 @pytest.mark.parametrize(

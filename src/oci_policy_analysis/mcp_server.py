@@ -46,7 +46,8 @@ import re  # noqa: E402
 import threading  # noqa: E402
 from collections import Counter  # noqa: E402
 from datetime import UTC, datetime  # noqa: E402
-from typing import Any, Literal  # noqa: E402
+from functools import lru_cache  # noqa: E402
+from typing import Annotated, Any, Literal  # noqa: E402
 from urllib.parse import urlsplit  # noqa: E402
 
 from fastmcp import FastMCP  # noqa: E402
@@ -56,6 +57,7 @@ from fastmcp.server.auth.providers.jwt import JWTVerifier  # noqa: E402
 from fastmcp.server.dependencies import get_access_token  # noqa: E402
 from mcp.server.auth.middleware.bearer_auth import RequireAuthMiddleware  # noqa: E402
 from mcp.server.auth.routes import create_protected_resource_routes  # noqa: E402
+from pydantic import Field  # noqa: E402
 from starlette.responses import JSONResponse  # noqa: E402
 from starlette.routing import Route  # noqa: E402
 from uvicorn import Server  # noqa: E402
@@ -68,10 +70,16 @@ from oci_policy_analysis.application.core.models.models_iam import (  # noqa: E4
     User,
     UserSearch,
 )
+from oci_policy_analysis.application.core.models.models_mcp import (  # noqa: E402
+    MCPPolicyFilters,
+    MCPPolicySetEvaluation,
+    MCPPolicySetSearch,
+)
 from oci_policy_analysis.application.core.models.models_policy import PolicySearch  # noqa: E402
 from oci_policy_analysis.application.core.repo.policy_analysis_repository import (  # noqa: E402
     PolicyAnalysisRepository,
 )
+from oci_policy_analysis.application.core.repo.reference_data_repo import ReferenceDataRepo  # noqa: E402
 from oci_policy_analysis.application.core.support import config  # noqa: E402
 from oci_policy_analysis.application.core.support.caching import CacheManager  # noqa: E402
 from oci_policy_analysis.application.core.support.logger import get_logger, set_log_level  # noqa: E402
@@ -885,6 +893,22 @@ def _resolve_statement_principal_compartments(
     return rows
 
 
+@lru_cache(maxsize=1)
+def _policy_resource_catalog() -> ReferenceDataRepo:
+    catalog = ReferenceDataRepo()
+    catalog.load_data()
+    return catalog
+
+
+def _family_resource_scope(value: str) -> list[str]:
+    catalog = _policy_resource_catalog()
+    family = catalog.family_name_map.get(value.strip().casefold())
+    if not family:
+        raise ToolError(f'Unknown resource_family {value!r}; use an OCI resource family name or catalog alias.')
+    members = catalog.data['families'][family].get('resources', [])
+    return [family, *members, 'all-resources']
+
+
 def _policy_filters_from_request(filters: dict[str, Any] | None) -> PolicySearch:
     raw = dict(filters or {})
     normalized: dict[str, object] = {}
@@ -922,6 +946,19 @@ def _policy_filters_from_request(filters: dict[str, Any] | None) -> PolicySearch
     for field in passthrough_fields:
         if field in raw:
             normalized[field] = raw[field]
+
+    resource_values = _as_str_list(normalized.get('resource'))
+    family_value = str(raw.get('resource_family') or '').strip()
+    if family_value:
+        resource_values.extend(_family_resource_scope(family_value))
+    # A service phrase supplied in resource is an alias, not a literal policy type.
+    for value in list(resource_values):
+        family = _policy_resource_catalog().family_name_map.get(value.casefold())
+        if family and value.casefold() != family.casefold():
+            resource_values.remove(value)
+            resource_values.extend(_family_resource_scope(value))
+    if resource_values:
+        normalized['resource'] = list(dict.fromkeys(resource_values))
 
     if 'text' in raw and 'statement_text' not in normalized:
         normalized['statement_text'] = raw.get('text')
@@ -1027,7 +1064,28 @@ def _breakdowns(statements: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
         counters['by_resource'][str(resource)] += 1
         confidence = statement.get('match_confidence') or statement.get('confidence') or 'not_scored'
         counters['by_confidence'][str(confidence)] += 1
-    return {key: dict(counter) for key, counter in counters.items()}
+    result: dict[str, dict[str, int]] = {}
+    for key, counter in counters.items():
+        most_common = counter.most_common(20)
+        buckets = dict(most_common)
+        omitted = sum(counter.values()) - sum(count for _, count in most_common)
+        if omitted:
+            buckets['__other__'] = omitted
+        result[key] = buckets
+    return result
+
+
+def _search_summary_evidence(statements: list[dict[str, Any]]) -> dict[str, Any]:
+    principal_types: set[str] = set()
+    confidences: set[str] = set()
+    for row in statements:
+        confidence = str(row.get('match_confidence') or row.get('confidence') or '')
+        if confidence:
+            confidences.add(confidence)
+        for principal in row.get('principals') or row.get('normalized_principals') or []:
+            if isinstance(principal, dict) and principal.get('principal_type'):
+                principal_types.add(str(principal['principal_type']))
+    return {'principal_types': sorted(principal_types), 'match_confidences': sorted(confidences)}
 
 
 def _format_policy_search_response(
@@ -1038,12 +1096,27 @@ def _format_policy_search_response(
     limit: int | None = None,
     warnings: list[str] | None = None,
     repo: PolicyAnalysisRepository | None = None,
+    unfiltered: bool = False,
 ) -> dict[str, Any]:
     bounded_limit = _clamp_limit(limit)
     normalized = [_normalize_policy_statement_for_mcp(statement) for statement in statements]
     total_count = len(normalized)
-    response_type = 'summary' if detail_level == 'summary' or total_count > bounded_limit else detail_level
-    sample = normalized[:bounded_limit]
+    summary_reason = (
+        'requested_summary'
+        if detail_level == 'summary'
+        else 'unfiltered_query'
+        if unfiltered
+        else 'too_many_matches'
+        if total_count > bounded_limit
+        else None
+    )
+    response_type = 'summary' if summary_reason else detail_level
+    sample = normalized[:bounded_limit] if not summary_reason else []
+    response_warnings = list(warnings or [])
+    if summary_reason and detail_level != 'summary':
+        response_warnings.append(
+            'Summary returned instead of statement rows; narrow the filters to request detailed data.'
+        )
 
     if response_type == 'full':
         rows = [
@@ -1059,12 +1132,22 @@ def _format_policy_search_response(
 
     return {
         'response_type': response_type,
+        'summary_substituted': bool(summary_reason and detail_level != 'summary'),
+        'summary_reason': summary_reason,
+        'refinement_hint': (
+            'Add or narrow filters such as principal, resource, verb, or effective_path, then request '
+            'detail_level="simple" or "full" for statement rows.'
+            if summary_reason and total_count
+            else ''
+        ),
+        'detail_row_limit': bounded_limit,
         'total_count': total_count,
         'returned_count': len(rows),
         'truncated': total_count > len(rows),
         'statements': rows,
         'breakdowns': _breakdowns(normalized),
-        'warnings': list(warnings or []),
+        'summary_evidence': _search_summary_evidence(normalized),
+        'warnings': response_warnings,
     }
 
 
@@ -1175,6 +1258,9 @@ def _run_policy_search_request(
     detail_level = str(request.get('detail_level') or 'simple')
     filters = _policy_filters_from_request(request.get('filters') if isinstance(request.get('filters'), dict) else {})
     warnings: list[str] = []
+    requested_limit = request.get('limit')
+    if isinstance(requested_limit, int) and requested_limit > 50:
+        warnings.append('Detailed-row threshold was capped at 50; broader results are returned as a summary.')
 
     principal = filters.get('principal')
     if (
@@ -1182,13 +1268,15 @@ def _run_policy_search_request(
         and str(principal.get('principal_type') or '') == 'instance-principal'
         and repo is None
     ):
-        statements, warnings = _search_instance_principal_statements(filters, principal)
+        statements, search_warnings = _search_instance_principal_statements(filters, principal)
+        warnings.extend(search_warnings)
     elif (
         isinstance(principal, dict)
         and str(principal.get('principal_type') or '') in {'oke-workload-identity', 'oke_workload_identity'}
         and repo is None
     ):
-        statements, warnings = _search_oke_workload_identity_statements(filters, principal)
+        statements, search_warnings = _search_oke_workload_identity_statements(filters, principal)
+        warnings.extend(search_warnings)
     elif repo is not None:
         statements = list(repo.filter_policy_statements(filters=filters))
     else:
@@ -1201,6 +1289,7 @@ def _run_policy_search_request(
         limit=request.get('limit') if isinstance(request.get('limit'), int) else None,
         warnings=warnings,
         repo=repo or _current_policy_repo(),
+        unfiltered=not any(bool(value) for value in filters.values()),
     )
 
 
@@ -1241,9 +1330,14 @@ def _summarize_search_set(
     for result in results:
         search_id = str(result.get('search_id') or '')
         total = int(result.get('total_count') or 0)
-        confidences = [
-            str(row.get('match_confidence') or '') for row in result.get('statements') or [] if isinstance(row, dict)
-        ]
+        evidence = result.get('summary_evidence') or {}
+        confidences = list(evidence.get('match_confidences') or []) if isinstance(evidence, dict) else []
+        if not confidences:
+            confidences = [
+                str(row.get('match_confidence') or '')
+                for row in result.get('statements') or []
+                if isinstance(row, dict)
+            ]
         confidences = [confidence for confidence in confidences if confidence]
         confidence_ok = not confidences or any(
             _confidence_meets(confidence, min_confidence) for confidence in confidences
@@ -1267,6 +1361,9 @@ def _summarize_search_set(
         if not bool(evaluation.get(flag)):
             return 'not_requested'
         for result in results:
+            evidence = result.get('summary_evidence') or {}
+            if isinstance(evidence, dict) and principal_type in (evidence.get('principal_types') or []):
+                return 'present'
             for statement in result.get('statements') or []:
                 if not isinstance(statement, dict):
                     continue
@@ -1291,6 +1388,14 @@ def _summarize_search_set(
             'oke_workload_identity',
         }
         for result in results:
+            evidence = result.get('summary_evidence') or {}
+            if isinstance(evidence, dict) and (
+                workload_types.intersection(evidence.get('principal_types') or [])
+                or {'exact', 'identity_match_with_residual', 'rule_evidence'}.intersection(
+                    evidence.get('match_confidences') or []
+                )
+            ):
+                return 'present'
             for row in result.get('statements') or []:
                 if not isinstance(row, dict):
                     continue
@@ -1420,17 +1525,19 @@ def _repo_from_snapshot(snapshot: dict[str, Any]) -> tuple[PolicyAnalysisReposit
 def _run_query_for_history(
     query_type: str, query: dict[str, Any], repo: PolicyAnalysisRepository
 ) -> list[dict[str, Any]]:
+    def full_rows(search: dict[str, Any]) -> list[dict[str, Any]]:
+        filters = _policy_filters_from_request(search.get('filters') if isinstance(search.get('filters'), dict) else {})
+        return [_normalize_policy_statement_for_mcp(row) for row in repo.filter_policy_statements(filters=filters)]
+
     if query_type == 'set':
         rows: list[dict[str, Any]] = []
         for search in query.get('searches') or []:
             if not isinstance(search, dict):
                 continue
             child_query = _policy_search_set_child_query(search)
-            response = _run_policy_search_request(child_query, repo=repo)
-            rows.extend(response.get('statements') or [])
+            rows.extend(full_rows(child_query))
         return rows
-    response = _run_policy_search_request(query, repo=repo)
-    return response.get('statements') or []
+    return full_rows(query)
 
 
 def _summarize_schema(schema: dict[str, Any] | None) -> str:
@@ -1571,26 +1678,38 @@ async def health_check(request):
 @mcp.tool(
     name='policy_search',
     description=(
-        'Search OCI IAM policies. Principal filters: use filters.principal for one structured selector '
+        'Search OCI IAM policies for one question. For two or more related checks, comparisons across '
+        'groups/services, or a deployment permission checklist, prefer policy_search_set in one call. Principal filters: use filters.principal for one structured selector '
         '(for example {"principal_type":"group","domain_name":"Default","name":"Admins"} or '
         '{"principal_type":"dynamic-group"}), filters.principals for OR selectors, and filters.principal_keys '
-        'for exact canonical keys such as group:Default/Admins. Combine with resource, verb, permission, '
-        'effective_path, policy_name, conditions, and statement_text.'
+        'for exact canonical keys such as group:default/admins (mixed-case inputs are accepted). Resource values are OCI policy types, not '
+        'product names. For "which groups can manage Object Storage", use filters.action=["allow"], '
+        'filters.principal={"principal_type":"group"}, filters.verb=["manage"], and '
+        'filters.resource_family="object storage". This expands to buckets, objects, '
+        'objectstorage-namespaces, object-family, and all-resources. Results are matching statements, '
+        'not a proof of effective access; conditions and scope still matter. The limit is a detailed-row '
+        'threshold capped at 50, not pagination. Unfiltered or larger results return a summary with '
+        'summary_substituted, summary_reason, and a hint to narrow the filters instead of statement rows.'
     ),
 )
 def policy_search(
     mode: Literal['simple', 'advanced'] = 'simple',
     detail_level: Literal['summary', 'simple', 'full'] = 'simple',
-    filters: dict[str, Any] | None = None,
-    limit: int = 50,
+    filters: MCPPolicyFilters | None = None,
+    limit: Annotated[
+        int, Field(description='Detailed-row threshold, 1-50. Broader results become a summary; not pagination.')
+    ] = 50,
 ) -> dict[str, Any]:
     """Run one bounded policy search."""
 
     tool_name = 'policy_search'
-    _log_mcp_call_input(tool_name, {'mode': mode, 'detail_level': detail_level, 'filters': filters, 'limit': limit})
+    filter_payload = filters.model_dump(exclude_none=True) if isinstance(filters, MCPPolicyFilters) else filters or {}
+    _log_mcp_call_input(
+        tool_name, {'mode': mode, 'detail_level': detail_level, 'filters': filter_payload, 'limit': limit}
+    )
     try:
         response = _run_policy_search_request(
-            {'mode': mode, 'detail_level': detail_level, 'filters': filters or {}, 'limit': limit}
+            {'mode': mode, 'detail_level': detail_level, 'filters': filter_payload, 'limit': limit}
         )
         _track_mcp_tool(tool_name, status='success', total_statements=response.get('total_count'))
         return _log_mcp_call_output(tool_name, response)
@@ -1729,17 +1848,43 @@ def oke_workload_identity_search(
 @mcp.tool(
     name='policy_search_set',
     description=(
-        'Run related policy searches and summarize coverage. Each item in searches may be a direct policy_search '
-        'payload with search_id/label/required plus mode/detail_level/limit/filters, or the legacy wrapped form '
-        '{"search_id":"id","query":{...}}. For principal filters inside each search, use filters.principal '
-        'for one selector, filters.principals for OR selectors, or filters.principal_keys for exact keys.'
+        'Run multiple related OCI policy queries in one call and compare their coverage. Prefer this tool '
+        'over repeated policy_search calls when the question asks about two or more groups, services, '
+        'human versus workload permissions, or a product/deployment permission checklist. '
+        'Supply one searches item per check with search_id, label and filters (same fields as policy_search, '
+        'including resource_family and structured principals). Use detail_level="summary" for comparisons. '
+        'Use intent="access_review" for access comparisons, "install_validation" for a permission checklist, '
+        'or "workload_analysis" for workload checks. product_or_service is a label, not a search filter. '
+        'Returns search_results per check and set_summary with missing_required_searches and coverage caveats. '
+        'Matches and likely_ready are statement evidence, not proof of effective access or installation readiness. '
+        'Legacy items with query:{...} are still accepted. For a single lookup use policy_search.'
     ),
 )
 def policy_search_set(
     intent: Literal['install_validation', 'access_review', 'workload_analysis', 'custom'] = 'custom',
     product_or_service: str = '',
-    searches: list[dict[str, Any]] | None = None,
-    evaluation: dict[str, Any] | None = None,
+    searches: Annotated[
+        list[MCPPolicySetSearch] | None,
+        Field(
+            description='Related checks; provide one item per group/service/permission question. Direct filters are preferred.',
+            examples=[
+                [
+                    {
+                        'search_id': 'storage-admins',
+                        'filters': {'resource_family': 'object storage', 'verb': ['manage']},
+                    },
+                    {
+                        'search_id': 'storage-readers',
+                        'filters': {'resource_family': 'object storage', 'verb': ['read']},
+                    },
+                ]
+            ],
+        ),
+    ] = None,
+    evaluation: Annotated[
+        MCPPolicySetEvaluation | None,
+        Field(description='Optional coverage requirements; omit for ordinary side-by-side comparisons.'),
+    ] = None,
 ) -> dict[str, Any]:
     """Run multiple related policy searches and summarize coverage."""
 
@@ -1754,8 +1899,16 @@ def policy_search_set(
         },
     )
     try:
-        search_items = [item for item in (searches or []) if isinstance(item, dict)]
-        eval_config = dict(evaluation or {})
+        search_items = [
+            item.model_dump(exclude_none=True) if isinstance(item, MCPPolicySetSearch) else item
+            for item in (searches or [])
+            if isinstance(item, (dict, MCPPolicySetSearch))
+        ]
+        eval_config = (
+            evaluation.model_dump(exclude_none=True)
+            if isinstance(evaluation, MCPPolicySetEvaluation)
+            else dict(evaluation or {})
+        )
         results = []
         for idx, item in enumerate(search_items, start=1):
             query = _policy_search_set_child_query(item)
@@ -2255,49 +2408,82 @@ def mcp_server_status() -> bool:
 
 def _build_arg_parser():
     parser = argparse.ArgumentParser()
-    auth = parser.add_mutually_exclusive_group(required=True)
+    from oci_policy_analysis.application.core.support.config import load_settings
+    from oci_policy_analysis.runtime_settings import mcp_domain_search_depth
+
+    settings = load_settings()
+    auth = parser.add_mutually_exclusive_group()
     auth.add_argument('--profile')
     auth.add_argument('--instance-principal', action='store_true')
     auth.add_argument('--resource-principal', action='store_true')
     auth.add_argument('--use-cache', help='provide the combined cache date to use', required=False, default=None)
     auth.add_argument('--session-token', help='OCI session token for instance principal auth', default=None)
     parser.add_argument(
-        '--recursive', action='store_true', default=True, help='Recursively load all compartments (default: True)'
+        '--recursive',
+        action=argparse.BooleanOptionalAction,
+        default=_env_flag('MCP_RECURSIVE', default=settings.get('recursive', True)),
+        help='Recursively load all compartments (default: True)',
     )
     parser.add_argument(
-        '--dont-save-cache-after-load', help='Save the combined cache after loading from OCI', action='store_true'
+        '--dont-save-cache-after-load',
+        help='Do not save the combined cache after loading from OCI',
+        action='store_true',
+        default=not _env_flag('MCP_SAVE_CACHE_AFTER_LOAD', default=settings.get('save_cache_after_load', True)),
     )
-    parser.add_argument('--transport', default='stdio', choices=['stdio', 'streamable-http'])
-    parser.add_argument('--port', type=int, default=8765)
-    parser.add_argument('--host', default='127.0.0.1')
+    parser.add_argument(
+        '--transport', default=os.environ.get('MCP_TRANSPORT', 'stdio'), choices=['stdio', 'streamable-http']
+    )
+    parser.add_argument('--port', type=int, default=int(os.environ.get('MCP_PORT', '8765')))
+    parser.add_argument('--host', default=os.environ.get('MCP_HOST', '127.0.0.1'))
     parser.add_argument(
         '--compartment-domain-search-depth',
         type=int,
-        default=1,
+        default=mcp_domain_search_depth(),
         choices=range(1, 7),
         metavar='[1-6]',
         help='Depth for identity-domain compartment traversal (1=root only, 2=include direct children, max=6).',
     )
     parser.add_argument(
         '--log-level',
-        default='WARNING',
+        default=os.environ.get('MCP_LOG_LEVEL', settings.get('global_log_level', 'WARNING')),
         choices=['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG', 'critical', 'error', 'warning', 'info', 'debug'],
         help='Application and MCP framework log level for standalone MCP mode (default: WARNING).',
+    )
+    parser.add_argument(
+        '--load-all-users', action=argparse.BooleanOptionalAction, default=settings.get('load_all_users', True)
     )
     return parser
 
 
 def main():
-    """
-    Entry point for the OCI Policy Analysis Standalone MCP Server.
+    """Load the active snapshot and serve standalone FastMCP tools.
 
-    Parses command-line arguments to load, filter, display, or export OCI identity and policy information
-    from Oracle Cloud Infrastructure (OCI) using cached or live data.
+    Raises:
+        SystemExit: When help, invalid arguments, or handled startup failures exit.
+        ValueError: When environment authentication defaults are invalid or incomplete.
+
+    Notes:
+        Reads process arguments and MCP environment defaults, loads live/cache data
+        with minimal enrichment, and starts the selected transport. The function is
+        a blocking server entry point; use application services for direct Python
+        queries without starting an MCP server.
     """
     logger.info('MCP server module logger initialized.')
 
     global args
     args = _build_arg_parser().parse_args()
+    if not any((args.profile, args.instance_principal, args.resource_principal, args.use_cache, args.session_token)):
+        mode = os.environ.get('MCP_AUTH_MODE', 'profile')
+        if mode == 'profile':
+            args.profile = os.environ.get('OCI_PROFILE', 'DEFAULT')
+        elif mode in {'instance_principal', 'resource_principal'}:
+            setattr(args, mode, True)
+        elif mode == 'cache' and os.environ.get('MCP_USE_CACHE'):
+            args.use_cache = os.environ['MCP_USE_CACHE']
+        elif mode == 'session_token' and os.environ.get('OCI_SESSION_TOKEN'):
+            args.session_token = os.environ['OCI_SESSION_TOKEN']
+        else:
+            raise ValueError(f'Invalid or incomplete MCP_AUTH_MODE: {mode}')
     args.log_level = str(args.log_level).upper()
     set_log_level(args.log_level, announce=False)
     logging.getLogger('mcp').setLevel(args.log_level)
@@ -2332,6 +2518,7 @@ def main():
                 profile=args.profile or None,
                 session_token=args.session_token or None,
                 recursive=recursive,
+                load_all_users=args.load_all_users,
                 compartment_domain_search_depth=args.compartment_domain_search_depth,
                 post_load_profile='minimal',
                 save_cache_after_load=not args.dont_save_cache_after_load,

@@ -211,10 +211,17 @@ class ReferenceDataRepo:
         if entity_ci == 'all-resources':
             all_perms = set()
             for res_name in self.data['resources'].keys():
+                # Synthetic failsafe permissions describe unresolved resource
+                # mappings; they are not part of OCI's known permission set.
+                if self.data['resources'][res_name].get('mapping_status'):
+                    continue
                 perms = self._get_cumulative_permissions(res_name, verb_ci, action)
                 if perms:
                     all_perms.update(perms)
             return list(all_perms)
+        # Failsafe resource entries use the same verb table as catalog entries.
+        # Their mapping_status remains metadata; synthetic permission names are
+        # intentionally visible to callers rather than silently discarded.
         # Handle families/resources with case-insensitive lookups
         if entity_ci in self.family_name_map:
             fam_key = self.family_name_map[entity_ci]
@@ -231,6 +238,12 @@ class ReferenceDataRepo:
             if perms:
                 return [p.upper() for p in perms]
             return []
+
+    def get_resource_mapping_status(self, entity):
+        """Return optional mapping-status metadata for a resource token."""
+        entity_ci = (entity or '').strip().lower()
+        resource_key = self.resource_name_map.get(entity_ci, entity)
+        return self.data.get('resources', {}).get(resource_key, {}).get('mapping_status', '')
 
     def _get_cumulative_permissions(self, resource, verb, action='allow'):
         # Case-insensitive resource and verb lookup

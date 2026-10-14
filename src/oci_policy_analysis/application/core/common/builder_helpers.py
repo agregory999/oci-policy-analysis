@@ -24,7 +24,7 @@ def build_tag_variable_and_snippet(
     if op.upper() in {'IN', 'NOT IN'}:
         raw_parts = [p.strip() for p in val.split(',') if p.strip()] if val else []
         values = [p if (len(p) >= 2 and p[0] == '/' and p[-1] == '/') else f"'{p}'" for p in raw_parts]
-        list_part = f"({','.join(values)})" if values else '()'
+        list_part = f'({",".join(values)})' if values else '()'
         return var_name, f'all {{ {var_name} {op} {list_part} }}'
 
     value_part = f"'{val}'" if val else "''"

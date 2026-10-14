@@ -309,6 +309,16 @@ class PolicyRecommendationsTab(BaseUITab):
         self._build_supersession_tab(supersession_frame)
         self.notebook.add(supersession_frame, text='Superseded')
 
+        # === Cross-Tenancy Findings Tab ===
+        cross_tenancy_frame = ttk.Frame(self.notebook)
+        cross_tenancy_frame.pack(fill='both', expand=True)
+        self.add_context_help(
+            cross_tenancy_frame,
+            'Review cross-tenancy statements that reference an undefined tenancy alias or duplicate another parsed Admit/Endorse statement.',
+        )
+        self._build_cross_tenancy_tab(cross_tenancy_frame)
+        self.notebook.add(cross_tenancy_frame, text='Cross-Tenancy')
+
         # === Policy Consolidation Tab ===
         consolidation_frame = ttk.Frame(self.notebook)
         consolidation_frame.pack(fill='both', expand=True)
@@ -377,7 +387,7 @@ class PolicyRecommendationsTab(BaseUITab):
 
         threading.Thread(target=update_tenancy_limit_label, daemon=True).start()
 
-        self.timed_step('reload_all_analytics', self.reload_all_analytics)
+        self.timed_step('refresh_analytics_views', self._refresh_analytics_views)
         self.logger.info('Finished PolicyRecommendationsTab.populate_data')
 
     def reset_for_data_load(self) -> None:
@@ -387,7 +397,7 @@ class PolicyRecommendationsTab(BaseUITab):
         self._workbench_counter = 0
         self._cleanup_payload_by_key = {}
         self.ignored_cleanup_keys = set()
-        for table_name in ('cleanup_table', 'workbench_table', 'supersession_table'):
+        for table_name in ('cleanup_table', 'workbench_table', 'supersession_table', 'cross_tenancy_table'):
             table = getattr(self, table_name, None)
             if table is not None:
                 table.update_data([])
@@ -1226,6 +1236,62 @@ class PolicyRecommendationsTab(BaseUITab):
             anchor='w', padx=10, pady=(2, 10)
         )
 
+    def _build_cross_tenancy_tab(self, parent):
+        """Build read-only validity and duplicate findings for cross-tenancy statements."""
+        intro = ttk.Label(
+            parent,
+            text='Findings identify missing tenancy defines and identical Admit/Endorse statements. Review the full statement text before changing policies.',
+            justify='left',
+            wraplength=1000,
+        )
+        intro.pack(anchor='w', padx=10, pady=(10, 4))
+        self.cross_tenancy_table = DataTable(
+            parent,
+            columns=[
+                'Type',
+                'Severity',
+                'Policy Name',
+                'Statement Kind',
+                'Alias',
+                'Issue',
+                'Statement Count',
+                'Statement Text',
+            ],
+            display_columns=[
+                'Type',
+                'Severity',
+                'Policy Name',
+                'Statement Kind',
+                'Alias',
+                'Issue',
+                'Statement Count',
+                'Statement Text',
+            ],
+            data=[],
+            column_widths={
+                'Type': 190,
+                'Severity': 90,
+                'Policy Name': 220,
+                'Statement Kind': 110,
+                'Alias': 130,
+                'Issue': 300,
+                'Statement Count': 110,
+                'Statement Text': 600,
+            },
+        )
+        self.cross_tenancy_table.pack(fill='both', expand=True, padx=10, pady=(4, 10))
+        self.add_context_help(
+            self.cross_tenancy_table,
+            'Each row is a finding. Duplicate rows group all matching policy statements; unresolved aliases link the statement to the missing tenancy define.',
+        )
+
+    def update_cross_tenancy_tab_output(self) -> None:
+        """Refresh cross-tenancy findings from the intelligence overlay."""
+        if hasattr(self, 'cross_tenancy_table'):
+            self.cross_tenancy_table.update_data(
+                self.app.policy_intelligence.overlay.get('cross_tenancy_findings', []) or []
+            )
+
     def update_supersession_tab_output(self) -> None:
         """Refresh complete-supersession rows from policy-intelligence output."""
         self.supersession_table.update_data(self._get_supersession_rows())
@@ -1510,6 +1576,13 @@ class PolicyRecommendationsTab(BaseUITab):
         }
         pi.run_all(enabled_strategy_ids=enabled_strategy_ids, params=params)
 
+        self._refresh_analytics_views()
+
+    def _refresh_analytics_views(self):
+        """Render the completed intelligence overlay without rerunning strategies."""
+        self._activate_cleanup_tenancy()
+        self._update_reload_all_button_state()
+        logger.info('Refreshing recommendations views from the existing policy intelligence results.')
         # Load ignored cleanup keys from per-tenancy state
         self._load_ignored_cleanup_keys_from_state()
 
@@ -1517,6 +1590,7 @@ class PolicyRecommendationsTab(BaseUITab):
         self.update_risk_tab_output()
         self.update_policy_risk_tab_output()
         self.update_supersession_tab_output()
+        self.update_cross_tenancy_tab_output()
         self.update_consolidation_tab_output()
         self.update_cleanup_tab_output()
 
@@ -1990,7 +2064,7 @@ class PolicyRecommendationsTab(BaseUITab):
     def _show_consolidation_opportunity(self, opportunity: dict) -> None:
         """Display a read-only policy-and-statement evidence dialog for one opportunity."""
         dialog = tk.Toplevel(self.winfo_toplevel())
-        dialog.title(f"Consolidation Opportunity: {opportunity.get('Type', 'Unknown')}")
+        dialog.title(f'Consolidation Opportunity: {opportunity.get("Type", "Unknown")}')
         dialog.transient(self.winfo_toplevel())
         dialog.geometry('960x620')
         dialog.columnconfigure(0, weight=1)
@@ -1998,8 +2072,8 @@ class PolicyRecommendationsTab(BaseUITab):
         ttk.Label(
             dialog,
             text=(
-                f"{opportunity.get('Type', '')}  |  {opportunity.get('Policies', 0)} policies  |  "
-                f"{opportunity.get('Statements', 0)} statements\n{opportunity.get('Summary', '')}"
+                f'{opportunity.get("Type", "")}  |  {opportunity.get("Policies", 0)} policies  |  '
+                f'{opportunity.get("Statements", 0)} statements\n{opportunity.get("Summary", "")}'
             ),
             justify='left',
             wraplength=900,
@@ -2008,8 +2082,8 @@ class PolicyRecommendationsTab(BaseUITab):
         text.grid(row=1, column=0, sticky='nsew', padx=12, pady=6)
         evidence = opportunity.get('Evidence') or {}
         lines = [
-            f"Recommended action: {opportunity.get('Recommended Action', '')}",
-            f"Handoff: {opportunity.get('Handoff Mode', '')}",
+            f'Recommended action: {opportunity.get("Recommended Action", "")}',
+            f'Handoff: {opportunity.get("Handoff Mode", "")}',
             '',
             'Why this is an opportunity:',
             str(evidence.get('reason') or ''),
@@ -2022,8 +2096,8 @@ class PolicyRecommendationsTab(BaseUITab):
         for item in evidence.get('members') or []:
             lines.extend(
                 [
-                    f"• {item.get('policy_name') or 'Unknown policy'} ({item.get('policy_ocid') or 'no OCID'})",
-                    f"  [{item.get('internal_id') or 'no internal ID'}] {item.get('statement_text') or ''}",
+                    f'• {item.get("policy_name") or "Unknown policy"} ({item.get("policy_ocid") or "no OCID"})',
+                    f'  [{item.get("internal_id") or "no internal ID"}] {item.get("statement_text") or ""}',
                 ]
             )
         proposed = evidence.get('proposed_statement')

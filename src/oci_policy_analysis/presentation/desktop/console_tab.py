@@ -193,15 +193,16 @@ class ConsoleTab(BaseUITab):
                 'logger',
                 'usage_tracking',
             ],
-            'Core Repo / Engine': [
+            'Core Repo / Engine / Parser': [
                 'core.repo.policy_analysis_repository',
                 'core.repo.reference_data_repo',
                 'core.repo.ai_repo',
                 'core.engine.policy_intelligence_engine',
                 'core.engine.policy_simulation_engine',
                 'core.engine.consolidation_engine',
-            ],
-            'Core Parser': [
+                'core.policy_corpus',
+                'core.cross_tenancy_corpus',
+                'cross_tenancy',
                 'core.parser.policy_statement_normalizer',
                 'core.parser.policy_subject_parser',
                 'core.parser.condition_evaluator',
@@ -218,6 +219,7 @@ class ConsoleTab(BaseUITab):
                 'application.services.load',
                 'application.services.logging',
                 'application.services.policy_browser',
+                'application.services.policy_graph',
                 'application.services.principal_analysis',
                 'application.services.prospective_builder',
                 'application.services.prospective_statements',
@@ -230,6 +232,7 @@ class ConsoleTab(BaseUITab):
                 'settings_tab',
                 'policies_tab',
                 'policy_browser_tab',
+                'policy_graph_tab',
                 'dynamic_group_tab',
                 'users_tab',
                 'workload_principals_tab',
@@ -252,7 +255,7 @@ class ConsoleTab(BaseUITab):
         }
         # Flattened for batch logic
         self.logger_components = []
-        for group in ['Platform', 'Core Repo / Engine', 'Core Parser', 'Application Services', 'UI']:
+        for group in self.logger_components_by_pkg:
             self.logger_components.extend(self.logger_components_by_pkg[group])
 
         self.logger_level_vars = {}
@@ -263,11 +266,24 @@ class ConsoleTab(BaseUITab):
         self.console_log.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
         self.console_log.insert(tk.END, 'Console log output will appear here...\n')
 
-        # Frame for loggers grid, packed BELOW log window
-        self.logger_grid_frame = ttk.Frame(self)
-        self.logger_grid_frame.pack(pady=(0, 10), padx=8, anchor='w')
-        # Don't show by default
-        self.logger_grid_frame.pack_forget()
+        # Four fixed logger columns; scrolling keeps UI at the right on narrow windows.
+        self.logger_panel = ttk.Frame(self)
+        self.logger_canvas = tk.Canvas(self.logger_panel, height=320, highlightthickness=0)
+        vertical = ttk.Scrollbar(self.logger_panel, command=self.logger_canvas.yview)
+        horizontal = ttk.Scrollbar(self.logger_panel, orient='horizontal', command=self.logger_canvas.xview)
+        self.logger_canvas.configure(yscrollcommand=vertical.set, xscrollcommand=horizontal.set)
+        self.logger_canvas.grid(row=0, column=0, sticky='nsew')
+        vertical.grid(row=0, column=1, sticky='ns')
+        horizontal.grid(row=1, column=0, sticky='ew')
+        self.logger_panel.columnconfigure(0, weight=1)
+        self.logger_panel.rowconfigure(0, weight=1)
+        self.logger_grid_frame = ttk.Frame(self.logger_canvas)
+        self._logger_window = self.logger_canvas.create_window(0, 0, window=self.logger_grid_frame, anchor='nw')
+        self._logger_group_frames = []
+        self.logger_canvas.bind('<Configure>', lambda event: self._layout_logger_groups(event.width))
+        self.logger_grid_frame.bind(
+            '<Configure>', lambda _e: self.logger_canvas.configure(scrollregion=self.logger_canvas.bbox('all'))
+        )
 
         log_levels = logging_settings.get('log_levels', {})
 
@@ -281,36 +297,10 @@ class ConsoleTab(BaseUITab):
 
             config.save_settings(self.app.settings)
 
-        # Add per package grouping and vertical separator
-        logger_group_frames = {}
-        col_offset = 0
-        col_width_by_group = {
-            'Platform': 2,
-            'Core Repo / Engine': 1,
-            'Core Parser': 1,
-            'Application Services': 2,
-            'UI': 3,
-        }
-        row_span_by_group = {}
-        for group_idx, (pkg, comps) in enumerate(self.logger_components_by_pkg.items()):
-            ncol = col_width_by_group.get(pkg, 2)
-            nrow = (len(comps) + ncol - 1) // ncol
-            row_span_by_group[pkg] = nrow + 1  # For vertical separator and grid layout
-
-            frame = ttk.Frame(self.logger_grid_frame)
-            frame.grid(row=0, column=col_offset, rowspan=nrow + 1, sticky='nsw', padx=(14 if group_idx > 0 else 0, 0))
-            # Label as vertical header above the group
-            ttk.Label(frame, text=pkg, font=('Arial', 9, 'bold')).grid(
-                row=0, column=0, columnspan=2 * ncol, sticky='w', pady=(0, 2)
-            )
-            # Insert vertical separator except first package
-            if group_idx > 0:
-                sep = ttk.Separator(self.logger_grid_frame, orient='vertical')
-                sep.grid(
-                    row=0, column=col_offset - 1, rowspan=max(row_span_by_group.values()), sticky='ns', padx=(6, 6)
-                )
-            logger_group_frames[pkg] = frame
-
+        for pkg, comps in self.logger_components_by_pkg.items():
+            ncol = 1
+            frame = ttk.LabelFrame(self.logger_grid_frame, text=pkg, padding=6)
+            self._logger_group_frames.append(frame)
             for idx, comp in enumerate(comps):
                 row, col = divmod(idx, ncol)
                 var = tk.StringVar()
@@ -337,7 +327,6 @@ class ConsoleTab(BaseUITab):
                 # Only reflect state in UI; don't set log level at init
                 # set_component_level(comp, level)  # NO OP at startup
             # Each group uses space equal to 2 * (width) columns
-            col_offset += 2 * ncol + 2
 
         # Store for syncing when global is changed
         self._logger_combo_vars = self.logger_level_vars
@@ -380,11 +369,25 @@ class ConsoleTab(BaseUITab):
         # self.console_log.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
         # self.console_log.insert(tk.END, 'Console log output will appear here...\n')
 
+    def _layout_logger_groups(self, width):
+        """Keep four category columns on one row, with UI always on the right."""
+        requested_widths = [frame.winfo_reqwidth() + 12 for frame in self._logger_group_frames]
+        content_width = max(width, sum(requested_widths))
+        extra_width = (content_width - sum(requested_widths)) / max(len(requested_widths), 1)
+        left = 0
+        for frame, requested in zip(self._logger_group_frames, requested_widths, strict=True):
+            column_width = requested + extra_width
+            frame.place(x=left + 6, y=6, width=column_width - 12)
+            left += column_width
+        content_height = max((frame.winfo_reqheight() for frame in self._logger_group_frames), default=1) + 12
+        self.logger_canvas.itemconfigure(self._logger_window, width=content_width, height=content_height)
+
     def _toggle_logger_grid(self):
         if self.show_loggers_var.get():
-            self.logger_grid_frame.pack(pady=(0, 10), padx=8, anchor='w')
+            self.logger_panel.pack(fill='both', expand=True, pady=(0, 10), padx=8)
+            self._layout_logger_groups(self.logger_canvas.winfo_width())
         else:
-            self.logger_grid_frame.pack_forget()
+            self.logger_panel.pack_forget()
 
     def _attach_console_log_handler(self):
         """Attach handler to root (unfiltered)."""

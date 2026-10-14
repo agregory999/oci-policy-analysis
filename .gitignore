@@ -19,12 +19,14 @@ wheelhouse/
 *.log
 docs/build/
 frozen.txt
-uv.lock
+run/.env
+run/.container-private-ip
+run/.container-instance-id
 package*.json
 src/oci_policy_analysis/version.txt
 
 # Parser Jar
-src/oci_policy_analysis/logic/parsers/antlr-4.13.2-complete.jar
+src/oci_policy_analysis/application/core/resources/parsers/antlr-4.13.2-complete.jar
 *.interp
 *.tokens
 
@@ -65,3 +67,9 @@ parsing-diagnostics*.csv
 # --- Codex ---
 .codex/
 .gstack/
+
+# Shared operator configuration and generated deployment state
+run-build/.env
+run-build/*.json
+env.sh
+run/container.env

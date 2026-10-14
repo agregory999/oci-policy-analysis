@@ -176,6 +176,15 @@ class DefineStatement(BasePolicyStatement, total=False):
     comment: NotRequired[Annotated[str, 'Statement comment.']]
 
 
+class CrossTenancyAssociationEndpoint(TypedDict, total=False):
+    """One resource endpoint in a cross-tenancy ``associate`` statement."""
+
+    resource: Annotated[str, 'OCI resource type participating in the association.']
+    scope: Annotated[str, 'Raw tenancy or compartment scope for the endpoint.']
+    location_type: Annotated[str, 'Parsed scope kind.']
+    location: Annotated[str, 'Parsed scope value.']
+
+
 class EndorseStatement(BasePolicyStatement, total=False):
     """Parsed OCI IAM 'endorse' cross-tenancy policy statement with optional metadata."""
 
@@ -199,6 +208,9 @@ class EndorseStatement(BasePolicyStatement, total=False):
     endorse_associate_with_resource: NotRequired[Annotated[str, 'Associate resource B.']]
     endorse_associate_with_tenancy: NotRequired[Annotated[str, 'Associate tenancy B.']]
     associate_clause_raw: NotRequired[Annotated[str, 'Raw associate clause.']]
+    association: NotRequired[
+        Annotated[list[CrossTenancyAssociationEndpoint], 'Ordered association endpoints when action is associate.']
+    ]
     tenancy_aliases: NotRequired[Annotated[list[str], 'Referenced tenancy aliases.']]
     resolved_aliases: NotRequired[
         Annotated[
@@ -220,7 +232,11 @@ class AdmitStatement(BasePolicyStatement, total=False):
         Literal['group', 'dynamic-group', 'any-user', 'any-group', 'service'],
         'Type of principal: group, dynamic-group, any-user, etc.',
     ]
-    principal_keys: NotRequired[Annotated[list[str], 'Canonical principal keys.']]
+    principal_keys: NotRequired[
+        Annotated[
+            list[str], 'Unscoped parsed principal keys; combine with admitted_tenancy to identify a remote principal.'
+        ]
+    ]
     admitted_principal: Annotated[str, 'Admitted principal.']
     admitted_tenancy: Annotated[str, 'Admitted tenancy.']
     admit_action: Annotated[str, 'Admit verb/permission.']
@@ -233,6 +249,9 @@ class AdmitStatement(BasePolicyStatement, total=False):
     admit_associate_with_resource: NotRequired[Annotated[str, 'Associate resource B.']]
     admit_associate_with_tenancy: NotRequired[Annotated[str, 'Associate tenancy B.']]
     associate_clause_raw: NotRequired[Annotated[str, 'Raw associate clause.']]
+    association: NotRequired[
+        Annotated[list[CrossTenancyAssociationEndpoint], 'Ordered association endpoints when action is associate.']
+    ]
     tenancy_aliases: NotRequired[Annotated[list[str], 'Referenced tenancy aliases.']]
     resolved_aliases: NotRequired[
         Annotated[
@@ -337,4 +356,5 @@ class PolicyIntelligence(TypedDict, total=False):
     risk_scores: list[dict]
     consolidations: list[dict]
     supersessions: list[dict]
+    cross_tenancy_findings: list[dict]
     cleanup_items: NotRequired[dict]

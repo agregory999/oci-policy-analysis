@@ -3,6 +3,7 @@
 from types import MethodType, SimpleNamespace
 
 import pytest
+
 from oci_policy_analysis.application.core.engine.recommendation_actions import (
     current_supersession_identities,
     reconcile_cleanup_actions,

@@ -119,6 +119,7 @@
             <div class="workflow-summary-tile"><p class="workflow-summary-label">Policy Risk Rows</p><p id="sumPolicyRisk" class="workflow-summary-value">0</p></div>
             <div class="workflow-summary-tile"><p class="workflow-summary-label">Statement Risk Rows</p><p id="sumStatementRisk" class="workflow-summary-value">0</p></div>
             <div class="workflow-summary-tile"><p class="workflow-summary-label">Superseded Rows</p><p id="sumSupersession" class="workflow-summary-value">0</p></div>
+            <div class="workflow-summary-tile"><p class="workflow-summary-label">Cross-Tenancy Findings</p><p id="sumCrossTenancy" class="workflow-summary-value">0</p></div>
             <div class="workflow-summary-tile"><p class="workflow-summary-label">Cleanup Rows</p><p id="sumCleanup" class="workflow-summary-value">0</p></div>
             <div class="workflow-summary-tile"><p class="workflow-summary-label">Limit Alerts</p><p id="sumLimitAlerts" class="workflow-summary-value">0</p></div>
           </div>
@@ -130,6 +131,7 @@
               <a class="section-jump-link" data-target="cardRiskPolicy" href="#cardRiskPolicy">Risk (Policy)</a>
               <a class="section-jump-link" data-target="cardRiskStatement" href="#cardRiskStatement">Risk (Statement)</a>
               <a class="section-jump-link" data-target="cardSupersession" href="#cardSupersession">Superseded</a>
+              <a class="section-jump-link" data-target="cardCrossTenancy" href="#cardCrossTenancy">Cross-Tenancy</a>
               <a class="section-jump-link" data-target="cardConsolidation" href="#cardConsolidation">Consolidation</a>
               <a class="section-jump-link" data-target="cardCleanup" href="#cardCleanup">Cleanup</a>
               <a class="section-jump-link" data-target="cardLimits" href="#cardLimits">Limits</a>
@@ -194,6 +196,11 @@
         <article id="cardSupersession" class="card compact-card" data-help-title="Superseded Statements" data-help-body="Statements fully covered by unconditional grants at the same or an ancestor scope. Click a row for complete evidence.">
           <div class="card-title-row"><p class="card-title">Superseded Statements</p><button type="button" class="ghost back-to-top-btn" data-back-to-top>Back to top ↑</button></div>
           <div class="table-shell"><div class="table-scroll custom-scrollbar" style="max-height: 280px"><table class="analysis-table" id="supersessionTable"><thead><tr><th>Policy Name</th><th>Effective Path</th><th>Classification</th><th>Superseded By</th></tr></thead><tbody></tbody></table></div></div>
+        </article>
+
+        <article id="cardCrossTenancy" class="card compact-card" data-help-title="Cross-Tenancy Findings" data-help-body="Unresolved tenancy aliases and completely duplicate parsed Admit/Endorse statements.">
+          <div class="card-title-row"><p class="card-title">Cross-Tenancy Findings</p><button type="button" class="ghost back-to-top-btn" data-back-to-top>Back to top ↑</button></div>
+          <div class="table-shell"><div class="table-scroll custom-scrollbar" style="max-height: 360px"><table class="analysis-table" id="crossTenancyTable"><thead><tr><th>Type</th><th>Severity</th><th>Policy Name</th><th>Statement Kind</th><th>Alias</th><th>Issue</th><th>Statement Count</th><th>Statement Text</th></tr></thead><tbody></tbody></table></div></div>
         </article>
 
         <!-- Consolidation section -->
@@ -693,6 +700,7 @@
         document.getElementById('sumPolicyRisk').textContent = String((payload.risk_policy || []).length);
         document.getElementById('sumStatementRisk').textContent = String((payload.risk_statement || []).length);
         document.getElementById('sumSupersession').textContent = String((payload.supersession || []).length);
+        document.getElementById('sumCrossTenancy').textContent = String((payload.cross_tenancy || []).length);
         document.getElementById('sumCleanup').textContent = String((payload.cleanup || []).length);
         document.getElementById('sumLimitAlerts').textContent = String(limitAlerts);
         fillSelectFromCounts('summarySeverityFilter', summaryPriorityCounts(summary), 'All severities');
@@ -718,6 +726,8 @@
             return (p.risk_statement || []).length;
           case 'supersession':
             return (p.supersession || []).length;
+          case 'cross_tenancy':
+            return (p.cross_tenancy || []).length;
           case 'consolidation_suggestion':
             return (p.consolidation || []).length;
           case 'invalid_statements':
@@ -754,6 +764,7 @@
         show('cardRiskPolicy', riskEnabled);
         show('cardRiskStatement', riskEnabled);
         show('cardSupersession', enabled.has('supersession'));
+        show('cardCrossTenancy', enabled.has('cross_tenancy'));
         show('cardConsolidation', enabled.has('consolidation_suggestion'));
 
         const cleanupEnabled = ['invalid_statements', 'unused_groups', 'unused_dynamic_groups', 'statements_too_open', 'anyuser_no_where']
@@ -826,6 +837,7 @@
         renderSummaryTable(payload);
         renderRiskTables(payload);
         renderTable('supersessionTable', payload.supersession || [], ['Policy Name', 'Effective Path', 'Classification', 'Superseded By']);
+        renderTable('crossTenancyTable', payload.cross_tenancy || [], ['Type', 'Severity', 'Policy Name', 'Statement Kind', 'Alias', 'Issue', 'Statement Count', 'Statement Text']);
         renderTable('consolidationTable', payload.consolidation || [], ['Type', 'Policies', 'Statements', 'Scope', 'Summary', 'Recommended Action']);
         renderTable('cleanupTable', payload.cleanup || [], ['Type', 'Name', 'Reason', 'Action']);
         renderTable('limitsTable', payload.limits || [], ['Compartment Hierarchy Path', 'Direct Statements', 'Cumulative Statements', 'Status', 'Recommendation']);

@@ -1031,7 +1031,7 @@ class ProspectiveEditorWindow(tk.Toplevel):  # noqa: D401
             if mode == 'Tag-based Where Clause' and ns and key:
                 desc = f'{desc} (tag {ns}.{key})'
 
-            logger.info(f"Adding new row from builder (loc={loc or 'ROOT'}, len={len(stmt)})")
+            logger.info(f'Adding new row from builder (loc={loc or "ROOT"}, len={len(stmt)})')
 
             # Use the shared CRUD helper to append a new row for this
             # builder-generated statement.
@@ -1428,7 +1428,7 @@ class ProspectiveEditorWindow(tk.Toplevel):  # noqa: D401
                     dom = domain
                     if dom in (None, 'default', 'Default'):
                         dom = None
-                    key = f"{ptype}:{dom or 'Default'}/{name}"
+                    key = f'{ptype}:{dom or "Default"}/{name}'
                     principals_seen.add(key)
                     principal_details[key] = (ptype, dom, name)
 

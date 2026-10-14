@@ -1,14 +1,18 @@
 # Architecture
 
-The OCI Policy Analysis tool has the following overall architecture:
+OCI Policy Analysis has four interfaces—desktop, CLI, FastAPI web, and FastMCP—over shared application services, repositories, and analysis engines. The application loads a snapshot of OCI IAM and policy data, retains the original evidence, and derives models for search, reporting, and simulation. These models represent the tool’s understanding of that snapshot; they are not the OCI policy engine and do not make authoritative OCI authorization decisions.
+
+The overview diagram shows the major components:
 
 ![Overall Architecture](./policy-analysis.drawio.svg)
 
-Each tier works together to form a clean separation between presentation, data repository, and associated tools and helpers. Third-party projects, such as DeepDiff, are used for comparisons, and FastMCP is used to expose MCP to clients. All access to OCI is via the OCI official Python SDK and the supported tenancy configurations.
+Presentation code handles interaction and transport. Application services coordinate use cases, while repositories and engines hold and analyze the data. DeepDiff supports comparisons, FastMCP exposes tools to MCP clients, and the official OCI Python SDK supplies live tenancy data. Cache, exported JSON, and CIS compliance output provide alternative input sources with different data coverage.
 
 ## Data Model
 
-The data model starts as an empty JSON object and is then populated by API calls via the OCI SDK, describing compartments, IAM identities, and policies. The data model captures structure, effective permissions, parsed/derived fields (like effective path or validity), and more.
+`PolicyAnalysisRepository` holds the mutable analysis snapshot: compartments, IAM identities, policies, normalized statements, and derived fields. A live load populates it through OCI SDK calls; offline loads populate it from cached/exported data or compliance output. Source statements remain available even when they are invalid, unresolved, or cannot be expanded into permissions.
+
+Post-load enrichment calculates effective paths, principal identities, validation findings, and the derived corpora. Full UI loads also calculate intelligence overlays and permission reports; the minimal profile used by MCP omits the full recommendations workflow. A successful load does not imply complete tenancy coverage. Collection scope, identity-domain search depth, missing data, and source age all affect what can be represented.
 
 ```mermaid
 flowchart TD
@@ -28,43 +32,86 @@ flowchart TD
 
 ## Layers
 
-**Data Layer**  
-Loads, caches, parses, and normalizes tenancy data including policies, users, groups, and dynamic groups. Provides efficient queries on the in-memory model.
+**Presentation layer**
 
-**Intelligence Layer**  
-Derives additional analytics and insights, such as policy recommendations, cleanup tasks, security risks, and overlap/consolidation suggestions.
+Desktop Tkinter tabs, the CLI, web routes and JavaScript, and MCP tools adapt user requests to the shared runtime. They format results and manage interaction; the desktop still has some legacy repository/engine orchestration in its main controller.
 
-**MCP Layer**  
-Runs an embedded MCP server using FastMCP to expose the current policy state and analytics as tools to compatible clients.
+**Application services layer**
 
-**UI Layer**  
-Implements all user-visible tabs, resizable panes, and integrates with the full policy/data model and analytics overlays. 
+Modules under `application/services/` expose task-oriented operations without depending on Tk widgets or HTTP request objects. `LoadService` coordinates input loading and post-load profiles; analysis and query services filter statements; other services provide simulation, recommendations, settings, caching, and logging. `PolicyGraphService` projects corpus facts into the same graph/search result shape for desktop and web, so the interfaces do not implement separate policy interpretations.
+
+`AppContext` holds the active settings, repositories, engines, corpora, and status used by services. It gives non-desktop consumers reusable application wiring and a shared dataset for related operations. Services may accept the context or a focused dependency such as a corpus. Existing consumers also call repositories and engines directly; the service boundary is the direction for reusable orchestration, rather than a claim that every code path has already migrated.
+
+Python embedding examples, load profiles, and integration guidance belong in [Embedding and Integrating OCI Policy Analysis](core_integration.md).
+
+**Core analysis layer**
+
+Modules under `application/core/` contain the repository, permission reference data, parsers and normalizers, corpus builders, and intelligence, simulation, and consolidation engines. These components derive analysis from the loaded snapshot. Recommendations and simulation results retain their relationship to source policies and data-quality findings.
+
+**Platform support**
+
+Configuration, cache storage, logging, and usage tracking support each consumer. OCI client operations use the official SDK; presentation adapters do not need their own policy grammar or permission expansion logic.
 
 ---
 
 ## Policy Parsing
 
-OCI policies are parsed using a dedicated **ANTLR-based parser**, which incorporates a comprehensive grammar covering the full breadth of OCI Policy Syntax. The parser translates written policy statements into well-structured parse trees, enabling detailed, robust extraction of policy components, conditions, and rules.
+OCI policies are parsed using an **ANTLR-based parser** and normalization helpers. Parse trees are converted into structured subjects, verbs, resources, locations, and condition data. Validation combines that structure with the loaded compartment and IAM inventory. Parser support and the bundled permission mappings can lag OCI changes; unsupported or unresolved statements must remain visible as findings rather than being treated as proof that access is absent.
 
 Once a policy statement is parsed, a series of derived fields are computed and added to the internal data model:
-- **Effective Path**: Determines which compartments a statement is in scope for, based on the policy's compartment location and referenced locations within statements.
-- **Validity & Invalid Reasons**: Calculates if a policy statement is internally consistent and matches live OCI structures (e.g., references to deleted compartments or malformed subjects).
-- **Parsed Conditions and Statement Breakdown**: Conditionals (WHERE clauses), operators, and subjects are normalized and attached to the data model for fine-grained filtering and analysis.
-- **Policy Overlap**: Leveraging resource-to-permission data, the system computes which statements overlap in their effective permissions, enabling conflict/duplication analysis.
-- **Canonical Models**: All parsed data is mapped to strict TypedDict-based schemas, powering consistent filtering, UI rendering, and MCP responses.
 
-The ANTLR grammar and parser implementation ensure that all features and edge cases in the evolving OCI policy language are handled with a high degree of accuracy. Maintainers can see the [logic context](https://github.com/agregory999/oci-policy-analysis/blob/main/context/project/CONTEXT_logic.md) and [policies-tab context](https://github.com/agregory999/oci-policy-analysis/blob/main/context/project/CONTEXT_policies_tab.md) for deeper implementation details.
+- **Effective Path**: Determines which compartments a statement is in scope for, based on the policy's compartment location and referenced locations within statements.
+- **Validity & Invalid Reasons**: Checks whether a policy statement is internally consistent and matches the loaded OCI structures (e.g., references to deleted compartments or malformed subjects).
+- **Parsed Conditions and Statement Breakdown**: Conditionals (WHERE clauses), operators, and subjects are normalized and attached to the data model for fine-grained filtering and analysis.
+- **Policy Overlap**: Using resource-to-permission data, the system computes which statements overlap in their effective permissions, enabling conflict/duplication analysis.
+- **Canonical Models**: TypedDict schemas and corpus dataclasses describe the normalized structures used by filtering, UI rendering, and service responses.
+
+Validation describes what the tool can establish from the current input; it is not validation by OCI’s authorization service. Maintainers can see the [logic context](https://github.com/agregory999/oci-policy-analysis/blob/main/context/project/CONTEXT_logic.md) and [policies-tab context](https://github.com/agregory999/oci-policy-analysis/blob/main/context/project/CONTEXT_policies_tab.md) for deeper implementation details.
+
+---
+
+## Policy corpora
+
+The repository preserves the input and its findings. A corpus compiles that input into a stable, shared representation for downstream analysis. This separation lets a policy remain available for diagnosis without contributing unsupported permission facts to reports or search.
+
+### Regular policy corpus
+
+`PolicyCorpusBuilder` creates an immutable, schema-versioned `PolicyCorpus` after effective-path calculation and validation. It is the tool’s best available model of representable policy contributions within the loaded tenancy. Each direct fact records a canonical principal, grant/effective path, expanded permission, allow or deny effect, condition, and provenance back to the policy and original statement. Separate facts preserve contributions from different source statements instead of merging away their evidence.
+
+The builder excludes explicitly invalid statements, missing paths or principals, unsupported effects, and verb/resource combinations without concrete permission expansion. Each exclusion records a reason and source details. “Valid” here means accepted by the tool’s validation and mapping rules, not certified by OCI. A programmatic build before validation can admit a statement whose validity flag is absent, provided the required fields and mappings are available.
+
+The corpus contains both direct facts and effective facts expanded along the loaded compartment hierarchy. Effective facts retain the original grant path and identify inheritance from an ancestor. Conditions and deny contributions remain explicit; compiling or displaying a fact does not mean its condition has been satisfied or that an allow has survived all relevant denies.
+
+The regular corpus is used by:
+
+- **Permissions Analysis and CLI permission exports:** projections of direct and inherited contributions, with exclusions available for diagnosis.
+- **Policy Graph in desktop and web:** a common search projection of direct grants, preserving principal, resource/permission, effective path, condition, and source-statement details. It does not render all inherited facts or calculate an authorization decision.
+- **Simulation:** shared permission expansion for candidate statements, with prospective statements compiled into a separate overlay. Request matching and condition evaluation remain simulation-engine responsibilities.
+
+This shared model reduces differences between interfaces and avoids re-expanding permissions independently for each view. It supports case-consistent principal identity, traceable reports, and explanations of why statements were omitted. Statement filtering through the repository remains useful for reviewing the complete source snapshot, including statements excluded from the corpus.
+
+### Cross-tenancy corpus
+
+`CrossTenancyCorpus` is a separate immutable snapshot of definitions, cross-tenancy source statements, resolved relationships, findings, and diagnostics. It preserves source occurrences and unresolved evidence, rather than applying the regular corpus’s permission-fact admission rules. Its shared projection supplies desktop and web cross-tenancy analysis views. Matching names in different tenancies remain distinct ownership scopes.
+
+A relationship derived from local cross-tenancy statements does not establish that the remote tenancy has supplied the matching policy or that OCI will authorize a request.
+
+### Lifecycle and interpretation
+
+Loads reset derived state and rebuild the corpora from the active repository. The shared post-load pipeline performs this work for non-desktop consumers; the desktop controller builds the corresponding models during its post-load flow. Regular corpus build timestamps and schema versions describe the compiled model, not a live OCI refresh. Prospective overlays do not change policies in OCI.
+
+Neither corpus replaces OCI’s policy engine. Results depend on the input snapshot, collection scope, available identity data, permission reference mappings, and supported syntax. An omitted or unmatched grant can reflect incomplete coverage or an exclusion. A conditional grant requires request context, and effective access may depend on other policy contributions. Use the model as analysis evidence and verify actual access through OCI where an authoritative decision is needed.
 
 ---
 
 ## Caching
 
-The application persistently caches full tenancy analyses (IAM, policies, derived fields, overlays) as versioned JSON files. Caching serves to:
+The application caches repository snapshots and supported derived analysis fields as versioned JSON files. Their contents depend on the source and load profile; a policy-only compliance snapshot does not contain the same IAM inventory as a live tenancy load. Caching serves to:
 - Accelerate reloads (especially when analyzing large tenancies or when OCI credentials are not immediately available)
 - Support offline/remote diagnostics or hand-offs
 - Provide input for diff/historical comparison functionality
 
-The cache format reflects the canonical data model and overlays as computed at data load time. All filtering, policy intelligence, and tab workflows can operate seamlessly over in-memory or cached data; the data repository manages de-duplication and versioning.
+Caches preserve the collected snapshot, not a continuing connection to OCI. Reloading runs the selected post-load enrichment and rebuilds the corpora. Workflows that require missing identity or tenancy data may be unavailable or have limited results; cached analysis remains subject to its collection time and scope.
 
 Cache management includes import, export, snapshotting, refreshing, and selection of caches—all directly exposed via the Settings Tab. Maintainers can see the [data repository context](https://github.com/agregory999/oci-policy-analysis/blob/main/context/project/CONTEXT_data_repo.md) and [settings context](https://github.com/agregory999/oci-policy-analysis/blob/main/context/project/CONTEXT_settings_tab.md) for more details.
 
@@ -89,7 +136,7 @@ See the [settings maintainer context](https://github.com/agregory999/oci-policy-
 
 Logging is centrally managed by a flexible, unified system supporting global and per-component log levels, controlled both at startup and dynamically via the Console Tab UI.
 Key characteristics:
-- Log messages from all components go both to the shell and to a persistently-rotated application logfile.
+- Records admitted by the configured log levels go to shell output and a rotating application logfile; packaged applications may have no visible shell.
 - In-app Console Tab shows INFO+ logs for all components, while the shell and log file can include DEBUG-level output per logger.
 - Log level selection is fully dynamic, can target individual loggers, and is instantly persisted for the next session.
 - Special modes (like CLI `--verbose`) override all levels and pin logging for troubleshooting.
@@ -111,10 +158,10 @@ published documentation. Start at the [maintainer context index](https://github.
 The codebase exposes a shared core through four primary consumer paths:
 - **Desktop UI** (`main.py` / Tkinter tabs)
 - **CLI** (`cli.py`)
-- **Web API** (`web/api/routes_core.py` via FastAPI dependencies)
+- **Web API** (`presentation/web/api/routes_core.py` via FastAPI dependencies)
 - **MCP Server** (`mcp_server.py` via FastMCP)
 
-Each path ultimately converges on shared repository and engine components, with OCI SDK and supporting platform services beneath the core domain.
+Each path ultimately converges on shared repository and engine components, with the OCI SDK and platform support beneath the core domain. The following diagrams summarize logical responsibilities; they are not a strict import dependency graph. The corpus builders and projections described above extend this overview.
 
 ### Runtime Flow (Consumers to Engines)
 
@@ -250,3 +297,7 @@ flowchart TB
     CFG --> CACHE
     TRACK --> OBJ
 ```
+
+## Canonical principal identity
+
+Named principal keys are case-folded to lowercase, including domain and identity names (for example `group:lz092026/opsteam`). Corpus construction also normalizes older mixed-case keys, so case variants share one graph node and permission identity. Exact filters and simulation accept either spelling. Subject/display fields and source statement text preserve their original spelling; normalization does not rewrite policy text. Opaque OCIDs, resource identifiers and condition-derived workload payloads retain their values. Cross-tenancy ownership remains a separate scope, so matching names in different tenancies do not become the same principal.

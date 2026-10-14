@@ -1,0 +1,12 @@
+standard_version: 1
+format: fastapi-js
+python: ">=3.12"
+oci_services:
+  - identity
+  - object-storage
+deployment: container
+exceptions:
+  - Existing desktop and CLI interfaces remain alongside FastAPI web and MCP servers.
+  - Web and MCP are separate images in one Container Instance; the Load Balancer is managed separately.
+  - Operator-requested configuration lives in run-build/.env with one canonical example; run/ remains the script entry point.
+  - An explicit version-pinned PyPI image build is supported alongside the default local-source build.

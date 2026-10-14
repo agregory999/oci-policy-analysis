@@ -26,6 +26,7 @@ CANONICAL_COMPONENT_ALIASES: dict[str, tuple[str, ...]] = {
     'load_service': ('application.services.load',),
     'logging_service': ('application.services.logging',),
     'policy_browser_service': ('application.services.policy_browser',),
+    'policy_graph_service': ('application.services.policy_graph',),
     'principal_analysis_service': ('application.services.principal_analysis',),
     'recommendations_service': ('application.services.recommendations',),
     'reference_data_service': ('application.services.reference_data',),

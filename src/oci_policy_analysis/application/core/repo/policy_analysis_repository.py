@@ -46,7 +46,10 @@ from oci.resource_search import ResourceSearchClient
 from oci.resource_search.models import StructuredSearchDetails
 from oci.signer import load_private_key_from_file
 
-from oci_policy_analysis.application.core.common.policy_helpers import calculate_principal_key
+from oci_policy_analysis.application.core.common.policy_helpers import (
+    calculate_principal_key,
+    canonicalize_principal_key,
+)
 from oci_policy_analysis.application.core.models.models import (
     AdmitStatement,
     BasePolicy,
@@ -1536,7 +1539,7 @@ class PolicyAnalysisRepository:
                 statement_dict['valid'] = False
                 statement_dict['invalid_reasons'] = normalized.get('invalid_reasons', [])
                 logger.debug(
-                    f"Admit statement was unable to normalize: {statement_dict.get('statement_text')} | Reason: {statement_dict.get('invalid_reasons')}"
+                    f'Admit statement was unable to normalize: {statement_dict.get("statement_text")} | Reason: {statement_dict.get("invalid_reasons")}'
                 )
                 self.cross_tenancy_statements.append(statement_dict)
                 return False
@@ -1579,7 +1582,7 @@ class PolicyAnalysisRepository:
                 statement_dict['valid'] = False
                 statement_dict['invalid_reasons'] = normalized.get('invalid_reasons', [])
                 logger.debug(
-                    f"Endorse statement was unable to normalize: {statement_dict.get('statement_text')} | Reason: {statement_dict.get('invalid_reasons')}"
+                    f'Endorse statement was unable to normalize: {statement_dict.get("statement_text")} | Reason: {statement_dict.get("invalid_reasons")}'
                 )
                 self.cross_tenancy_statements.append(statement_dict)
                 return False
@@ -1831,7 +1834,7 @@ class PolicyAnalysisRepository:
                 statement_dict['valid'] = False
                 statement_dict['invalid_reasons'] = normalized.get('invalid_reasons', [])
                 logger.debug(
-                    f"Regular statement was unable to normalize: {statement_dict.get('statement_text')} | Reason: {statement_dict.get('invalid_reasons')}"
+                    f'Regular statement was unable to normalize: {statement_dict.get("statement_text")} | Reason: {statement_dict.get("invalid_reasons")}'
                 )
                 logger.debug(f'Full invalid statement data: {statement_dict}')
                 self.regular_statements.append(statement_dict)
@@ -2427,7 +2430,7 @@ class PolicyAnalysisRepository:
                     thread_id = threading.get_ident()
                     thread_name = threading.current_thread().name
                     logger.debug(
-                        f"Thread {thread_name} (id={thread_id}) starting fetch_full_dg for dg_id={getattr(_dg, 'id', None)} display_name={getattr(_dg, 'display_name', None)}"
+                        f'Thread {thread_name} (id={thread_id}) starting fetch_full_dg for dg_id={getattr(_dg, "id", None)} display_name={getattr(_dg, "display_name", None)}'
                     )
                     full_dg = self._api_call_with_logging(
                         'IdentityDomainsClient.get_dynamic_resource_group',
@@ -2442,7 +2445,7 @@ class PolicyAnalysisRepository:
                         },
                     ).data
                     logger.debug(
-                        f"Thread {thread_name} (id={thread_id}) finished fetch_full_dg for dg_id={getattr(_dg, 'id', None)} display_name={getattr(_dg, 'display_name', None)}"
+                        f'Thread {thread_name} (id={thread_id}) finished fetch_full_dg for dg_id={getattr(_dg, "id", None)} display_name={getattr(_dg, "display_name", None)}'
                     )
                     parsed = self._parse_dynamic_group(domain=domain, dg=full_dg)
                     with dg_lock:
@@ -2519,7 +2522,7 @@ class PolicyAnalysisRepository:
                     thread_id = threading.get_ident()
                     thread_name = threading.current_thread().name
                     logger.debug(
-                        f"Thread {thread_name} (id={thread_id}) starting fetch_full_group for group_id={getattr(g, 'id', None)} display_name={getattr(g, 'display_name', None)}"
+                        f'Thread {thread_name} (id={thread_id}) starting fetch_full_group for group_id={getattr(g, "id", None)} display_name={getattr(g, "display_name", None)}'
                     )
                     group_obj = Group(
                         domain_name=domain.display_name,
@@ -2535,11 +2538,11 @@ class PolicyAnalysisRepository:
                     with group_lock:
                         self.groups.append(group_obj)
                     logger.debug(
-                        f"Thread {thread_name} (id={thread_id}) finished fetch_full_group for group_id={getattr(g, 'id', None)} display_name={getattr(g, 'display_name', None)}"
+                        f'Thread {thread_name} (id={thread_id}) finished fetch_full_group for group_id={getattr(g, "id", None)} display_name={getattr(g, "display_name", None)}'
                     )
                     return group_obj
                 except Exception as e:
-                    logger.error(f"Failed to process group details for: {getattr(g, 'id', None)}: {e}")
+                    logger.error(f'Failed to process group details for: {getattr(g, "id", None)}: {e}')
                     return None
 
             from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -2618,7 +2621,7 @@ class PolicyAnalysisRepository:
                 thread_id = threading.get_ident()
                 thread_name = threading.current_thread().name
                 logger.debug(
-                    f"Thread {thread_name} (id={thread_id}) starting fetch_full_user for user_id={getattr(u, 'id', None)} display_name={getattr(u, 'display_name', None)}"
+                    f'Thread {thread_name} (id={thread_id}) starting fetch_full_user for user_id={getattr(u, "id", None)} display_name={getattr(u, "display_name", None)}'
                 )
                 user_attributes = self._api_call_with_logging(
                     'IdentityDomainsClient.get_user',
@@ -2633,7 +2636,7 @@ class PolicyAnalysisRepository:
                     },
                 ).data
                 logger.debug(
-                    f"Thread {thread_name} (id={thread_id}) finished fetch_full_user for user_id={getattr(u, 'id', None)} display_name={getattr(u, 'display_name', None)}"
+                    f'Thread {thread_name} (id={thread_id}) finished fetch_full_user for user_id={getattr(u, "id", None)} display_name={getattr(u, "display_name", None)}'
                 )
                 groups_list = (
                     [gg.ocid for gg in getattr(user_attributes, 'groups', []) if hasattr(gg, 'ocid')]
@@ -2735,7 +2738,7 @@ class PolicyAnalysisRepository:
                     }
                     self.idp_group_mappings.append(record)
                     if target:
-                        target.setdefault('mapped_idp_groups', []).append(f"{provider.name}/{record['idp_group_name']}")
+                        target.setdefault('mapped_idp_groups', []).append(f'{provider.name}/{record["idp_group_name"]}')
             logger.info('Loaded %s OracleIdentityCloudService IdP group mapping(s).', len(self.idp_group_mappings))
         except Exception as exc:
             logger.info('IdP group mappings unavailable; continuing without them: %s', exc)
@@ -3015,24 +3018,24 @@ class PolicyAnalysisRepository:
                         break
                 elif key == 'principal_key':
                     raw_values = values if isinstance(values, list) else [values]
-                    expected_keys = {str(v).strip() for v in raw_values if str(v).strip()}
+                    expected_keys = {canonicalize_principal_key(v) for v in raw_values if str(v).strip()}
                     if not expected_keys:
                         continue
 
                     statement_keys: set[str] = set()
                     direct_keys = stmt.get('principal_keys')
                     if isinstance(direct_keys, list):
-                        statement_keys.update(str(k).strip() for k in direct_keys if str(k).strip())
+                        statement_keys.update(canonicalize_principal_key(k) for k in direct_keys if str(k).strip())
                     direct_key = stmt.get('principal_key')
                     if isinstance(direct_key, str) and direct_key.strip():
-                        statement_keys.add(direct_key.strip())
+                        statement_keys.add(canonicalize_principal_key(direct_key))
                     principals = stmt.get('principals')
                     if isinstance(principals, list):
                         for principal in principals:
                             if isinstance(principal, dict):
                                 pkey = principal.get('principal_key')
                                 if isinstance(pkey, str) and pkey.strip():
-                                    statement_keys.add(pkey.strip())
+                                    statement_keys.add(canonicalize_principal_key(pkey))
 
                     if not statement_keys:
                         # Legacy fallback for statements that predate principal key enrichment.
@@ -3043,7 +3046,7 @@ class PolicyAnalysisRepository:
                                 if isinstance(principal, dict):
                                     pkey = principal.get('principal_key')
                                     if isinstance(pkey, str) and pkey.strip():
-                                        statement_keys.add(pkey.strip())
+                                        statement_keys.add(canonicalize_principal_key(pkey))
 
                     if not (statement_keys & expected_keys):
                         logger.debug(
@@ -3061,7 +3064,7 @@ class PolicyAnalysisRepository:
                     groups_filter = filters.get('exact_groups', []) or []
                     subject_type = (stmt.get('subject_type') or '').lower()
                     if subject_type not in ('group', 'group-id'):
-                        logger.debug(f"Rejecting {stmt.get('policy_name')} due to subject_type not group/group-id")
+                        logger.debug(f'Rejecting {stmt.get("policy_name")} due to subject_type not group/group-id')
                         match = False
                         break
                     subjects = stmt.get('subject', [])
@@ -3134,7 +3137,7 @@ class PolicyAnalysisRepository:
                     subject_type = (stmt.get('subject_type') or '').lower()
                     if subject_type not in ('dynamic-group', 'dynamic-group-id'):
                         logger.debug(
-                            f"Rejecting {stmt.get('policy_name')} due to Subject Type not dynamic-group/dynamic-group-id"
+                            f'Rejecting {stmt.get("policy_name")} due to Subject Type not dynamic-group/dynamic-group-id'
                         )
                         match = False
                         break
@@ -4102,7 +4105,7 @@ class PolicyAnalysisRepository:
                         self.compartments.append(compartment)
                     else:
                         logger.debug(
-                            f"Skipping compartment {compartment['name']} with lifecycle state {compartment['lifecycle_state']}"
+                            f'Skipping compartment {compartment["name"]} with lifecycle state {compartment["lifecycle_state"]}'
                         )
                 # For some reason the root compartment is not included - add it manually
                 root_compartment = Compartment(
@@ -4119,13 +4122,13 @@ class PolicyAnalysisRepository:
 
             # Now build hierarchy paths for each compartment
             for comp in self.compartments:
-                logger.info(f"Building path for compartment {comp.get('name','n/a')}")
+                logger.info(f'Building path for compartment {comp.get("name", "n/a")}')
                 comp['hierarchy_path'] = self._get_hierarchy_path_for_compartment(comp, '')
             logger.info('Built hierarchy paths for compartments')
 
             # Debug just the compartment name and path for all compartments
             for comp in self.compartments:
-                logger.info(f"Compartment: {comp.get('name','n/a')} Path: {comp.get('hierarchy_path','n/a')}")
+                logger.info(f'Compartment: {comp.get("name", "n/a")} Path: {comp.get("hierarchy_path", "n/a")}')
 
             # --- Step 6: Load Policies ---
             compartments_file = _resolve_compliance_output_csv(dir_path, 'raw_data_identity_policies.csv')

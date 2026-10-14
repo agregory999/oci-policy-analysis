@@ -12,7 +12,14 @@ from oci_policy_analysis.application.services.search_builders import build_polic
 
 @dataclass
 class FilterResult:
-    """Result container for statement filtering operations."""
+    """Statement-search result over the loaded repository.
+
+    Attributes:
+        total: Number of source statements in the searched repository or subset.
+        matched: Number of statements satisfying the filters.
+        statements: Matching normalized source statement records, including invalid
+            records when permitted by the filters.
+    """
 
     total: int
     matched: int
@@ -20,7 +27,19 @@ class FilterResult:
 
 
 class AnalysisService:
-    """Expose filtering on loaded policy statements."""
+    """Filter source statements without requiring a presentation adapter.
+
+    Args:
+        context: Runtime containing the active policy repository.
+
+    Attributes:
+        context: Shared runtime queried on each operation.
+        logger: Component logger for search diagnostics.
+
+    Notes:
+        Queries source statements rather than only admitted corpus facts. Empty
+        results do not establish absence of OCI access in an incomplete snapshot.
+    """
 
     def __init__(self, context: AppContext) -> None:
         """Initialize the analysis service.

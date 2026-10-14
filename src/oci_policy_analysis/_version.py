@@ -1,5 +1,6 @@
 """Version resolution helpers for OCI Policy Analysis."""
 
+import json
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version
 from importlib.resources import files
@@ -32,3 +33,14 @@ def get_app_version(default: str = 'dev') -> str:
         return package_version('oci-policy-analysis')
     except PackageNotFoundError:
         return default
+
+
+def get_image_build_metadata() -> dict[str, str]:
+    """Read immutable build metadata stamped inside an image, absent for local runs."""
+    try:
+        metadata = json.loads(files('oci_policy_analysis').joinpath('_build_info.json').read_text())
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(metadata, dict):
+        return {}
+    return {key: value for key in ('image_tag', 'built_at') if isinstance((value := metadata.get(key)), str) and value}

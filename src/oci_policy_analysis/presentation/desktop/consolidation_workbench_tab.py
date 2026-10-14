@@ -270,7 +270,7 @@ class ConsolidationWorkbenchTab(BaseUITab):
         self.logger.info(
             'consolidation_tab.reload_and_validate_protection_set timing (seconds): '
             + ' | '.join([f'{label}: {elapsed:.2f}' for label, elapsed in timings])
-            + f' | TOTAL: {time.perf_counter()-start:.2f}s'
+            + f' | TOTAL: {time.perf_counter() - start:.2f}s'
         )
 
     def refresh_plan_history_for_tenancy(self):
@@ -904,7 +904,7 @@ class ConsolidationWorkbenchTab(BaseUITab):
         self._refresh_plan_history_dropdown()
         self._refresh_plan_history_table()
         self.plan_status_label.configure(
-            text=f"Reset complete. Cleared {result.get('cleared_history_records', 0)} plan-history record(s)."
+            text=f'Reset complete. Cleared {result.get("cleared_history_records", 0)} plan-history record(s).'
         )
 
     def _refresh_plan_history_table(self):
@@ -931,7 +931,7 @@ class ConsolidationWorkbenchTab(BaseUITab):
                     'Created': (run.get('created_at') or '')[:19].replace('T', ' '),
                     'Strategy': run.get('strategy', '—'),
                     'Status': run.get('status', 'in_progress'),
-                    'Steps': f"{run.get('executed_steps', 0)}/{run.get('steps', 0)}" if run.get('steps') else '—',
+                    'Steps': f'{run.get("executed_steps", 0)}/{run.get("steps", 0)}' if run.get('steps') else '—',
                     'Validity': run.get('validity', '—'),
                     'consolidation_effort_id': run.get('effort_id', ''),
                 }
@@ -973,10 +973,10 @@ class ConsolidationWorkbenchTab(BaseUITab):
         lines = []
         lines.append('Plan summary')
         lines.append('-' * 40)
-        lines.append(f"Effort ID: {run.get('consolidation_effort_id', '—')}")
-        lines.append(f"Created:   {(run.get('created_at') or '')[:19]}")
-        lines.append(f"Strategy:  {run.get('strategy', '—')}")
-        lines.append(f"Status:    {run.get('status', 'in_progress')}")
+        lines.append(f'Effort ID: {run.get("consolidation_effort_id", "—")}')
+        lines.append(f'Created:   {(run.get("created_at") or "")[:19]}')
+        lines.append(f'Strategy:  {run.get("strategy", "—")}')
+        lines.append(f'Status:    {run.get("status", "in_progress")}')
         plan = run.get('plan') or {}
         steps = plan.get('plan_steps') or []
         step_status = run.get('step_status') or {}
@@ -991,9 +991,9 @@ class ConsolidationWorkbenchTab(BaseUITab):
             conflicts = detail_data['conflict_analysis']['conflicts']
             if conflicts:
                 for c in conflicts:
-                    lines.append(f"  Policy OCID: {c.get('policy_ocid', '')}")
-                    lines.append(f"    Current tag: {c.get('current_tag_value', '')}")
-                    lines.append(f"    Conflicting plan: {c.get('conflicting_plan_id', '')}")
+                    lines.append(f'  Policy OCID: {c.get("policy_ocid", "")}')
+                    lines.append(f'    Current tag: {c.get("current_tag_value", "")}')
+                    lines.append(f'    Conflicting plan: {c.get("conflicting_plan_id", "")}')
             else:
                 lines.append('  None.')
         else:
@@ -1262,7 +1262,7 @@ class ConsolidationWorkbenchTab(BaseUITab):
         run = self.plan_history_id_lookup[sel]
         # Show major info in status section
         txt = []
-        txt.append(f"Strategy: {run.get('strategy', '')} | Created: {run.get('created_at', '')}")
+        txt.append(f'Strategy: {run.get("strategy", "")} | Created: {run.get("created_at", "")}')
         step_status = run.get('step_status') or {}
         progress = step_status.get('progress') if isinstance(step_status.get('progress'), dict) else {}
         # Find the latest real executed step (not 'proposal') or fallback
@@ -1270,13 +1270,13 @@ class ConsolidationWorkbenchTab(BaseUITab):
         if real_steps:
             last_key = real_steps[-1]
             step_info = step_status[last_key]
-            txt.append(f"Latest step: {last_key} [{step_info.get('status')}] at {step_info.get('generated_at', '')}")
+            txt.append(f'Latest step: {last_key} [{step_info.get("status")}] at {step_info.get("generated_at", "")}')
         elif progress:
             # Fallback if using progress step_id keys
             executed = [k for k, v in progress.items() if v.get('executed')]
             if executed:
                 last_key = executed[-1]
-                txt.append(f"Latest executed step: {last_key} at {progress[last_key].get('executed_at', '')}")
+                txt.append(f'Latest executed step: {last_key} at {progress[last_key].get("executed_at", "")}')
         else:
             txt.append('Latest step: (not started)')
         self.plan_status_label.config(text=' | '.join(txt))
@@ -1304,7 +1304,7 @@ class ConsolidationWorkbenchTab(BaseUITab):
             self._last_plan_for_script = None
             self.script_text.config(state='normal')
             self.script_text.delete(1.0, 'end')
-            script_out = '\n'.join([f"-- Plan step: {r.get('Policy Name', r.get('policy_name', '?'))}" for r in data])
+            script_out = '\n'.join([f'-- Plan step: {r.get("Policy Name", r.get("policy_name", "?"))}' for r in data])
             self.script_text.insert('end', script_out if script_out else '(no statements)')
             self.script_text.config(state='disabled')
 
@@ -1455,7 +1455,7 @@ class ConsolidationWorkbenchTab(BaseUITab):
         self.logger.info(
             '_refresh_filter_protect_table timing (seconds): '
             + ' | '.join([f'{label}: {elapsed:.2f}' for label, elapsed in timings])
-            + f' | TOTAL: {time.perf_counter()-start:.2f}s'
+            + f' | TOTAL: {time.perf_counter() - start:.2f}s'
         )
 
     def _on_mark_as_protected(self, selected_rows):
@@ -1757,7 +1757,7 @@ class ConsolidationWorkbenchTab(BaseUITab):
         # Visible success feedback so user sees the plan was generated
         num_steps = len(plan.get('plan_steps', []))
         self.plan_status_label.config(
-            text=f"Plan generated: {plan.get('plan_id', '?')} — {num_steps} step(s). Select from dropdown to re-open."
+            text=f'Plan generated: {plan.get("plan_id", "?")} — {num_steps} step(s). Select from dropdown to re-open.'
         )
         self.logger.info('Consolidation plan generated: %s steps, plan_id=%s', num_steps, plan.get('plan_id'))
 

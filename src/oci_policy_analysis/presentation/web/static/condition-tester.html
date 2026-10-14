@@ -259,7 +259,7 @@
           if (!preloadClause || !String(preloadClause).trim()) return;
           clauseInput.value = String(preloadClause).trim();
           sessionStorage.removeItem(CONDITION_TESTER_STORAGE_KEY);
-          setStatus('Loaded condition from Policy Analysis.');
+          setStatus(new URLSearchParams(location.search).get('from') === 'policy-graph' ? 'Loaded condition from Policy Graph.' : 'Loaded condition from Policy Analysis.');
           generateInputs();
         } catch (error) {
           setStatus(`Unable to load prefilled condition: ${error}`, true);

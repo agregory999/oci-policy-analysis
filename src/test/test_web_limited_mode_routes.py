@@ -5,8 +5,9 @@ from typing import Any, cast
 import pytest
 from fastapi import HTTPException
 from fastapi.responses import FileResponse, RedirectResponse
-from oci_policy_analysis.web.api import routes_core
 from starlette.requests import Request
+
+from oci_policy_analysis.web.api import routes_core
 
 
 class _Req:

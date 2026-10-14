@@ -4,6 +4,8 @@ Analyze OCI IAM policies, compartments, identity domains, groups, users, and dyn
 
 ## Quick start
 
+For a source checkout, run `run/build.sh` (or `uv sync --extra web --extra mcp`), copy `run-build/.env.example` to `run-build/.env`, then use `run/local.sh web` or `run/local.sh mcp`. The [run guide](run/README.md) covers local modes and container deployment.
+
 Choose the path that fits you:
 
 - **Desktop:** local, single-user visual analysis.

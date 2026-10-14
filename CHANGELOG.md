@@ -1,3 +1,35 @@
+## 7.0.0.dev0 — Unreleased
+
+### Features
+
+* Compile regular policies into a shared permission corpus with canonical principal keys, source provenance, direct and inherited facts, and explicit exclusions.
+* Add graphical policy search to web and desktop: filter principals, resources or permissions, and effective paths; discover matching principals and paths across all result pages; inspect original statements and complete permission lists.
+* Show all matching graphical-search grants in scrollable tables, identify conditional grants, and send their conditions to the existing Condition Tester from the row context menu.
+* Add a separate cross-tenancy corpus and shared relationship projection for web, the desktop Canvas explorer, findings, and the JSON Debugger.
+* Expand MCP policy-set search descriptions, structured inputs, examples, and bounded result contracts.
+* Consolidate local run, build, clean, image publishing, and Container Instance deployment under `run/`, using one configuration in `run-build/.env`.
+* Support an explicit pinned-PyPI image build alongside the default local-source build, and display image tag and build time in the web footer.
+
+### Fixes
+
+* Normalize named principal keys without changing original statement text, preventing case variants from appearing as separate principals.
+* Run desktop post-load policy intelligence once and render Recommendations from the completed results. Preserve explicit recalculation and apply saved strategy/risk settings during the first pass.
+* Align permissions analysis and simulation with the shared corpus, including partial CIS imports and parsed principal types.
+* Retain MCP identity-domain discovery depth in the shared deployment configuration and detect runtime changes when replacing containers.
+* Add shared graph search logging and desktop graph construction summaries; compact the desktop Platform logger controls into one column.
+
+### Compatibility
+
+* Keep the 6.5.7 combined-cache format (`version: 2`, `schema_version: 3`) and existing saved snapshots supported. Corpora and intelligence are rebuilt at runtime.
+* Reconstruct association endpoints from older cross-tenancy statement text without rewriting cache files, and preserve the primary scope of Endorse associations.
+* Remove the legacy `oci_policy_analysis.common` and `oci_policy_analysis.logic` Python import packages. Integrations must use `application.core`; published command names remain stable.
+* Attach desktop installer assets to feature-branch prereleases; PyPI publishing remains restricted to `main`.
+
+### Validation and documentation
+
+* Add corpus, graph, principal-normalization, MCP contract, runtime, and image-build coverage, including desktop/web graph parity and the desktop intelligence single-run regression.
+* Update usage, MCP, logging, architecture, and operations documentation. Exclude generated ANTLR parsers consistently from lint and format hooks.
+
 ## [6.5.4](https://github.com/agregory999/oci-policy-analysis/compare/v6.5.3...v6.5.4) (2026-09-29)
 
 

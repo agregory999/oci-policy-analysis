@@ -31,12 +31,14 @@ def load_settings():
     try:
         with open(SETTINGS_PATH) as f:
             logger.info(f'Loading settings from {SETTINGS_PATH}')
-            return json.load(f)
+            settings = json.load(f)
     except FileNotFoundError:
         logger.warning(f'Settings file not found: {SETTINGS_PATH}')
-        return {}
+        settings = {}
     except Exception:
-        return {}
+        settings = {}
+
+    return settings if isinstance(settings, dict) else {}
 
 
 def save_settings(settings: dict):

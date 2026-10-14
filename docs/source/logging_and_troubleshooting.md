@@ -16,6 +16,16 @@ There is a single Global Logger dropdown, which if set, will change the log leve
 
 Additionally, there is a "Show Loggers" checkbox, which allows inidividual override per component.  For example, set the global level to WARNING, and then override a compoment to INFO.  Doing this will allow you to see additional details for that component.
 
+For corpus diagnostics, set **Core Repo / Engine → core.policy_corpus** to INFO to see direct/effective fact and exclusion counts. Set **core.cross_tenancy_corpus** to INFO for definition, relationship, finding, diagnostic, and resolution counts. Set **cross_tenancy** to INFO for cross-tenancy findings and graph refresh summaries. These summaries appear on the Console tab after a load or **Refresh view**; they do not include statement text.
+
+For graphical policy search, set **Application Services → application.services.policy_graph** to INFO in either the desktop Console logging controls or the web Logging page. Each search reports the active filter categories, effect, overview state, page/page size, corpus and exclusion counts, matching principals, grants and effective paths, visible grants, and elapsed milliseconds. An unloaded corpus is reported explicitly. DEBUG additionally records filter values; INFO does not print statement text or permission lists.
+
+On desktop, **UI → policy_graph_tab** at INFO reports tab construction and each populated view's principal/resource/path card counts, table row count, guidance state, and elapsed time. It does not log every resize or scroll. **core.policy_corpus** covers the underlying corpus build; **application.services.policy_graph** covers shared searches. Each Console logger category uses one column; categories wrap into additional rows to fit the window. The logger panel scrolls independently from the log output.
+
+During desktop loads, the modal names each intelligence prerequisite and strategy, then the corpus, permissions report, and simulation phases. The **core.engine.policy_intelligence_engine** component at INFO records elapsed time for each check and prerequisite; **main** at INFO records the larger post-load phases. The final live tenancy load time includes intelligence and corpus construction.
+
+Desktop post-load intelligence runs once per successful load. Recommendations then renders the completed overlay without rerunning strategies. Changing analytics controls explicitly recalculates intelligence. Engine-initialization messages can also appear during reset; initialization alone does not execute strategies.
+
 ### Debugging from the command line
 
 Due to the volume of logging, DEBUG output, if set, is only available on the shell.  Therefore debug logging is not really available via executable.   There are 2 ways to enable debug
@@ -124,6 +134,8 @@ Use `--help` with each command for the complete option list. For web startup, a 
 - The *JSON Debugger* tab in the desktop UI is primarily a troubleshooting tool, intended to help developers and advanced users debug and inspect the application's internal state.
 - This tab displays internal JSON objects and data structures used by the app for policy analysis, simulation history, reference data, and policy intelligence overlays.
 - These objects are shown in their raw or near-raw form for maximum diagnostic value, making it possible to review exact internal representations, nested relationships, and unprocessed values that may not appear in regular user-facing UI components.
+
+For a large **Policy Corpus**, the debugger opens on a count summary. Choose `facts`, `effective_facts`, or `exclusions` to inspect 100 records per page. Search filters the selected section, and Text and Tree modes show only the current page. This keeps permission and compartment expansion from filling the Tk text widget with the entire corpus.
 
 - Use it to:
   - Review raw input/output for policy analysis steps

@@ -134,9 +134,11 @@ def test_mcp_tool_surface_is_compact_meta_tools_only():
 
 
 def test_packaged_mcp_tools_artifact_matches_compact_surface():
-    with resources.files('oci_policy_analysis.application.core.resources.mcp_tools_list').joinpath(
-        'mcp_tools.json'
-    ).open('r', encoding='utf-8') as handle:
+    with (
+        resources.files('oci_policy_analysis.application.core.resources.mcp_tools_list')
+        .joinpath('mcp_tools.json')
+        .open('r', encoding='utf-8') as handle
+    ):
         data = json.load(handle)
 
     tools = data['result']['tools']

@@ -29,7 +29,7 @@ def test_cli_live_load_saves_cache_after_effective_path_enrichment(monkeypatch):
             events.append('initialize_client')
             return True
 
-        def load_complete_identity_domains(self):
+        def load_complete_identity_domains(self, **_kwargs):
             events.append('load_complete_identity_domains')
             return True
 

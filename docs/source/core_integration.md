@@ -25,6 +25,29 @@ An integration must therefore preserve the distinction between:
 Treat validation findings, load warnings, collection timestamp, source mode,
 and any scope limits as output that belongs beside the requested result.
 
+## Saved snapshot compatibility in 7.0
+
+The combined-cache format is unchanged from 6.5.7: `version: 2`, with current
+writers using `schema_version: 3`. The existing `policies` and `policy_statements`
+sections remain required. Optional inventory and metadata fields retain their
+existing defaults, so older snapshots using the supported structure can load
+without a fresh OCI collection. This does not add support for formats that 6.5.7
+already rejected.
+
+Regular and cross-tenancy corpora, intelligence overlays, and the permissions
+report are rebuilt at runtime; they are not added to the combined-cache payload.
+Statement records can contain updated derived fields, including canonical
+principal keys and structured association endpoints. Original statement text
+remains available. For old cross-tenancy association records without endpoint
+structure, corpus construction reparses the source text on a detached copy;
+it does not rewrite the cache file.
+
+The breaking change is the removal of the former `common` and `logic` Python
+import packages, not a requirement to discard saved tenancy data. Callers should
+migrate imports and run the appropriate post-load profile after loading. Changes
+in validation, permission mappings, and analysis can legitimately change derived
+results when the same snapshot is processed by a newer version.
+
 ## Python embedding
 
 `AppContext` is the reusable application wiring used by non-desktop consumers.
@@ -50,7 +73,10 @@ statements = MCPQueryService(context).filter_policy_statements(
 ```
 
 Use the current context and services rather than presentation modules or
-private helpers. Keep integration tests close to the package version you run;
+private helpers. The former top-level `oci_policy_analysis.common` and
+`oci_policy_analysis.logic` compatibility packages are removed in 7.0; import
+models, repositories, and support helpers from `application.core` instead.
+Keep integration tests close to the package version you run;
 there is not yet a separately versioned plugin SDK.
 
 ### Extension checklist

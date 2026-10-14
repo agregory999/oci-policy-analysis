@@ -119,7 +119,7 @@ class PolicyBrowserService:
                         continue
                     tags.append({'source': 'legacy', 'name': key_text, 'value': str(value or '')})
 
-        tags.sort(key=lambda item: f"{item.get('name', '')}:{item.get('value', '')}".casefold())
+        tags.sort(key=lambda item: f'{item.get("name", "")}:{item.get("value", "")}'.casefold())
         return tags
 
     def list_tag_namespaces(self) -> dict[str, object]:

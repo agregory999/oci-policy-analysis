@@ -421,7 +421,7 @@ class AiOperationsTab(BaseUITab):
         super().__init__(
             parent,
             default_help_text=(
-                'AI assist usage across all runs (calls, success rate, ' 'average duration, grouped by model and tab).'
+                'AI assist usage across all runs (calls, success rate, average duration, grouped by model and tab).'
             ),
         )
 

@@ -8,7 +8,7 @@
 #
 # Loader utilities for reading anonymous usage tracking documents from an
 # Object Storage PAR. This mirrors the shape and conventions used in
-# common/usage_tracking.py but operates in read-only mode using a separate
+# application/core/support/usage_tracking.py but operates in read-only mode using a separate
 # PAR URL.
 #
 # Supports Python 3.12 and above

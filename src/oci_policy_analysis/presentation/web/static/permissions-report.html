@@ -16,6 +16,28 @@
       #denyTable td {
         font-size: 0.75rem;
       }
+      .permission-filter > label {
+        min-width: 90px;
+      }
+      .permission-filter > input {
+        flex: 0 1 280px;
+        max-width: 320px;
+      }
+      .permissions-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.4rem 0.75rem;
+        margin: 8px 0;
+      }
+      .permissions-toolbar .permission-filter {
+        flex: 1 1 330px;
+        margin: 0;
+      }
+      .permissions-toolbar .analysis-meta {
+        justify-content: flex-start;
+      }
     </style>
   </head>
   <body>
@@ -57,7 +79,7 @@
     <main class="layout-two-column layout-two-column-equal">
       <!-- Left column: filters + effective path/principal tree list -->
       <section class="card compact-card">
-        <p class="card-title">Tree Controls</p>
+        <p class="card-title" data-help-title="Permissions Scope" data-help-body="Filter the effective paths and principals, then select a row to inspect its permissions.">Permissions Scope</p>
         <p>Filter principal keys and choose a path/subject pair for details.</p>
 
         <div class="form-grid form-grid-spacious">
@@ -66,29 +88,42 @@
             <input
               id="principalQuery"
               placeholder="group default admins"
+              style="max-width: 280px"
               data-help-title="Principal key search"
               data-help-body="Free-text search against principal keys (type/domain/name segments)."
             />
           </div>
           <div class="inline-field">
-            <label for="permissionQuery">Permission Search</label>
+            <label for="pathQuery">Effective Path</label>
             <input
-              id="permissionQuery"
-              placeholder="inspect"
-              data-help-title="Permission search"
-              data-help-body="Filter selected allow/deny rows by permission text."
+              id="pathQuery"
+              placeholder="root/team-a"
+              style="max-width: 320px"
+              data-help-title="Effective path filter"
+              data-help-body="Show only effective compartment paths containing this text."
             />
+          </div>
+          <div class="inline-field">
+            <label for="principalType">Principal Type</label>
+            <select id="principalType" data-help-title="Principal type" data-help-body="Limit the principal tree to one principal type.">
+              <option>All types</option>
+            </select>
           </div>
           <label
             class="checkbox-label"
-            data-help-title="Show inherited principals"
-            data-help-body="Include principals inherited from ancestor paths in each path node."
-            ><input type="checkbox" id="showInheritedPrincipals" /> Show inherited principals in tree</label
+            data-help-title="Include inherited principals and permissions"
+            data-help-body="When enabled, include principals and permission grants inherited from ancestor compartments. When off, show grants directly at the selected path."
+            ><input type="checkbox" id="showInheritedPrincipals" /> Include inherited principals and permissions</label
           >
+          <label class="checkbox-label" data-help-title="Show unmapped statements" data-help-body="Show corpus statements that were excluded because permission expansion was unavailable or intentionally empty.">
+            <input type="checkbox" id="showUnmapped" /> Show unmapped statements
+          </label>
+          <label class="checkbox-label" data-help-title="Include prospective statements" data-help-body="Overlay prospective statements on the tenancy corpus in this report.">
+            <input type="checkbox" id="includeProspective" /> Include prospective statements
+          </label>
           <div class="dynamic-group-actions">
             <button id="applyBtn" data-help-title="Apply filters" data-help-body="Reload tree data with current filters.">Apply</button>
             <button id="clearBtn" class="ghost" data-help-title="Clear filters" data-help-body="Clear search text and reload default tree.">Clear</button>
-            <button id="exportBtn" class="ghost" data-help-title="Export JSON" data-help-body="Export raw permissions report JSON payload.">Export JSON</button>
           </div>
         </div>
 
@@ -117,12 +152,18 @@
 
       <!-- Right column: selected subject details split into allow and deny tables -->
       <section class="card compact-card">
-        <p class="card-title">Selected Permissions</p>
+        <p class="card-title" data-help-title="Permissions" data-help-body="Allow and deny permissions for the selected effective path and principal.">Permissions</p>
         <p id="selectionSummary">No subject selected.</p>
 
-        <div class="analysis-meta">
-          <div id="allowSummary" class="pill">Allow: 0</div>
-          <div id="denySummary" class="pill">Deny: 0</div>
+        <div class="permissions-toolbar">
+          <div class="inline-field permission-filter">
+            <label for="permissionQuery">Permission</label>
+            <input id="permissionQuery" placeholder="permission name" data-help-title="Permission search" data-help-body="Filter both allow and deny rows by permission name." />
+          </div>
+          <div class="analysis-meta">
+            <div id="allowSummary" class="pill" data-help-title="Distinct allow permission count" data-help-body="Number of unique permission names currently shown in the Allow table, regardless of how many scopes grant them.">Allow: 0 distinct</div>
+            <div id="denySummary" class="pill" data-help-title="Distinct deny permission count" data-help-body="Number of unique permission names currently shown in the Deny table, regardless of how many scopes deny them.">Deny: 0 distinct</div>
+          </div>
         </div>
 
         <h3 class="section-heading" style="margin-top: 10px">Allow Permissions</h3>
@@ -133,6 +174,8 @@
                 <tr>
                   <th>Permission</th>
                   <th>Conditional</th>
+                  <th>Source</th>
+                  <th>Inherited</th>
                   <th>Inherited From</th>
                 </tr>
               </thead>
@@ -149,6 +192,8 @@
                 <tr>
                   <th>Permission</th>
                   <th>Conditional</th>
+                  <th>Source</th>
+                  <th>Inherited</th>
                   <th>Inherited From</th>
                 </tr>
               </thead>
@@ -159,11 +204,30 @@
       </section>
     </main>
 
+    <section class="card compact-card" id="unmappedSection" hidden style="margin: 12px">
+      <p class="card-title">Unmapped / Excluded Statements</p>
+      <p>Review these statements to add a mapping, mark them as having no permissions, or leave them unresolved.</p>
+      <div class="table-shell analysis-table-offset">
+        <div class="table-scroll custom-scrollbar" style="max-height: 440px">
+          <table id="unmappedTable" class="analysis-table">
+            <thead><tr><th>Category</th><th>Reason</th><th>Policy</th><th>Effect</th><th>Verb</th><th>Resource</th><th>Statement</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
     <script>
       // Core page state and element references.
       const principalQueryEl = document.getElementById('principalQuery');
+      const pathQueryEl = document.getElementById('pathQuery');
+      const principalTypeEl = document.getElementById('principalType');
       const permissionQueryEl = document.getElementById('permissionQuery');
       const showInheritedPrincipalsEl = document.getElementById('showInheritedPrincipals');
+      const showUnmappedEl = document.getElementById('showUnmapped');
+      const includeProspectiveEl = document.getElementById('includeProspective');
+      const unmappedSectionEl = document.getElementById('unmappedSection');
+      const unmappedBody = document.querySelector('#unmappedTable tbody');
       const treeSummaryEl = document.getElementById('treeSummary');
       const treeBody = document.querySelector('#treeTable tbody');
       const selectionSummaryEl = document.getElementById('selectionSummary');
@@ -242,30 +306,64 @@
           .map(
             (row) =>
               `<tr><td>${esc(row.permission || '')}</td><td>${esc(String(Boolean(row.conditional)))}</td><td>${esc(
-                row.inherited_from || '—'
-              )}</td></tr>`
+                row.prospective ? 'Prospective' : 'Existing'
+              )}</td><td>${esc(row.inherited ? 'Yes' : 'No')}</td><td>${esc(row.inherited_from || '—')}</td></tr>`
           )
           .join('');
       }
 
+      function distinctPermissionCount(rows) {
+        return new Set((rows || []).map((row) => String(row.permission || '').trim().toLocaleLowerCase()).filter(Boolean)).size;
+      }
+
+      async function loadUnmapped() {
+        unmappedSectionEl.hidden = !showUnmappedEl.checked;
+        if (!showUnmappedEl.checked) return;
+        const params = new URLSearchParams({ include_prospective: String(includeProspectiveEl.checked) });
+        const resp = await fetch('/analysis/permissions-report/exclusions?' + params.toString());
+        const data = await resp.json();
+        unmappedBody.innerHTML = (data.exclusions || []).map((row) =>
+          `<tr><td>${esc(row.category)}</td><td>${esc(row.reason)}</td><td>${esc(row.policy_name)}</td><td>${esc(row.action)}</td><td>${esc(row.verb)}</td><td>${esc(row.resource)}</td><td>${esc(row.statement_text)}</td></tr>`
+        ).join('');
+      }
+
       async function loadTree() {
+        const previousSelection = selectedNode;
         const params = new URLSearchParams({
           show_inherited_principals: String(showInheritedPrincipalsEl.checked),
           principal_query: principalQueryEl.value.trim(),
+          path_query: pathQueryEl.value.trim(),
+          principal_type: principalTypeEl.value === 'All types' ? '' : principalTypeEl.value,
+          include_prospective: String(includeProspectiveEl.checked),
         });
         const resp = await fetch('/analysis/permissions-report/tree?' + params.toString());
         const data = await resp.json();
+        const selectedType = principalTypeEl.value;
+        const types = ['All types', ...(data.principal_types || [])];
+        principalTypeEl.replaceChildren(...types.map((value) => {
+          const option = document.createElement('option');
+          option.value = value;
+          option.textContent = value;
+          return option;
+        }));
+        principalTypeEl.value = types.includes(selectedType) ? selectedType : 'All types';
         treeRows = flattenTreePaths(data.paths || []);
 
         const totalPaths = Array.isArray(data.paths) ? data.paths.length : 0;
         treeSummaryEl.textContent = `Paths: ${totalPaths} • Subjects: ${treeRows.length}`;
-        selectedNode = null;
+        selectedNode = previousSelection
+          ? treeRows.find((row) => row.path === previousSelection.path && row.subject_key === previousSelection.subject_key) || null
+          : null;
         renderTree();
-        renderPermissionRows(allowBody, []);
-        renderPermissionRows(denyBody, []);
-        selectionSummaryEl.textContent = 'No subject selected.';
-        allowSummaryEl.textContent = 'Allow: 0';
-        denySummaryEl.textContent = 'Deny: 0';
+        if (selectedNode) {
+          await loadDetails();
+        } else {
+          renderPermissionRows(allowBody, []);
+          renderPermissionRows(denyBody, []);
+          selectionSummaryEl.textContent = 'No subject selected.';
+          allowSummaryEl.textContent = 'Allow: 0 distinct';
+          denySummaryEl.textContent = 'Deny: 0 distinct';
+        }
       }
 
       async function loadDetails() {
@@ -275,49 +373,50 @@
           subject_key: selectedNode.subject_key,
           principal_query: principalQueryEl.value.trim(),
           permission_query: permissionQueryEl.value.trim(),
+          include_prospective: String(includeProspectiveEl.checked),
+          include_inherited: String(showInheritedPrincipalsEl.checked),
         });
         const resp = await fetch('/analysis/permissions-report/details?' + params.toString());
         if (!resp.ok) {
           selectionSummaryEl.textContent = 'Unable to load details for selected subject.';
           renderPermissionRows(allowBody, []);
           renderPermissionRows(denyBody, []);
-          allowSummaryEl.textContent = 'Allow: 0';
-          denySummaryEl.textContent = 'Deny: 0';
+          allowSummaryEl.textContent = 'Allow: 0 distinct';
+          denySummaryEl.textContent = 'Deny: 0 distinct';
           return;
         }
         const data = await resp.json();
         const allowRows = data.allow_rows || [];
         const denyRows = data.deny_rows || [];
         selectionSummaryEl.textContent = `Selected: ${selectedNode.path} • ${selectedNode.subject_key}`;
-        allowSummaryEl.textContent = `Allow: ${allowRows.length}`;
-        denySummaryEl.textContent = `Deny: ${denyRows.length}`;
+        allowSummaryEl.textContent = `Allow: ${distinctPermissionCount(allowRows)} distinct`;
+        denySummaryEl.textContent = `Deny: ${distinctPermissionCount(denyRows)} distinct`;
         renderPermissionRows(allowBody, allowRows);
         renderPermissionRows(denyBody, denyRows);
       }
 
-      async function exportJson() {
-        const resp = await fetch('/analysis/permissions-report/export');
-        const payload = await resp.json();
-        const blob = new Blob([JSON.stringify(payload.report || {}, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'permissions_report.json';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-      }
-
       document.getElementById('applyBtn').addEventListener('click', loadTree);
+      principalQueryEl.addEventListener('input', loadTree);
       document.getElementById('clearBtn').addEventListener('click', async () => {
         principalQueryEl.value = '';
+        pathQueryEl.value = '';
+        principalTypeEl.value = 'All types';
         permissionQueryEl.value = '';
         showInheritedPrincipalsEl.checked = false;
+        showUnmappedEl.checked = false;
+        includeProspectiveEl.checked = false;
+        await loadUnmapped();
         await loadTree();
       });
-      document.getElementById('exportBtn').addEventListener('click', exportJson);
-      permissionQueryEl.addEventListener('change', loadDetails);
+      principalTypeEl.addEventListener('change', loadTree);
+      pathQueryEl.addEventListener('input', loadTree);
+      permissionQueryEl.addEventListener('input', loadDetails);
+      showInheritedPrincipalsEl.addEventListener('change', loadTree);
+      showUnmappedEl.addEventListener('change', loadUnmapped);
+      includeProspectiveEl.addEventListener('change', async () => {
+        await loadTree();
+        await loadUnmapped();
+      });
 
       bindContextHelp();
       setContextHelp(defaultContextHelp.title, defaultContextHelp.body);

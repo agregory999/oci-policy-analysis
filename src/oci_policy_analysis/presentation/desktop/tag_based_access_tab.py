@@ -446,7 +446,7 @@ class TagBasedAccessTab(BaseUITab):
         key_entry.grid(row=0, column=5, padx=3, pady=2, sticky='w')
         self.add_context_help(
             key_entry,
-            'Show only rows where the parsed tag key contains this text ' '(case-insensitive). Example: "Environment".',
+            'Show only rows where the parsed tag key contains this text (case-insensitive). Example: "Environment".',
         )
 
         ttk.Label(filter_left, text='Tag Value:').grid(row=0, column=6, padx=3, pady=2, sticky='w')
@@ -454,7 +454,7 @@ class TagBasedAccessTab(BaseUITab):
         value_entry.grid(row=0, column=7, padx=3, pady=2, sticky='w')
         self.add_context_help(
             value_entry,
-            'Show only rows where the parsed tag value contains this text ' '(case-insensitive). Example: "Prod".',
+            'Show only rows where the parsed tag value contains this text (case-insensitive). Example: "Prod".',
         )
 
         clear_btn = ttk.Button(filter_left, text='Clear Filters', command=self._clear_filters)
@@ -544,7 +544,7 @@ class TagBasedAccessTab(BaseUITab):
         parsed_chk.grid(row=0, column=0, padx=(0, 8), pady=2, sticky='w')
         self.add_context_help(
             parsed_chk,
-            'Show or hide parsed statement columns in the top table ' '(Subject Type, Subject, Verb, and Resource).',
+            'Show or hide parsed statement columns in the top table (Subject Type, Subject, Verb, and Resource).',
         )
 
         # Prospective toggle mirrors the PoliciesTab experience so users can
@@ -724,8 +724,8 @@ class TagBasedAccessTab(BaseUITab):
                 return
             first = selected_rows[0]
             logger.info(
-                f"Selected condition element id={first.get('Condition ID')}, "
-                f"namespace={first.get('Tag Namespace')}, key={first.get('Tag Key')}"
+                f'Selected condition element id={first.get("Condition ID")}, '
+                f'namespace={first.get("Tag Namespace")}, key={first.get("Tag Key")}'
             )
 
         self.condition_table = DataTable(

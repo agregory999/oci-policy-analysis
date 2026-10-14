@@ -357,9 +357,11 @@ class McpTab(BaseUITab):
 
         try:
             # Try to read mcp_tools.json from the installed package resources
-            with resources.files('oci_policy_analysis.application.core.resources.mcp_tools_list').joinpath(
-                'mcp_tools.json'
-            ).open('r', encoding='utf-8') as fp:  # type: ignore[attr-defined]
+            with (
+                resources.files('oci_policy_analysis.application.core.resources.mcp_tools_list')
+                .joinpath('mcp_tools.json')
+                .open('r', encoding='utf-8') as fp
+            ):  # type: ignore[attr-defined]
                 raw = fp.read()
             data = json.loads(raw)
             result = data.get('result') or {}

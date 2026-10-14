@@ -505,6 +505,7 @@ th {
 }
 
 .app-version-item {
+  max-width: 100%;
   display: inline-flex;
   align-items: baseline;
   gap: 0.4rem;
@@ -519,6 +520,8 @@ th {
 }
 
 .app-version-value {
+  overflow-wrap: anywhere;
+  white-space: normal;
   color: #1f1b1a;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-weight: 700;
@@ -785,6 +788,16 @@ footer,
   display: flex;
   align-items: center;
   gap: 0.6rem;
+}
+
+#instancePrincipalOption[hidden],
+#profileOption[hidden],
+#resourcePrincipalNotice[hidden] {
+  display: none !important;
+}
+
+#profileLoadSettings[hidden] {
+  display: none !important;
 }
 
 .tenancy-profile-row label {

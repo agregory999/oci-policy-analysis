@@ -4,6 +4,7 @@ import hashlib
 import json
 
 import pytest
+
 from oci_policy_analysis.application.core.support.caching import CacheManager
 
 

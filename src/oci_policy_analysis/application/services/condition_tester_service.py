@@ -6,15 +6,37 @@ parsing and evaluation behavior to ``oci_policy_analysis.application.core.parser
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any, cast
+
+from antlr4 import InputStream
 
 from oci_policy_analysis.application.core.parser import (
     evaluate_condition_clause,
     extract_variable_names,
     format_policy_clause,
 )
+from oci_policy_analysis.application.core.parser.policy_parser.PolicyLexer import PolicyLexer
 from oci_policy_analysis.application.core.support.logger import get_logger
+
+
+def extract_condition_clause(condition: str = '', statement_text: str = '') -> str:
+    """Extract a tester expression from a clause or the original policy statement.
+
+    Quoted names and string values containing ``where`` are handled by the
+    policy lexer. A leading ``where`` keyword is omitted from standalone clauses.
+    """
+    clause = str(condition or '').strip()
+    if clause and not re.match(r'(?i)^(allow|deny|admit|endorse|define)\b', clause):
+        return re.sub(r'(?i)^where\b\s*', '', clause).strip()
+    statement = clause or str(statement_text or '').strip()
+    lexer = PolicyLexer(InputStream(statement))
+    lexer.removeErrorListeners()
+    for token in lexer.getAllTokens():
+        if token.type == PolicyLexer.WHERE:
+            return statement[token.stop + 1 :].strip()
+    return ''
 
 
 @dataclass

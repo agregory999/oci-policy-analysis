@@ -6,6 +6,7 @@ Focused coverage for tag namespace/key validation in where-clause conditions.
 from types import SimpleNamespace
 
 import pytest
+
 from oci_policy_analysis.application.core.common.policy_helpers import calculate_principal_key
 from oci_policy_analysis.application.core.engine.intelligence_strategies.cleanup_statements_too_open import (
     StatementsTooOpenCheck,
@@ -439,8 +440,8 @@ def test_calculate_effective_compartment_supports_absolute_root_location_path():
 
 
 def test_policy_helpers_calculate_principal_key_handles_default_domain():
-    assert calculate_principal_key('dynamic-group', None, 'DG1') == 'dynamic-group:Default/DG1'
-    assert calculate_principal_key('dynamic-group', 'default', 'DG1') == 'dynamic-group:Default/DG1'
+    assert calculate_principal_key('dynamic-group', None, 'DG1') == 'dynamic-group:default/dg1'
+    assert calculate_principal_key('dynamic-group', 'default', 'DG1') == 'dynamic-group:default/dg1'
 
 
 def test_resolve_cross_tenancy_aliases_marks_unresolved_alias_invalid():
@@ -451,6 +452,7 @@ def test_resolve_cross_tenancy_aliases_marks_unresolved_alias_invalid():
         defined_tag_namespace_keys={},
         defined_aliases=[
             {
+                'defined_type': 'tenancy',
                 'defined_name': 'ResourceTenancy',
                 'ocid_alias': 'ocid1.tenancy.oc1..resource',
             }
@@ -564,7 +566,7 @@ def test_build_permissions_report_derives_resource_principal_key():
 
     assert principal_key in payload.get('report', {}).get('root', {})
     assert payload['report']['root'][principal_key]['subject_type'] == 'resource-principal'
-    assert payload['grant_rows'][0]['original_subject_key'] == 'any-group:None/any-group'
+    assert payload['grant_rows'][0]['original_subject_key'] == 'any-group:none/any-group'
 
 
 def test_build_permissions_report_derives_oke_workload_identity_key():
@@ -711,9 +713,7 @@ def test_build_overall_recommendations_flags_incomplete_oke_workload_identity_co
                 'verb': 'read',
                 'resource': 'repos',
                 'effective_path': 'root',
-                'conditions': (
-                    "all { request.principal.type = 'workload', " "request.principal.namespace = 'finance' }"
-                ),
+                'conditions': ("all { request.principal.type = 'workload', request.principal.namespace = 'finance' }"),
             }
         ],
         dynamic_groups=[],

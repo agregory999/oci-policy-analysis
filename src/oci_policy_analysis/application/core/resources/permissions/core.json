@@ -1,6 +1,9 @@
 {
     "resources": {
         "app-catalog-listings": {
+            "aliases": [
+                "app-catalog-listing"
+            ],
             "verbs": {
                 "inspect": [
                     "APP_CATALOG_LISTING_INSPECT"

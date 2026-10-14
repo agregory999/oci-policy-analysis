@@ -11,14 +11,32 @@ from oci_policy_analysis.application.core.support.logger import get_logger
 
 @dataclass
 class SimulationPrepareResult:
-    """Result payload returned by simulation context preparation."""
+    """Prepared principal identity and request fields needed for simulation.
+
+    Attributes:
+        principal_key: Resolved canonical identity used by the simulation engine.
+        required_where_fields: Sorted condition-variable names to supply in request context.
+    """
 
     principal_key: str
     required_where_fields: list[str]
 
 
 class SimulationService:
-    """Expose simulation operations without UI coupling."""
+    """Prepare and evaluate requests against the active analysis model.
+
+    Args:
+        context: Enriched runtime containing the simulation engine.
+
+    Attributes:
+        context: Shared runtime whose current simulation engine is used per call.
+        logger: Component logger for preparation and execution diagnostics.
+
+    Notes:
+        Preparation and execution may update engine state and record results.
+        Supply request-context values for applicable conditions. Results describe
+        the tool's model of the snapshot, not decisions by OCI's policy engine.
+    """
 
     def __init__(self, context: AppContext) -> None:
         """Initialize the simulation service.

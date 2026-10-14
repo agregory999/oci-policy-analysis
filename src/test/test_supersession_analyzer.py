@@ -166,6 +166,34 @@ def test_default_intelligence_strategy_populates_supersession_overlay() -> None:
     )
 
     engine = PolicyIntelligenceEngine(repo)
-    engine.run_all(enabled_strategy_ids=['supersession'])
+    stages = []
+    engine.run_all(enabled_strategy_ids=['supersession'], on_stage=stages.append)
 
     assert [finding['statement_internal_id'] for finding in engine.overlay['supersessions']] == ['candidate']
+    assert stages == [
+        'Resolving cross-tenancy aliases',
+        'Validating policy statements',
+        'Checking dynamic-group usage',
+        'Check 1/1: Complete policy supersession',
+    ]
+
+
+def test_permission_expansion_is_reused_across_candidate_comparisons() -> None:
+    class Reference:
+        def __init__(self):
+            self.calls = 0
+
+        def get_permissions(self, **_kwargs):
+            self.calls += 1
+            return ['BUCKET_READ']
+
+    reference = Reference()
+    statements = [
+        {**_statement(f'statement-{index}', 'ROOT/A', []), 'resource': 'buckets', 'verb': 'read'} for index in range(4)
+    ]
+    repo = SimpleNamespace(regular_statements=statements, permission_reference_repo=reference)
+
+    findings = SupersessionAnalyzer().analyze(repo)
+
+    assert len(findings) == 4
+    assert reference.calls == len(statements)

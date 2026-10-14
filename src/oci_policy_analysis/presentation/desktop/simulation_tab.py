@@ -622,16 +622,16 @@ class SimulationTab(BaseUITab):
         # rendering format used elsewhere.
         api_allowed = bool(result.get('api_call_allowed'))
         lines: list[str] = []
-        lines.append(f"Result: {'ALLOWED' if api_allowed else 'DENIED'}")
+        lines.append(f'Result: {"ALLOWED" if api_allowed else "DENIED"}')
         failure_reason = result.get('failure_reason') or ''
         if failure_reason:
             lines.append(f'Reason: {failure_reason}')
 
         required = result.get('required_permissions_for_api_operation') or []
         missing = result.get('missing_permissions') or []
-        lines.append(f"Required permissions for API: {', '.join(required) if required else '[none]'}")
+        lines.append(f'Required permissions for API: {", ".join(required) if required else "[none]"}')
         if missing:
-            lines.append(f"Missing permissions: {', '.join(missing)}")
+            lines.append(f'Missing permissions: {", ".join(missing)}')
 
         # Always show how many allow/deny statements were considered so
         # users can see inclusion at a glance, even without full trace.
@@ -653,7 +653,7 @@ class SimulationTab(BaseUITab):
         sim_trace = result.get('simulation_trace') or {}
         final_permissions = sim_trace.get('final_permission_set') or []
         if self.show_trace_details_var.get():
-            lines.append(f"Final permission set: {', '.join(final_permissions) or '[none granted]'}")
+            lines.append(f'Final permission set: {", ".join(final_permissions) or "[none granted]"}')
             lines.append('Simulation JSON detail below:\n')
             pretty_json = json.dumps(result, indent=2, ensure_ascii=False)
             lines.append(pretty_json)
@@ -1137,7 +1137,7 @@ class SimulationTab(BaseUITab):
         if sim_engine:
             opnames = sim_engine.get_api_operations('')
             logger.info(
-                f"Got {len(opnames)} API Operations from simulation_engine: {opnames[:10]}{'...' if len(opnames) > 10 else ''}"
+                f'Got {len(opnames)} API Operations from simulation_engine: {opnames[:10]}{"..." if len(opnames) > 10 else ""}'
             )
         elif self.ref_data_repo and hasattr(self.ref_data_repo, 'data') and 'operations' in self.ref_data_repo.data:
             opnames = sorted(self.ref_data_repo.data['operations'].keys())
@@ -1452,7 +1452,7 @@ class SimulationTab(BaseUITab):
                 try:
                     all_var_names.update(PolicySimulationEngine.extract_variable_names(cond_str))
                 except Exception as e:
-                    logger.info(f"Extracting variables failed for stmt: {st.get('statement_text')} / {e}")
+                    logger.info(f'Extracting variables failed for stmt: {st.get("statement_text")} / {e}')
         self._clear_where_inputs()
         sorted_vars = sorted(all_var_names)
         if sorted_vars:
@@ -1602,8 +1602,8 @@ class SimulationTab(BaseUITab):
                 for check in related_checks:
                     permissions = ', '.join(check.get('permissions') or []) or '[none]'
                     related_lines.append(
-                        f"- {check.get('resource') or '[resource unknown]'}: {permissions}; "
-                        f"applies when: {check.get('applies_when') or 'conditional dependency'}"
+                        f'- {check.get("resource") or "[resource unknown]"}: {permissions}; '
+                        f'applies when: {check.get("applies_when") or "conditional dependency"}'
                     )
                 note = '\n'.join([line for line in [note, *related_lines] if line])
         self.api_op_note_var.set(note or '')
@@ -1619,7 +1619,7 @@ class SimulationTab(BaseUITab):
         self._trace_history_map = {}  # display_name -> index
         for idx, entry in enumerate(traces):
             # display: name (date)
-            dn = f"{entry['name']} ({entry['timestamp']})"
+            dn = f'{entry["name"]} ({entry["timestamp"]})'
             display_names.append(dn)
             self._trace_history_map[dn] = idx
         self.trace_history_dropdown['values'] = display_names
@@ -1646,7 +1646,7 @@ class SimulationTab(BaseUITab):
                 # Pretty print permissions/result (similar to after run_simulation).
                 api_allowed = bool(trace.get('api_call_allowed'))
                 lines: list[str] = []
-                lines.append(f"Result: {'ALLOWED' if api_allowed else 'DENIED'}")
+                lines.append(f'Result: {"ALLOWED" if api_allowed else "DENIED"}')
                 failure_reason = trace.get('failure_reason') or ''
                 if failure_reason:
                     lines.append(f'Reason: {failure_reason}')
@@ -1659,14 +1659,14 @@ class SimulationTab(BaseUITab):
                 # Required and missing permissions summary
                 required = trace.get('required_permissions_for_api_operation') or []
                 missing = trace.get('missing_permissions') or []
-                lines.append(f"Required permissions for API: {', '.join(required) if required else '[none]'}")
+                lines.append(f'Required permissions for API: {", ".join(required) if required else "[none]"}')
                 if missing:
-                    lines.append(f"Missing permissions: {', '.join(missing)}")
+                    lines.append(f'Missing permissions: {", ".join(missing)}')
 
                 # Only show full permission set and JSON when trace toggle is on
                 if self.show_trace_details_var.get():
                     lines.append(
-                        f"Final permission set: {', '.join(final_permissions) if final_permissions else '[none granted]'}"
+                        f'Final permission set: {", ".join(final_permissions) if final_permissions else "[none granted]"}'
                     )
                     lines.append('Simulation JSON detail below:\n')
                     pretty_json = json.dumps(trace, indent=2, ensure_ascii=False)
@@ -1720,12 +1720,12 @@ class SimulationTab(BaseUITab):
             f'Compartment: {self.selected_compartment.get()}, Principal: {self.selected_principal.get()} ({self.selected_principal_type.get()}), API Operation: {self.selected_api_operation.get()}'
         )
         logger.debug(
-            f"Where Clause Inputs: {{ {', '.join(f'{k}: {v.get()}' for k, v in self.simulation_inputs.items())} }}"
+            f'Where Clause Inputs: {{ {", ".join(f"{k}: {v.get()}" for k, v in self.simulation_inputs.items())} }}'
         )
         checked_statement_ids = []
         for var, st in self.checked_statements.values():
             if var.get():
-                logger.debug(f"Checked Statement: {st.get('statement_text')} (Internal ID: {st.get('internal_id')})")
+                logger.debug(f'Checked Statement: {st.get("statement_text")} (Internal ID: {st.get("internal_id")})')
                 checked_statement_ids.append(st.get('internal_id'))
         self.results_text.delete(1.0, tk.END)
 
@@ -1832,7 +1832,7 @@ class SimulationTab(BaseUITab):
         # Display outcome
         summary: list[str] = []
         api_allowed = bool(result.get('api_call_allowed'))
-        summary.append(f"Result: {'ALLOWED' if api_allowed else 'DENIED'}")
+        summary.append(f'Result: {"ALLOWED" if api_allowed else "DENIED"}')
         failure_reason = result.get('failure_reason') or ''
         if failure_reason:
             summary.append(f'Reason: {failure_reason}')
@@ -1840,9 +1840,9 @@ class SimulationTab(BaseUITab):
         # Required and missing permissions summary
         required = result.get('required_permissions_for_api_operation') or []
         missing = result.get('missing_permissions') or []
-        summary.append(f"Required permissions for API: {', '.join(required) if required else '[none]'}")
+        summary.append(f'Required permissions for API: {", ".join(required) if required else "[none]"}')
         if missing:
-            summary.append(f"Missing permissions: {', '.join(missing)}")
+            summary.append(f'Missing permissions: {", ".join(missing)}')
         related_checks = result.get('related_permission_checks') or []
         if related_checks:
             summary.append('Related permission checks:')
@@ -1851,7 +1851,7 @@ class SimulationTab(BaseUITab):
                 missing_related = ', '.join(check.get('missing_permissions') or [])
                 applies_when = check.get('applies_when') or 'Conditional related resource dependency'
                 status = 'satisfied' if check.get('satisfied') else 'missing'
-                line = f"  - {check.get('resource') or '[resource unknown]'}: {permissions} ({status})"
+                line = f'  - {check.get("resource") or "[resource unknown]"}: {permissions} ({status})'
                 if missing_related:
                     line += f'; missing {missing_related}'
                 line += f'; applies when: {applies_when}'
@@ -1880,7 +1880,7 @@ class SimulationTab(BaseUITab):
         sim_trace = result.get('simulation_trace') or {}
         final_permissions = sim_trace.get('final_permission_set') or []
         if self.show_trace_details_var.get():
-            summary.append(f"Final permission set: {', '.join(final_permissions) or '[none granted]'}")
+            summary.append(f'Final permission set: {", ".join(final_permissions) or "[none granted]"}')
             summary.append('Simulation JSON detail below:\n')
             pretty_json = json.dumps(result, indent=2, ensure_ascii=False)
             summary.append(pretty_json)

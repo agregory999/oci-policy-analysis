@@ -120,9 +120,9 @@ def test_create_and_validate_and_update_text() -> None:
     assert updated.invalid_reasons == ['Some semantic issue']
     assert isinstance(updated.normalized, dict)
     assert updated.normalized.get('subject_type') == 'group'
-    assert updated.normalized.get('principal_key') == 'group:Default/Dev'
+    assert updated.normalized.get('principal_key') == 'group:default/dev'
     principals = updated.normalized.get('principals') or []
-    assert principals and principals[0].get('principal_key') == 'group:Default/Dev'
+    assert principals and principals[0].get('principal_key') == 'group:default/dev'
     assert updated.effective_path == 'ROOT/Dev'
 
 

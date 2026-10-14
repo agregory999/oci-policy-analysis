@@ -38,7 +38,12 @@ from dateutil import parser as dtparser
 # Application imports
 from oci_policy_analysis._version import get_app_version
 from oci_policy_analysis.application.context import AppContext
-from oci_policy_analysis.application.core.engine import PolicyIntelligenceEngine, PolicySimulationEngine
+from oci_policy_analysis.application.core.cross_tenancy_corpus import CrossTenancyCorpusBuilder
+from oci_policy_analysis.application.core.engine import (
+    PolicyCorpusBuilder,
+    PolicyIntelligenceEngine,
+    PolicySimulationEngine,
+)
 from oci_policy_analysis.application.core.support import config
 from oci_policy_analysis.application.core.support.logger import (  # noqa: E402
     get_logger,
@@ -68,6 +73,7 @@ except ModuleNotFoundError:
 from oci_policy_analysis.presentation.desktop.permissions_report_tab import PermissionsReportTab  # noqa: E402
 from oci_policy_analysis.presentation.desktop.policies_tab import PoliciesTab  # noqa: E402
 from oci_policy_analysis.presentation.desktop.policy_browser_tab import PolicyBrowserTab
+from oci_policy_analysis.presentation.desktop.policy_graph_tab import PolicyGraphTab  # noqa: E402
 from oci_policy_analysis.presentation.desktop.policy_recommendations_tab import PolicyRecommendationsTab
 from oci_policy_analysis.presentation.desktop.reports_tab import ReportsTab
 from oci_policy_analysis.presentation.desktop.settings_tab import SettingsTab  # noqa: E402
@@ -112,13 +118,17 @@ When run as a script, the `__main__` block launches the full desktop UI.
 
 
 class App(tk.Tk):
-    """
-    Main User Interface entry point for OCI Policy Analysis application.
-    Inherits from tk.Tk (TKinter) to create the main application window.
-    Tabbed interface with multiple tabs for different analysis features.
-    Helper classes and Repositories for data management and AI integration.
+    """Desktop presentation controller and main Tk application window.
 
-    Adds a fixed status bar at the window bottom showing policy data load status/source/time/reload.
+    Args:
+        force_debug: Enable verbose logging for this session.
+        experimental_features: Enable hidden desktop preview features.
+        enable_genai: Enable the optional desktop AI-assist preview.
+
+    Notes:
+        Creates widgets and loads saved settings. This is a presentation adapter,
+        not the Python embedding entry point; use AppContext and application services
+        for headless analysis. The desktop main loop is started by main().
     """
 
     # docstring google style napoleon comments for the class with public methods and relevant private methods marked with (Internal)
@@ -227,6 +237,7 @@ class App(tk.Tk):
         self.settings_tab = SettingsTab(self.notebook, self, self.caching, self.ai, self.settings)
         self.policy_browser_tab = PolicyBrowserTab(self.notebook, self, self.settings)
         self.policies_tab = PoliciesTab(self.notebook, self, self.settings)
+        self.policy_graph_tab = PolicyGraphTab(self.notebook, self)
         self.permissions_report_tab = PermissionsReportTab(self.notebook, self)
         self.users_tab = UsersTab(self.notebook, self)
         self.dynamic_groups_tab = DynamicGroupsTab(self.notebook, self)
@@ -255,6 +266,7 @@ class App(tk.Tk):
         self.notebook.add(self.settings_tab, text='Settings\n(Start Here)')
         self.notebook.add(self.policy_browser_tab, text='Policy\nInventory')
         self.notebook.add(self.policies_tab, text='Policy\nAnalysis')
+        self.notebook.add(self.policy_graph_tab, text='Policy\nGraph')
         self.notebook.add(self.users_tab, text='Groups\nUsers')
         self.notebook.add(self.dynamic_groups_tab, text='Dynamic\nGroups')
         self.notebook.add(self.resource_principals_tab, text='Workload\nPrincipals')
@@ -577,6 +589,7 @@ class App(tk.Tk):
             self.settings_tab,
             self.policy_browser_tab,
             self.policies_tab,
+            self.policy_graph_tab,
             self.users_tab,
             self.dynamic_groups_tab,
             self.resource_principals_tab,
@@ -684,12 +697,17 @@ class App(tk.Tk):
 
     def _on_data_reset(self):
         """Detach previous analysis immediately and clear desktop views on the UI thread."""
+        self.app_context.cross_tenancy_corpus = None
         self.policy_intelligence = self.app_context.intelligence
         self.simulation_engine = self.app_context.simulation
         self.prospective_service = None
 
         def clear_views():
             from oci_policy_analysis.presentation.desktop.data_table import CheckboxTable, DataTable
+
+            graph = getattr(self, 'policy_graph_tab', None)
+            if graph is not None:
+                graph.reset_for_data_load()
 
             for tab_name in ('policy_recommendations_tab', 'consolidation_tab', 'simulation_tab'):
                 tab = getattr(self, tab_name, None)
@@ -710,24 +728,74 @@ class App(tk.Tk):
         else:
             self.after(0, clear_views)
 
-    def _post_load_create_intelligence(self):
+    def _post_load_create_intelligence(self, on_stage=None):
         """Internal: Run all post-load policy intelligence analyses and rebuild simulation index."""
+
+        def stage(message):
+            if callable(on_stage):
+                on_stage(message)
+
+        def timed_step(message, operation):
+            stage(message)
+            started = time.perf_counter()
+            result = operation()
+            logger.info('Post-load phase %s completed in %.2fs', message, time.perf_counter() - started)
+            return result
+
         # (re)create the PolicyIntelligenceEngine
         self.policy_intelligence = PolicyIntelligenceEngine(self.policy_compartment_analysis)
 
         logger.info('Running post-load policy intelligence analyses')
         start_post_process_time = time.perf_counter()
-        logger.info('Calculating effective compartments for all policy statements')
-        self.policy_intelligence.calculate_all_effective_compartments()
-        logger.info('Running intelligence strategies (risk, supersession, cleanup, recommendations)')
-        self.policy_intelligence.run_all(enabled_strategy_ids=None, params={})
+        timed_step('Resolving effective compartments', self.policy_intelligence.calculate_all_effective_compartments)
+
+        def risk_percentage(key):
+            try:
+                value = int(self.settings.get(key, 50))
+            except (TypeError, ValueError):
+                value = 50
+            return value if value in {0, 25, 50, 75, 90} else 50
+
+        consolidation = getattr(self, 'consolidation_engine', None)
+        intelligence_params = {
+            'where_clause_reduction_pct': risk_percentage('risk_where_clause_reduction_pct'),
+            'service_principal_reduction_pct': risk_percentage('risk_service_principal_reduction_pct'),
+            'consolidation_strategy_names': consolidation.get_strategy_display_names() or [] if consolidation else [],
+        }
+        timed_step(
+            'Starting policy intelligence checks',
+            lambda: self.policy_intelligence.run_all(
+                enabled_strategy_ids=self.settings.get('enabled_intelligence_checks'),
+                params=intelligence_params,
+                on_stage=stage,
+            ),
+        )
+        self.app_context.cross_tenancy_corpus = timed_step(
+            'Building cross-tenancy corpus',
+            lambda: CrossTenancyCorpusBuilder().build(
+                self.policy_compartment_analysis,
+                self.policy_intelligence.overlay.get('cross_tenancy_findings', []),
+            ),
+        )
         # This report uses parsed policy subjects, statements, and hierarchy.
         # Partial CIS imports supply those inputs, including inferred principal
         # domains and names, even when group membership data is absent.
-        logger.info('Building permissions report from loaded policy statements')
-        self.policy_intelligence.build_permissions_report()
+        self.app_context.corpus = timed_step(
+            'Expanding policy corpus and inherited facts',
+            lambda: PolicyCorpusBuilder().build(self.policy_compartment_analysis),
+        )
+        timed_step(
+            'Projecting effective permissions report',
+            lambda: self.policy_intelligence.build_permissions_report(self.app_context.corpus),
+        )
 
-        self.simulation_engine = PolicySimulationEngine(self.policy_compartment_analysis, self.reference_data_repo)
+        stage('Initializing simulation and saved prospective statements')
+        simulation_start = time.perf_counter()
+        self.simulation_engine = PolicySimulationEngine(
+            self.policy_compartment_analysis,
+            self.reference_data_repo,
+            corpus=self.app_context.corpus,
+        )
         self.app_context.intelligence = self.policy_intelligence
         self.app_context.simulation = self.simulation_engine
         # (Re)create the tenancy-scoped ProspectiveStatementsService so
@@ -764,7 +832,10 @@ class App(tk.Tk):
                 'ProspectiveStatementsService will not be initialized yet.'
             )
         # self.simulation_engine.build_index()
-        logger.info('Rebuilt Simulation Engine index after post-load intelligence.')
+        logger.info(
+            'Post-load phase simulation and prospective statements completed in %.2fs',
+            time.perf_counter() - simulation_start,
+        )
         end_post_process_time = time.perf_counter()
         logger.info(
             f'Post-load policy intelligence analyses (including simulation index) completed in {end_post_process_time - start_post_process_time:.2f} seconds'
@@ -798,6 +869,8 @@ class App(tk.Tk):
         step('users_tab.populate_data', self.users_tab.populate_data)
         step('policies_tab.update_policy_output', self.policies_tab.update_policy_output)
         step('policies_tab.enable_widgets_after_load', self.policies_tab.enable_widgets_after_load)
+        if hasattr(self, 'policy_graph_tab'):
+            step('policy_graph_tab.refresh_view', self.policy_graph_tab.refresh_view)
         if hasattr(self, 'policy_browser_tab') and hasattr(self.policy_browser_tab, 'post_load_update_ui'):
             step('policy_browser_tab.post_load_update_ui', self.policy_browser_tab.post_load_update_ui)
         else:
@@ -962,7 +1035,10 @@ class App(tk.Tk):
         """Publish a progress stage to popup and optional callback."""
         logger.info('Load progress: %s', message)
         if show_popup:
-            self.after(0, lambda m=message: self._set_policy_reload_progress_message(m))
+            if threading.current_thread() is threading.main_thread():
+                self._set_policy_reload_progress_message(message)
+            else:
+                self.after(0, lambda m=message: self._set_policy_reload_progress_message(m))
         cb = callback.get('progress') if callback else None
         if cb is not None and callable(cb):
             self.after(0, lambda m=message, fn=cb: fn(m))
@@ -1113,7 +1189,7 @@ class App(tk.Tk):
                         raise RuntimeError('Policies/compartments could not be reloaded')
 
                 publish_progress('Running policy intelligence analyses...')
-                self._post_load_create_intelligence()
+                self._post_load_create_intelligence(on_stage=publish_progress)
 
                 publish_progress('Updating cache...')
                 try:
@@ -1306,11 +1382,6 @@ class App(tk.Tk):
                         self.after(0, lambda e=e: cb(False, f'Failed to load tenancy - {e} - please try again', True))  # type: ignore
                 return
             else:
-                end_time = time.perf_counter()
-                elapsed = end_time - start_time
-                msg = f'Done Loading in {elapsed:.2f}s.'
-                logger.info(f'[OK] {msg}')
-
                 # Ensure status bar accurately reflects finalized repo state
                 self.after(0, self.update_status_bar)
 
@@ -1320,7 +1391,13 @@ class App(tk.Tk):
                 )
 
                 # Run post-load intelligence analysis
-                self._post_load_create_intelligence()
+                self._post_load_create_intelligence(
+                    on_stage=lambda message: self._publish_operation_progress(
+                        message,
+                        callback=callback,
+                        show_popup=show_popup,
+                    )
+                )
 
                 # Tabs Loading Message
                 self._publish_operation_progress('Populating Tab Data', callback=callback, show_popup=show_popup)
@@ -1330,6 +1407,9 @@ class App(tk.Tk):
 
                 self._publish_operation_progress('Updating status bar', callback=callback, show_popup=show_popup)
 
+                elapsed = time.perf_counter() - start_time
+                msg = f'Done Loading in {elapsed:.2f}s.'
+                logger.info('[OK] %s (including post-load intelligence and corpus builds)', msg)
                 summary = self._build_data_load_summary()
                 final_msg = f'{msg} {summary}'.strip()
                 popup_final_message = final_msg
@@ -1429,7 +1509,13 @@ class App(tk.Tk):
                 )
                 # Ensure status bar accurately reflects finalized repo state
                 self.after(0, self.update_status_bar)
-                self._post_load_create_intelligence()
+                self._post_load_create_intelligence(
+                    on_stage=lambda message: self._publish_operation_progress(
+                        message,
+                        callback=callback,
+                        show_popup=show_popup,
+                    )
+                )
 
                 self._publish_operation_progress('Populating Tab Data', callback=callback, show_popup=show_popup)
                 self.after(0, self._post_load_update_ui)
@@ -1528,7 +1614,13 @@ class App(tk.Tk):
                         'Running post-load policy intelligence analyses', callback=callback, show_popup=show_popup
                     )
                     # Run the same post-load intelligence and UI update steps as a tenancy load
-                    self._post_load_create_intelligence()
+                    self._post_load_create_intelligence(
+                        on_stage=lambda message: self._publish_operation_progress(
+                            message,
+                            callback=callback,
+                            show_popup=show_popup,
+                        )
+                    )
                 complete_cb = callback.get('complete') if callback else None
                 self._publish_operation_progress('Populating Tab Data', callback=callback, show_popup=show_popup)
                 self._post_load_update_ui()
@@ -1726,7 +1818,7 @@ class App(tk.Tk):
         """
         logger.info(f'Opening Condition Tester tab with condition: {condition_text}')
         self.notebook.select(self.condition_tester_tab)
-        self.condition_tester_tab.clause_var.set(condition_text)
+        self.condition_tester_tab.set_clause_text(condition_text)
         self.condition_tester_tab._generate_inputs()
 
     def _on_tab_changed(self, event):
@@ -1777,7 +1869,15 @@ class App(tk.Tk):
 
 
 def main() -> None:
-    """Main entry point for OCI Policy Analysis application."""
+    """Launch the desktop application using process command-line arguments.
+
+    Raises:
+        SystemExit: When argparse handles help or invalid command-line arguments.
+
+    Notes:
+        Loads saved settings, constructs App, and starts the Tk event loop. Requires
+        a graphical display. Use application services for programmatic analysis.
+    """
     parser = argparse.ArgumentParser(description='OCI Policy and Dynamic Group Viewer CLI')
     parser.add_argument('--verbose', action='store_true', help='Enable verbose logging')
     parser.add_argument(

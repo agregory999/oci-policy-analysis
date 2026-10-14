@@ -5,10 +5,11 @@ readme = "README.md"
 authors = [{ name = "Andrew Gregory" }]
 requires-python = ">=3.12"
 license = { text = "UPL-1.0" }
-version = "6.5.4"
+version = "7.0.0.dev0"
 
 dependencies = [
     "oci==2.168.0",
+    "pydantic>=2.9,<2.13",
     "deepdiff==8.5.0",
     "antlr4-python3-runtime==4.13.2",
     "markdown2>=2.5.5",
@@ -54,6 +55,9 @@ test = [
     "pytest"
 ]
 
+[dependency-groups]
+dev = ["pytest", "ruff"]
+
 [project.scripts]
 oci-policy-analysis-ui = "oci_policy_analysis.main:main"
 oci-policy-analysis-cli = "oci_policy_analysis.cli:main"
@@ -75,10 +79,6 @@ include = ["oci_policy_analysis*"]
     "application/core/resources/mcp_tools_list/*.json",
     "application/core/resources/parsers/*.txt",
     "application/core/resources/parsers/*.jar",
-    "logic/permissions/*.json",
-    "logic/mcp_tools_list/*.json",
-    "logic/parsers/*.txt",
-    "logic/parsers/*.jar",
     "ui/*.txt",
     "ai_tested_models.json",
 ]

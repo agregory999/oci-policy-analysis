@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OCI Policy Analysis - Policy Graph</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="stylesheet" href="/app.css" />
+  <style>
+    .graph-intro { color:var(--oci-steel); max-width:75ch; margin:.35rem 0 1rem; }
+    .graph-filters { display:grid; grid-template-columns:repeat(4,minmax(155px,1fr)) auto; align-items:end; gap:.65rem; }
+    .graph-filters label { display:grid; gap:.2rem; color:var(--oci-steel); font-size:.78rem; font-weight:700; }
+    .graph-filters input,.graph-filters select { width:100%; min-width:0; margin:0; }
+    .graph-tools { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; margin:.9rem 0; }
+    .graph-tools .pill { white-space:normal; }
+    .graph-stage { position:relative; display:grid; grid-template-columns:minmax(0,1fr) minmax(270px,1.55fr) minmax(0,1fr); gap:clamp(.7rem,3vw,3rem); padding:.65rem 0 1rem; min-height:180px; }
+    .graph-lines { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:0; }
+    .graph-lane { position:relative; z-index:1; min-width:0; }
+    .graph-lane h2 { font-size:.83rem; text-transform:uppercase; letter-spacing:.06em; color:var(--oci-steel); margin:0 0 .6rem; }
+    .graph-node-list { display:grid; gap:.6rem; align-content:start; }
+    .graph-node { display:block; width:100%; text-align:left; padding:.6rem .7rem; border-radius:10px; border:1px solid var(--oci-line); background:#fff; color:var(--oci-ink); box-shadow:0 3px 8px rgba(38,30,26,.04); cursor:pointer; overflow-wrap:anywhere; }
+    .graph-node:hover,.graph-node:focus-visible,.graph-node[aria-pressed=true] { border-color:var(--oci-red); background:var(--oci-red-soft); }
+    .graph-node strong,.graph-node small { display:block; }
+    .graph-node small { color:var(--oci-steel); font-size:.72rem; margin-top:.2rem; }
+    .graph-node.grant { border-left:4px solid #397358; }
+    .graph-node.grant.deny { border-left-color:#b54232; }
+    .graph-node.scope { background:#f5f9fc; }
+    .graph-note { color:var(--oci-steel); font-size:.8rem; margin:.3rem 0 0; }
+    .graph-pager { display:flex; justify-content:space-between; align-items:center; gap:.6rem; margin:.8rem 0; }
+    .graph-pager-actions { display:flex; gap:.45rem; }
+    .graph-table td { vertical-align:top; overflow-wrap:anywhere; }
+    .graph-table tbody tr { cursor:pointer; }
+    .graph-table tbody tr:hover,.graph-table tbody tr.selected { background:var(--oci-red-soft); }
+    .graph-table tbody tr:focus-visible { outline:2px solid var(--oci-red); }
+    .table-scroll { max-height:420px; overflow:auto; }
+    .graph-table thead th { position:sticky; top:0; z-index:2; }
+    .graph-context-menu { position:fixed; z-index:60; padding:.35rem; background:#fff; border:1px solid var(--oci-line); border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,.2); }
+    .graph-placeholder { padding:1rem; border:1px dashed var(--oci-line); border-radius:10px; background:#fafafa; color:var(--oci-steel); min-height:110px; }
+    .graph-placeholder strong,.graph-placeholder small { display:block; }
+    .graph-placeholder small { margin-top:.5rem; line-height:1.5; }
+    #scopes,#principals,#grants { max-height:560px; overflow-y:auto; padding:.1rem .35rem .2rem .1rem; }
+    .graph-inspector.inspector-panel { display:flex; flex-direction:column; position:fixed; top:0; right:0; bottom:0; width:min(460px,100vw); border-radius:0; z-index:40; box-shadow:-16px 0 32px rgba(0,0,0,.22); transform:translateX(105%); transition:transform 180ms ease; pointer-events:none; }
+    .graph-inspector.inspector-panel.open { transform:translateX(0); pointer-events:auto; }
+    .graph-inspector .inspector-body { flex:1; min-height:0; max-height:none; padding:1rem; }
+    .graph-inspector dl { display:grid; gap:.35rem; margin:0; }
+    .graph-inspector dt { color:var(--oci-steel); font-weight:700; margin-top:.65rem; }
+    .graph-inspector dd { margin:0; overflow-wrap:anywhere; white-space:pre-wrap; }
+    .graph-inspector dt:first-child { margin-top:0; }
+    @media(prefers-reduced-motion:reduce) { .graph-inspector.inspector-panel { transition:none; } }
+    .graph-empty { grid-column:1/-1; color:var(--oci-steel); padding:1rem; border:1px dashed var(--oci-line); border-radius:10px; }
+    @media(max-width:1000px) { .graph-filters { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+    @media(max-width:760px) { .graph-stage { grid-template-columns:1fr; } .graph-lines { display:none; } .graph-filters { grid-template-columns:1fr; }  }
+  </style>
+</head>
+<body>
+  <div class="top-row has-fixed-help">
+    <header class="app-masthead" data-help-title="Policy Graph" data-help-body="Search 2+ characters or choose a filter. Click result cards to narrow further; table rows show details.">
+      <div class="masthead-brand"><span class="masthead-badge">OCI</span><div><h1>Policy Graph</h1><p>Principals → grants → effective paths</p></div></div>
+      <div class="masthead-meta"><a href="/" class="card-link secondary">← Back to home</a></div>
+    </header>
+    <div class="context-help-card context-help-fixed" id="contextHelpCard">
+      <p class="context-help-kicker">Context Help</p><h3 id="contextHelpTitle" class="context-help-title">How To Use This Page</h3>
+      <p id="contextHelpBody" class="context-help-body">Search 2+ characters or choose a filter. Click result cards to narrow further; table rows show details.</p>
+    </div>
+  </div>
+  <main class="layout-single">
+    <section class="card">
+      <div class="policy-toolbar"><div><strong>Policy/Permission Graphical Search</strong><p class="graph-intro">Narrow search down by selecting one or more of principal (group, dynamic group, any-user, service), Resource or permission, or effective path.</p></div><button id="refreshBtn" class="ghost">Refresh view</button></div>
+      <form id="filters" class="graph-filters">
+        <label>Principal<input id="principal" type="search" placeholder="Group, dynamic group, key…" list="principalOptions" /><datalist id="principalOptions"></datalist></label>
+        <label>Effective path<input id="path" type="search" placeholder="network or ROOT/Compartment…" list="effectivePathOptions" /><datalist id="effectivePathOptions"></datalist></label>
+        <label>Resource or permission<input id="resource" type="search" placeholder="objects or OBJECT_CREATE…" /></label>
+        <label>Policy or statement<input id="query" type="search" placeholder="Policy name or statement text" /></label>
+        <label>Effect<select id="effect"><option value="">Allow and deny</option><option value="allow">Allow</option><option value="deny">Deny</option></select></label>
+      </form>
+      <div class="graph-tools"><button id="clearBtn" class="ghost">Clear filters</button><span class="pill" id="summary">No corpus loaded</span><span class="pill" id="matchCount">0 grants</span></div>
+      <div id="status" class="status" role="status"></div>
+      <div id="graphStage" class="graph-stage" aria-label="Filtered policy grant graph">
+        <svg id="graphLines" class="graph-lines" aria-hidden="true"></svg>
+        <div class="graph-lane"><h2>Principals <span id="principalCount"></span></h2><div id="principals" class="graph-node-list custom-scrollbar"></div></div>
+        <div class="graph-lane"><h2>Resources &amp; permissions</h2><div id="grants" class="graph-node-list"></div></div>
+        <div class="graph-lane"><h2>Effective paths <span id="pathCount"></span></h2><div id="scopes" class="graph-node-list custom-scrollbar"></div></div>
+      </div>
+      <div class="table-shell"><div class="table-scroll custom-scrollbar"><table class="analysis-table graph-table"><thead><tr><th>Principal</th><th>Effect</th><th>Resource</th><th>Effective path</th><th>Policy</th><th>Conditional</th><th>Permissions</th></tr></thead><tbody id="grantRows"></tbody></table></div></div>
+      <aside id="detail" class="inspector-panel graph-inspector" role="dialog" aria-modal="false" aria-labelledby="detailTitle" aria-hidden="true" inert>
+        <div class="inspector-header"><strong id="detailTitle">Grant details</strong><button id="closeDetailBtn" type="button" class="ghost" aria-label="Close grant details">×</button></div>
+        <div id="detailBody" class="inspector-body custom-scrollbar"><dl id="detailFields"></dl></div>
+      </aside>
+      <div id="conditionMenu" class="graph-context-menu" role="menu" hidden><button id="testConditionBtn" type="button" role="menuitem">Test Condition in Condition Tester</button></div>
+    </section>
+  </main>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const svgNS = 'http://www.w3.org/2000/svg';
+    let result = { grants: [], total: 0, page: 1, page_size: 12, loaded: false };
+    let selectedId = '';
+    let requestNumber = 0;
+    let debounce;
+    let detailTrigger;
+    let conditionGrant;
+    let conditionTrigger;
+    const filters = ['principal', 'path', 'resource', 'query', 'effect'];
+    const display = (value) => String(value ?? '');
+
+    function node(label, note, type, value) {
+      const button = document.createElement('button'); button.type = 'button'; button.className = `graph-node ${type}`;
+      button.dataset.value = value; button.title = label;
+      const strong = document.createElement('strong'); strong.textContent = label;
+      const small = document.createElement('small'); small.textContent = note;
+      button.append(strong, small);
+      if (!type.startsWith('grant')) button.addEventListener('click', () => {
+        $(type === 'principal' ? 'principal' : 'path').value = value;
+        load();
+      });
+      return button;
+    }
+    function selectGrant(grant) {
+      selectedId = grant.id;
+      const fields = [
+        ['Policy', grant.policy_name], ['Policy OCID', grant.policy_ocid],
+        ['Statement', grant.statement_text], ['Statement ID', grant.statement_id],
+        ['Principal', grant.principal], ['Effect', grant.effect], ['Resource', grant.resource],
+        ['Effective path', grant.path], ['Condition', grant.condition_clause || 'None'],
+        [`Permissions (${grant.permissions.length})`, grant.permissions.join('\n')],
+      ];
+      $('detailFields').replaceChildren(...fields.flatMap(([name, value]) => {
+        const term = document.createElement('dt'); term.textContent = name;
+        const description = document.createElement('dd'); description.textContent = display(value);
+        return [term, description];
+      }));
+      detailTrigger = document.activeElement;
+      $('detail').classList.add('open');
+      $('detail').inert = false;
+      $('detail').setAttribute('aria-hidden', 'false');
+      $('detailBody').scrollTop = 0;
+      $('closeDetailBtn').focus();
+      document.querySelectorAll('#grantRows tr').forEach((item) => item.classList.toggle('selected', item.dataset.value === grant.id));
+    }
+    function closeDetail(restoreFocus = true) {
+      if (!$('detail').classList.contains('open')) return;
+      $('detail').classList.remove('open');
+      $('detail').inert = true;
+      $('detail').setAttribute('aria-hidden', 'true');
+      if (restoreFocus && detailTrigger?.isConnected) detailTrigger.focus();
+    }
+    function placeholder(title, example) {
+      const item = document.createElement('div'); item.className = 'graph-placeholder';
+      const strong = document.createElement('strong'); strong.textContent = title;
+      const small = document.createElement('small'); small.textContent = example;
+      item.append(strong, small); return item;
+    }
+    function renderGraph() {
+      const rows = result.grants || [];
+      const principals = result.principals || [];
+      if (result.needs_filter) {
+        $('principals').replaceChildren(placeholder('Find a principal', 'Enter at least 2 characters or select a principal. Example: admins'));
+        $('grants').replaceChildren(placeholder('Find resources and permissions', 'Narrow by a resource or direct permission. Example: objects or OBJECT_CREATE'));
+        $('scopes').replaceChildren(placeholder('Find an effective path', 'Search any part of a compartment path. Example: network or ROOT/Production'));
+        $('pathCount').textContent = '';
+        $('principalCount').textContent = '';
+        $('graphLines').replaceChildren();
+        return;
+      }
+      const paths = result.paths || [];
+      $('principals').replaceChildren(...principals.map((item) => node(item.principal, `${item.grant_count} matching grant(s) across all pages · click to filter`, 'principal', item.principal)));
+      $('principalCount').textContent = principals.length ? `(${principals.length})` : '';
+      $('scopes').replaceChildren(...paths.map((item) => node(item.path, `${item.grant_count} matching grant(s) across all pages · click to focus`, 'scope', item.path)));
+      $('pathCount').textContent = paths.length ? `(${paths.length})` : '';
+      $('grants').replaceChildren(...rows.map((row) => {
+        const button = node(`${row.effect.toUpperCase()} · ${row.resource || 'resource'}`, `${row.policy_name || 'Unnamed policy'} · ${row.permissions.length} permission(s)${row.condition ? ' · conditional' : ''} · click to filter`, `grant ${row.effect}`, row.id);
+        button.addEventListener('click', () => {
+          $('resource').value = row.resource;
+          $('effect').value = row.effect;
+          clearTimeout(debounce);
+          load();
+        });
+        return button;
+      }));
+      if (!rows.length) {
+        const empty = document.createElement('div'); empty.className = 'graph-empty';
+        empty.textContent = result.loaded ? 'No grants match these filters.' : 'Load policy data from the home page to explore grants.';
+        $('grants').append(empty);
+      }
+      requestAnimationFrame(drawLines);
+    }
+    function drawLines() {
+      const svg = $('graphLines'); svg.replaceChildren();
+      if (window.matchMedia('(max-width:760px)').matches) return;
+      const stage = $('graphStage').getBoundingClientRect();
+      svg.setAttribute('viewBox', `0 0 ${stage.width} ${stage.height}`);
+      const principalNodes = new Map([...$('principals').children].map((item) => [item.dataset.value, item]));
+      const scopeNodes = new Map([...$('scopes').children].map((item) => [item.dataset.value, item]));
+      const grantNodes = [...$('grants').children];
+      (result.grants || []).forEach((grant, index) => {
+        const middle = grantNodes[index]?.getBoundingClientRect();
+        const left = principalNodes.get(grant.principal)?.getBoundingClientRect();
+        const right = scopeNodes.get(grant.path)?.getBoundingClientRect();
+        if (!middle || !left || !right) return;
+        const scopeViewport = $('scopes').getBoundingClientRect();
+        const principalViewport = $('principals').getBoundingClientRect();
+        const grantViewport = $('grants').getBoundingClientRect();
+        if (middle.bottom <= grantViewport.top || middle.top >= grantViewport.bottom) return;
+        if (left.bottom <= principalViewport.top || left.top >= principalViewport.bottom) return;
+        if (right.bottom <= scopeViewport.top || right.top >= scopeViewport.bottom) return;
+        const cy = (box) => box.top - stage.top + box.height / 2;
+        for (const [x1, y1, x2, y2] of [
+          [left.right-stage.left, cy(left), middle.left-stage.left, cy(middle)],
+          [middle.right-stage.left, cy(middle), right.left-stage.left, cy(right)],
+        ]) {
+          const line = document.createElementNS(svgNS, 'path');
+          const bend = (x2-x1)/2;
+          line.setAttribute('d', `M${x1},${y1} C${x1+bend},${y1} ${x2-bend},${y2} ${x2},${y2}`);
+          line.setAttribute('fill', 'none'); line.setAttribute('stroke', grant.effect === 'deny' ? '#b54232' : '#397358');
+          line.setAttribute('stroke-width', '1.5'); line.setAttribute('opacity', '.5');
+          svg.append(line);
+        }
+      });
+    }
+    function renderTable() {
+      const body = $('grantRows'); body.replaceChildren();
+      for (const row of result.grants || []) {
+        const tr = document.createElement('tr'); tr.tabIndex = 0; tr.dataset.value = row.id;
+        for (const value of [row.principal, row.effect, row.resource, row.path, row.policy_name, (row.condition_clause || '').trim() ? 'Yes' : 'No', row.permissions.length]) {
+          const td = document.createElement('td'); td.textContent = display(value); tr.append(td);
+        }
+        tr.addEventListener('click', () => selectGrant(row));
+        tr.addEventListener('contextmenu', (event) => {
+          $('conditionMenu').hidden = true;
+          if (!(row.condition_clause || '').trim()) return;
+          event.preventDefault();
+          conditionGrant = row; conditionTrigger = tr;
+          const menu = $('conditionMenu'); menu.hidden = false;
+          menu.style.left = `${Math.max(0, Math.min(event.clientX, innerWidth - menu.offsetWidth - 8))}px`;
+          menu.style.top = `${Math.max(0, Math.min(event.clientY, innerHeight - menu.offsetHeight - 8))}px`;
+          $('testConditionBtn').focus();
+        });
+        tr.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectGrant(row); } });
+        body.append(tr);
+      }
+    }
+    async function load() {
+      const request = ++requestNumber;
+      const params = new URLSearchParams({ overview: 'true', all_results: 'true' });
+      closeDetail(false);
+      $('conditionMenu').hidden = true; conditionGrant = null;
+      for (const name of filters) if ($(name).value.trim()) params.set(name, $(name).value.trim());
+      $('status').textContent = 'Loading graph…';
+      try {
+        const response = await fetch(`/analysis/policy-graph?${params}`);
+        if (!response.ok) throw new Error(`Request failed (${response.status})`);
+        const next = await response.json();
+        if (request !== requestNumber) return;
+        result = next; selectedId = ''; closeDetail(false);
+        $('summary').textContent = `${next.summary.source_statements} source statements · ${next.summary.direct_facts} direct facts · ${next.summary.exclusions} excluded statements`;
+        const pathCount = (next.paths || []).length;
+        $('matchCount').textContent = next.needs_filter ? 'Enter at least 2 characters or choose a filter' : `${next.total} matching grant${next.total === 1 ? '' : 's'} · ${pathCount} effective path${pathCount === 1 ? '' : 's'}`;
+        $('effectivePathOptions').replaceChildren(...(next.paths || []).map((item) => {
+          const option = document.createElement('option'); option.value = item.path; return option;
+        }));
+        $('principalOptions').replaceChildren(...(next.principals || []).map((item) => {
+          const option = document.createElement('option'); option.value = item.principal; return option;
+        }));
+        $('status').textContent = next.loaded ? '' : 'No policy corpus is loaded yet.';
+        renderGraph(); renderTable();
+      } catch (error) {
+        if (request === requestNumber) $('status').textContent = `Could not load policy graph: ${error.message}`;
+      }
+    }
+    $('filters').addEventListener('submit', (event) => { event.preventDefault(); clearTimeout(debounce); load(); });
+    for (const name of filters) $(name).addEventListener(name === 'effect' ? 'change' : 'input', () => {
+      clearTimeout(debounce); debounce = setTimeout(() => load(), 300);
+    });
+    $('clearBtn').addEventListener('click', () => { filters.forEach((name) => { $(name).value = ''; }); load(); });
+    $('refreshBtn').addEventListener('click', () => load());
+    $('closeDetailBtn').addEventListener('click', () => closeDetail());
+    $('testConditionBtn').addEventListener('click', () => {
+      if (!conditionGrant?.condition_clause?.trim()) return;
+      try {
+        sessionStorage.setItem('ociConditionTesterClause', conditionGrant.condition_clause);
+        window.location.href = '/condition-tester.html?from=policy-graph';
+      } catch (error) { $('status').textContent = `Could not open Condition Tester: ${error.message}`; }
+      $('conditionMenu').hidden = true;
+    });
+    document.addEventListener('click', (event) => { if (!$('conditionMenu').contains(event.target)) $('conditionMenu').hidden = true; });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !$('conditionMenu').hidden) { $('conditionMenu').hidden = true; conditionTrigger?.focus(); }
+    });
+    document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeDetail(); });
+    $('scopes').addEventListener('scroll', drawLines);
+    $('principals').addEventListener('scroll', drawLines);
+    $('grants').addEventListener('scroll', drawLines);
+    window.addEventListener('resize', drawLines);
+    load();
+  </script>
+</body>
+</html>

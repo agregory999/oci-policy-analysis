@@ -1,8 +1,9 @@
 """Tests for principal-aware policy search matching."""
 
 import pytest
+
+from oci_policy_analysis.application.core.models.models import PolicySearch
 from oci_policy_analysis.application.core.repo.policy_analysis_repository import PolicyAnalysisRepository
-from oci_policy_analysis.common.models import PolicySearch
 
 
 def _statement(policy_name: str, principal_type: str, principal_key: str, **principal_fields: str) -> dict:
@@ -193,7 +194,7 @@ def test_policy_search_matches_singular_resource_principal_by_condition_evidence
             ],
             'principal_keys': ['any-user:None/any-user'],
             'conditions': (
-                "all { request.principal.type = 'computecontainerinstance', " "request.operation = 'PullImage' }"
+                "all { request.principal.type = 'computecontainerinstance', request.operation = 'PullImage' }"
             ),
         },
         {

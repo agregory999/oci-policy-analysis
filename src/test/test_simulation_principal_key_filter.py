@@ -51,7 +51,7 @@ def test_repo_filter_policy_statements_principal_key_is_exact_for_service() -> N
 def test_simulation_engine_principal_key_filter_mapping_uses_principal_key() -> None:
     engine = PolicySimulationEngine(policy_repo=None, ref_data_repo=None)
     mapped = engine._principal_key_to_policy_search_filter('service:None/database')
-    assert mapped == {'principal_key': ['service:None/database']}
+    assert mapped == {'principal_key': ['service:none/database']}
 
 
 def test_simulation_engine_loads_statements_for_an_opaque_resource_principal() -> None:
@@ -283,7 +283,7 @@ def test_user_simulation_resolves_memberships_for_loaded_and_prospective_policie
     ]
 
     key, rows = engine.get_statements_for_context('ROOT/Apps', 'user', ('Default', 'Alice'))
-    assert key == 'user:Default/Alice'
+    assert key == 'user:default/alice'
     assert {row['internal_id'] for row in rows} == {
         'by-name',
         'by-id',
@@ -298,7 +298,7 @@ def test_user_simulation_resolves_memberships_for_loaded_and_prospective_policie
     assert len(rows) == 9  # Statements naming both memberships are returned once.
     for domain, name in [('Other', 'Alice'), ('Default', 'NoGroups'), ('Default', 'Missing')]:
         assert engine.get_statements_for_context('ROOT/Apps', 'user', (domain, name))[1] == []
-    assert {row['internal_id'] for row in engine.get_applicable_statements('group:Default/Admins', 'ROOT/Apps')} == {
+    assert {row['internal_id'] for row in engine.get_applicable_statements('group:default/admins', 'ROOT/Apps')} == {
         'by-name',
         'both-groups',
         'prospective-name',

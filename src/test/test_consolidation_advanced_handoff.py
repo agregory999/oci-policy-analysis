@@ -3,6 +3,7 @@
 from types import SimpleNamespace
 
 import pytest
+
 from oci_policy_analysis.presentation.desktop.policy_recommendations_tab import PolicyRecommendationsTab
 
 
