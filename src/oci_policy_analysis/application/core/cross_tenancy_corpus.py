@@ -77,7 +77,7 @@ class CrossTenancyCorpusBuilder:
 
     @staticmethod
     def _restore_legacy_association(row: dict) -> None:
-        """Reconstruct association endpoints omitted by pre-7.0 cache parsers."""
+        """Reconstruct association endpoints absent or incomplete in older caches."""
         text = str(row.get('statement_text') or '')
         match = re.match(r'^\s*(?:deny\s+)?(admit|endorse)\b', text, re.IGNORECASE)
         if not match or not re.search(r'\bto\s+associate\b', text, re.IGNORECASE):
@@ -105,7 +105,14 @@ class CrossTenancyCorpusBuilder:
                 if not isinstance(item, dict):
                     continue
                 row = copy.deepcopy(item)
-                if kind == 'statement' and 'association' not in row:
+                if kind == 'statement' and (
+                    not row.get('association')
+                    or any(
+                        not endpoint.get('scope')
+                        for endpoint in row.get('association', [])
+                        if isinstance(endpoint, dict)
+                    )
+                ):
                     self._restore_legacy_association(row)
                 if isinstance(row.get('principal_keys'), list):
                     row['principal_keys'] = list(

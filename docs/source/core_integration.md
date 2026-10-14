@@ -38,7 +38,7 @@ Regular and cross-tenancy corpora, intelligence overlays, and the permissions
 report are rebuilt at runtime; they are not added to the combined-cache payload.
 Statement records can contain updated derived fields, including canonical
 principal keys and structured association endpoints. Original statement text
-remains available. For old cross-tenancy association records without endpoint
+remains available. For old cross-tenancy association records without complete endpoint
 structure, corpus construction reparses the source text on a detached copy;
 it does not rewrite the cache file.
 

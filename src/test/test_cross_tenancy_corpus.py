@@ -2,6 +2,8 @@
 
 from types import SimpleNamespace
 
+import pytest
+
 from oci_policy_analysis.application.core.cross_tenancy_corpus import CrossTenancyCorpusBuilder
 from oci_policy_analysis.application.core.engine.intelligence_strategies.cross_tenancy_findings import (
     CrossTenancyFindingsStrategy,
@@ -152,7 +154,11 @@ def test_duplicate_finding_preserves_both_source_occurrences() -> None:
     assert CrossTenancyAnalysisService(repo, corpus=corpus).get_analysis_payload() == corpus.project()
 
 
-def test_legacy_association_cache_rebuilds_endpoint_structure_without_mutating_source():
+@pytest.mark.parametrize(
+    'cached_association',
+    [None, [{'resource': 'objects', 'scope': ''}, {'resource': 'objects', 'scope': 'compartment SharedData'}]],
+)
+def test_legacy_association_cache_rebuilds_endpoint_structure_without_mutating_source(cached_association):
     import copy
 
     repo = _repo()
@@ -170,6 +176,8 @@ def test_legacy_association_cache_rebuilds_endpoint_structure_without_mutating_s
         'tenancy_aliases': ['Partner'],
     }
     repo.cross_tenancy_statements = [statement]
+    if cached_association is not None:
+        statement['association'] = cached_association
     original = copy.deepcopy(statement)
     corpus = CrossTenancyCorpusBuilder().build(repo)
     compiled = corpus.to_dict('statements')[0]
