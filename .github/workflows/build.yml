@@ -198,6 +198,8 @@ jobs:
 
           echo "📦 Installing your project (+mcp extra for PyInstaller metadata copy)..."
           pip install --only-binary=:all: -e ".[mcp]"
+          pip check
+          python scripts/check_desktop_imports.py
                 
 
 
@@ -293,6 +295,23 @@ jobs:
             --add-data "src\oci_policy_analysis\application\core\resources\parsers;oci_policy_analysis\application\core\resources\parsers" `
             --add-binary "$pyDll;." `
             src\oci_policy_analysis\main.py
+
+      - name: Verify frozen desktop startup (macOS/Linux)
+        if: steps.skip_build.outputs.skip != 'true' && runner.os != 'Windows'
+        shell: bash
+        run: |
+          if [[ "${{ matrix.platform }}" == "macos" ]]; then
+            "dist/OCI Policy Analysis.app/Contents/MacOS/OCI Policy Analysis" --help
+          else
+            dist/oci-policy-analysis --help
+          fi
+
+      - name: Verify frozen desktop startup (Windows)
+        if: steps.skip_build.outputs.skip != 'true' && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $process = Start-Process -FilePath "dist\OCI Policy Analysis.exe" -ArgumentList '--help' -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Frozen desktop startup failed: exit $($process.ExitCode)" }
 
       - name: Package artifact
         if: steps.skip_build.outputs.skip != 'true'

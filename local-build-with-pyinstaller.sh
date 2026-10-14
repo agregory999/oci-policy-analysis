@@ -38,6 +38,8 @@ pip install --no-index --find-links=./wheels -r frozen.txt
 
 echo "📦 Installing your project (editable mode)..."
 pip install -e .
+pip check
+python scripts/check_desktop_imports.py
 
 echo "📝 Determining version via importlib.metadata..."
 VERSION=$(python - <<EOF

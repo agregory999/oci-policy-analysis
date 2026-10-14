@@ -1984,6 +1984,7 @@ def _resource_principal_only() -> bool:
 
 @router.get('/load/auth-mode')
 def get_load_auth_mode() -> dict[str, bool]:
+    """Return whether web tenancy loading is restricted to Resource Principal."""
     return {'resource_principal_only': _resource_principal_only()}
 
 
