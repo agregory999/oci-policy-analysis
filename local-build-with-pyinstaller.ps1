@@ -33,6 +33,10 @@ pip install --no-index --find-links=./wheels -r frozen.txt
 
 Write-Host "Installing your project (editable mode)..."
 pip install -e .
+pip check
+if ($LASTEXITCODE -ne 0) { throw "Dependency validation failed." }
+python scripts/check_desktop_imports.py
+if ($LASTEXITCODE -ne 0) { throw "Desktop startup dependency imports failed." }
 
 Write-Host "Determining version via importlib.metadata..."
 $VERSION = python -c "import importlib.metadata; print(importlib.metadata.version('oci_policy_analysis'))"
