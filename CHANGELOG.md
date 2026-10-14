@@ -1,3 +1,10 @@
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.2](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.1...v7.0.0-7-0-0-policy-corpus-cross-tenancy.2) (2026-10-14)
+
+
+### Bug Fixes
+
+* rebuild incomplete cached association scopes ([b5bf6ba](https://github.com/agregory999/oci-policy-analysis/commit/b5bf6baf7b7713785f613ce233e4958675e5a599))
+
 ## [7.0.0-7-0-0-policy-corpus-cross-tenancy.1](https://github.com/agregory999/oci-policy-analysis/compare/v6.5.7...v7.0.0-7-0-0-policy-corpus-cross-tenancy.1) (2026-10-14)
 
 
