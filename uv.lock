@@ -780,7 +780,7 @@ wheels = [
 
 [[package]]
 name = "oci-policy-analysis"
-version = "7.0.0.dev0"
+version = "7.0.0.dev1"
 source = { editable = "." }
 dependencies = [
     { name = "antlr4-python3-runtime" },

@@ -1,3 +1,17 @@
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.1](https://github.com/agregory999/oci-policy-analysis/compare/v6.5.7...v7.0.0-7-0-0-policy-corpus-cross-tenancy.1) (2026-10-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* Remove the legacy oci_policy_analysis.common and
+oci_policy_analysis.logic Python import packages; integrations must use
+application.core. Published command names and the version-2/schema-3 saved
+cache format remain supported.
+
+### Features
+
+* introduce shared policy corpora and graphical search ([aec14b4](https://github.com/agregory999/oci-policy-analysis/commit/aec14b47bd1f0d8241305cd79384e30417d7631a))
+
 ## 7.0.0.dev0 — Unreleased
 
 ### Features
