@@ -1,3 +1,11 @@
+## [6.5.7](https://github.com/agregory999/oci-policy-analysis/compare/v6.5.6...v6.5.7) (2026-10-14)
+
+
+### Bug Fixes
+
+* constrain packaged MCP typing dependencies ([6c8e37d](https://github.com/agregory999/oci-policy-analysis/commit/6c8e37d714eadd0d1384ec0eaf3e388c08da5d98))
+* Merge pull request [#66](https://github.com/agregory999/oci-policy-analysis/issues/66) from agregory999/fix/6.5.7-packaged-mcp-typing ([43ce154](https://github.com/agregory999/oci-policy-analysis/commit/43ce154a9aacb05783ce1979b3d19d11c9c068f5))
+
 ## [6.5.6](https://github.com/agregory999/oci-policy-analysis/compare/v6.5.5...v6.5.6) (2026-10-09)
 
 
