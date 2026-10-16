@@ -61,6 +61,8 @@ def build_location_clause(location_path: str, effective_path: str) -> tuple[str,
 
     def _split(path: str) -> list[str]:
         parts = [p for p in (path or '').split('/') if p]
+        if parts and parts[0].casefold() == 'root':
+            parts[0] = 'root'
         return parts or ['root']
 
     loc_parts = _split(location_path or 'root')

@@ -45,6 +45,7 @@ import os  # noqa: E402
 import re  # noqa: E402
 import threading  # noqa: E402
 from collections import Counter  # noqa: E402
+from contextvars import ContextVar  # noqa: E402
 from datetime import UTC, datetime  # noqa: E402
 from functools import lru_cache  # noqa: E402
 from typing import Annotated, Any, Literal  # noqa: E402
@@ -100,6 +101,7 @@ logger = get_logger(component='mcp_server')
 
 mcp = FastMCP(name='OCI Policy MCP')
 app_context: AppContext | None = None
+_snapshot_context: ContextVar[AppContext | None] = ContextVar('mcp_snapshot_context', default=None)
 
 MCP_OUTPUT_LOG_LIMIT = 4000
 MCP_OAUTH_REQUIRED_VARS = (
@@ -138,9 +140,10 @@ def _build_service_context(log_level: str) -> AppContext:
 def _require_service_context() -> AppContext:
     """Return the active service context or raise a MCP tool error."""
 
-    if app_context is None:
+    active = _snapshot_context.get() or app_context
+    if active is None:
         raise ToolError('MCP service context is not initialized.')
-    return app_context
+    return active
 
 
 def _query_service() -> MCPQueryService:
@@ -663,7 +666,8 @@ def _principal_key_for_dynamic_group(dynamic_group: dict[str, Any]) -> str:
 
 def _current_policy_repo() -> PolicyAnalysisRepository | None:
     """Return the active policy repository if one is available."""
-    return getattr(app_context, 'policy_repo', None) if app_context is not None else None
+    active = _snapshot_context.get() or app_context
+    return getattr(active, 'policy_repo', None) if active is not None else None
 
 
 def _normalize_compartment_path(path: object | None) -> str:
@@ -2399,6 +2403,75 @@ def mcp_server_status() -> bool:
     """
     global server_thread
     return bool(server_thread and server_thread.is_alive())
+
+
+async def create_snapshot_server(context: AppContext) -> FastMCP:
+    """Create an isolated query-only MCP endpoint over an already loaded snapshot.
+
+    Args:
+        context: Loaded context pinned for this server's lifetime. The host must
+            prevent concurrent reloads or mutation of the served context.
+
+    Returns:
+        FastMCP: Independent server with existing query schemas and a status tool.
+            Does not start a listener, load OCI, or change the standalone context.
+
+    Notes:
+        Request-local context binding supports independent embedded servers.
+        Cache/history/data-operation tools are deliberately excluded.
+    """
+    from fastmcp.server.middleware import Middleware
+    from mcp.types import ToolAnnotations
+
+    class SnapshotBinding(Middleware):
+        async def on_call_tool(self, request, call_next):
+            token = _snapshot_context.set(context)
+            try:
+                return await call_next(request)
+            finally:
+                _snapshot_context.reset(token)
+
+    server = FastMCP(
+        name='OCI Policy Snapshot',
+        instructions='Query the loaded snapshot. Conditions are retained, not evaluated. '
+        'Keep provenance, validity and inventory coverage limitations in answers. '
+        'No tool loads data, changes OCI, or evaluates authoritative access.',
+        middleware=[SnapshotBinding()],
+    )
+    allowed = {
+        'policy_search',
+        'policy_search_set',
+        'tag_based_policy_search',
+        'oke_workload_identity_search',
+        'identity_search',
+        'cross_tenancy_search',
+    }
+    tools = await mcp.get_tools()
+    for name in sorted(allowed):
+        tool = tools[name].model_copy(update={'annotations': ToolAnnotations(readOnlyHint=True, destructiveHint=False)})
+        server.add_tool(tool)
+
+    @server.tool(
+        name='snapshot_status',
+        description='Identify the served snapshot and its data coverage.',
+        annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False),
+    )
+    def snapshot_status() -> dict:
+        repo = context.policy_repo
+        return {
+            'tenancy_name': getattr(repo, 'tenancy_name', None),
+            'tenancy_ocid': getattr(repo, 'tenancy_ocid', None),
+            'data_as_of': getattr(repo, 'data_as_of', None),
+            'statements': len(repo.regular_statements),
+            'users': len(repo.users),
+            'groups': len(repo.groups),
+            'dynamic_groups': len(repo.dynamic_groups),
+            'inventory_complete': getattr(repo, 'inventory_complete', None),
+            'snapshot_kind': getattr(repo, 'snapshot_kind', None),
+            'conditions_evaluated': False,
+        }
+
+    return server
 
 
 # ============================================================

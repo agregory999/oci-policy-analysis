@@ -3229,6 +3229,11 @@ class PolicyAnalysisRepository:
                         break
                 # Once domain cases are done, iterate remaining values
                 # Verb enum
+                elif key == 'exact_subject_types':
+                    expected = {str(value).strip().casefold() for value in values if str(value).strip()}
+                    if expected and str(stmt.get('subject_type') or '').casefold() not in expected:
+                        match = False
+                        break
                 elif key == 'verb':
                     invalid = set(values) - VALID_VERBS
                     if invalid:

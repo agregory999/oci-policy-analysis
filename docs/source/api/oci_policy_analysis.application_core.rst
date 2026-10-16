@@ -104,6 +104,10 @@ Engines and services
    :members:
    :show-inheritance:
 
+.. automodule:: oci_policy_analysis.application.services.principal_analysis_service
+   :members:
+   :show-inheritance:
+
 .. automodule:: oci_policy_analysis.application.services.mcp_query_service
    :members:
    :show-inheritance:
@@ -138,3 +142,13 @@ Support
 .. automodule:: oci_policy_analysis.application.core.support.logger
    :members:
    :show-inheritance:
+
+.. automodule:: oci_policy_analysis.application.services.prospective_workbench_service
+   :members:
+   :show-inheritance:
+
+.. automodule:: oci_policy_analysis.application.services.condition_tester_service
+   :members:
+
+.. automodule:: oci_policy_analysis.application.services.simulation_workbench_service
+   :members:

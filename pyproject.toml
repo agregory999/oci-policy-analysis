@@ -28,6 +28,9 @@ classifiers = [
 [project.optional-dependencies]
 core = []
 ui = []
+qt = ["PySide6>=6.8,<7"]
+# Nuitka 4.3 regresses compiled PySide6 signal connections; retain the tested stable compiler.
+qt-build = ["Nuitka==4.2.2", "zstandard>=0.25,<1", "ordered-set>=4.1,<5"]
 web = [
     "fastapi>=0.110",
     "uvicorn>=0.29",
@@ -61,8 +64,9 @@ dev = ["pytest", "ruff"]
 
 [project.scripts]
 oci-policy-analysis-ui = "oci_policy_analysis.main:main"
+oci-policy-analysis-qt = "oci_policy_analysis.presentation.qt.launcher:main"
 oci-policy-analysis-cli = "oci_policy_analysis.cli:main"
-oci-policy-analysis-web = "oci_policy_analysis.web.main:main"
+oci-policy-analysis-web = "oci_policy_analysis.presentation.web.main:main"
 oci-policy-analysis-mcp = "oci_policy_analysis.mcp_server:main"
 
 [build-system]
@@ -75,6 +79,9 @@ include = ["oci_policy_analysis*"]
 
 [tool.setuptools.package-data]
 "oci_policy_analysis" = [
+    "assets/icons/*.png",
+    "presentation/qt/data/*.json",
+    "presentation/qt/README.md",
     "version.txt",
     "application/core/resources/permissions/*.json",
     "application/core/resources/mcp_tools_list/*.json",

@@ -13,6 +13,13 @@ Choose the path that fits you:
 - **CLI:** scripting, exports, and automation.
 - **MCP:** use OCI policy data with an MCP client.
 
+The optional [Qt workbench preview](src/oci_policy_analysis/presentation/qt/README.md)
+uses the same core with modular native pages. From this checkout, run
+`uv sync --extra qt --extra mcp --extra web`, then
+`.venv/bin/oci-policy-analysis-qt --sample` (macOS/Linux). The Qt README covers
+Windows and installed builds. This preview must be released before its command
+is available from PyPI.
+
 ### Easiest: download an application
 
 Download the latest macOS or Windows application from the [Releases page](https://github.com/agregory999/oci-policy-analysis/releases). If your operating system asks for approval, allow the downloaded application to run.

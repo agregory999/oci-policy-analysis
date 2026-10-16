@@ -27,6 +27,7 @@ def _split_pipe(value: str | None) -> list[str]:
 def build_policy_search_from_filters(
     *,
     subject: str | None = None,
+    exact_subject_types: str | None = None,
     action: str | None = None,
     verb: str | None = None,
     resource: str | None = None,
@@ -43,6 +44,7 @@ def build_policy_search_from_filters(
 
     Args:
         subject: Subject filter value.
+        exact_subject_types: Pipe-delimited exact subject types; alternatives combine with OR.
         action: Action value; supports allow/deny/both.
         verb: Verb filter value.
         resource: Resource filter value.
@@ -63,6 +65,8 @@ def build_policy_search_from_filters(
     filters: PolicySearch = {}
     if subject:
         filters['subject'] = _split_pipe(subject)
+    if exact_subject_types:
+        filters['exact_subject_types'] = _split_pipe(exact_subject_types)
 
     action_value = (action or 'both').lower()
     if action_value == 'allow':
@@ -131,6 +135,7 @@ def build_policy_search_from_dict(payload: dict[str, object]) -> PolicySearch:
 
     filters = build_policy_search_from_filters(
         subject=_as_str(payload.get('subject')),
+        exact_subject_types=_as_str(payload.get('exact_subject_types')),
         action=_as_str(payload.get('action')),
         verb=_as_str(payload.get('verb')),
         resource=_as_str(payload.get('resource')),

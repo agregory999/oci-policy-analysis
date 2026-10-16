@@ -1,0 +1,469 @@
+"""Qt workbench shell: page composition, navigation, and window lifetime."""
+
+from __future__ import annotations
+
+import argparse
+import logging
+import sys
+
+from PySide6.QtCore import Qt, Slot
+from PySide6.QtGui import QCloseEvent, QFontMetrics
+from PySide6.QtWidgets import (
+    QApplication,
+    QDockWidget,
+    QFrame,
+    QHBoxLayout,
+    QListWidget,
+    QMainWindow,
+    QProgressBar,
+    QStackedWidget,
+    QTableView,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
+)
+
+from oci_policy_analysis.application.core.support.logger import get_logger
+from oci_policy_analysis.application.services.logging_service import LoggingService
+from oci_policy_analysis.presentation.qt.controller import WorkbenchController
+from oci_policy_analysis.presentation.qt.details import DetailsDrawer
+from oci_policy_analysis.presentation.qt.experience import ExperienceMode
+from oci_policy_analysis.presentation.qt.icons import application_icon
+from oci_policy_analysis.presentation.qt.logging_panel import QT_COMPONENTS, LiveLogView, LogBridge, LoggingPanel
+from oci_policy_analysis.presentation.qt.pages.activity import LoadActivityPage
+from oci_policy_analysis.presentation.qt.pages.browser import PolicyBrowserPage
+from oci_policy_analysis.presentation.qt.pages.dynamic_groups import DynamicGroupsPage
+from oci_policy_analysis.presentation.qt.pages.graph import PolicyGraphPage
+from oci_policy_analysis.presentation.qt.pages.mcp import McpAssistantPage
+from oci_policy_analysis.presentation.qt.pages.overview import OverviewSettingsPage
+from oci_policy_analysis.presentation.qt.pages.prospective import ProspectiveStatementsPage
+from oci_policy_analysis.presentation.qt.pages.resource_principals import ResourcePrincipalsPage
+from oci_policy_analysis.presentation.qt.pages.simulation import SimulationPage
+from oci_policy_analysis.presentation.qt.pages.users_groups import UsersGroupsPage
+from oci_policy_analysis.presentation.qt.pages.workflows import PlannedWorkflowPage, ToolsPage
+from oci_policy_analysis.presentation.qt.preferences import load_preferences
+from oci_policy_analysis.presentation.qt.themes import apply_theme, fixed_width_family
+from oci_policy_analysis.presentation.qt.widgets import label
+
+logger = get_logger(component='qt.main')
+
+
+class WorkbenchWindow(QMainWindow):
+    """Compose independent pages around a controller-owned analysis snapshot.
+
+    Attributes:
+        controller: Owner of asynchronous loads and the latest successful context.
+        settings_page: Combined overview, load settings, and hideable logging pane.
+        browser_page: Original policy evidence and shared-core search controls.
+        graph_page: Native Qt graph over direct corpus grants and excluded evidence.
+        dynamic_groups_page: Known inventory and exact principal-focused evidence.
+        users_groups_page: Known users, group memberships, and policy evidence.
+        resource_principals_page: Resource, dynamic-group and OKE workload evidence.
+        drawer: Shared animated record inspector across evidence pages.
+        activity_page: Load stages and handled errors.
+        mcp_page: Managed loopback MCP endpoint and optional Codex conversation.
+
+    Notes:
+        No OCI connection occurs on construction. Logging settings affect the
+        current process; explicit Apply actions save preferences. Close is blocked
+        during loading and waits for MCP/Codex shutdown.
+    """
+
+    def __init__(self, *, verbose: bool = False) -> None:
+        """Build the shell and connect page requests to the loading controller.
+
+        Args:
+            verbose: Lock shell/file DEBUG for this session; the UI remains INFO+.
+        """
+        super().__init__()
+        self.setWindowTitle('OCI Policy Analysis · Qt')
+        self.setWindowIcon(application_icon())
+        self.resize(1440, 900)
+        self.setMinimumSize(1100, 760)
+        self.log_bridge = LogBridge(self)
+        self.verbose = verbose or logging.getLogger().level == logging.DEBUG
+        level = 'DEBUG' if self.verbose else 'INFO'
+        settings = load_preferences()
+        if self.verbose:
+            settings.update({'global_log_level': level, 'log_levels': dict.fromkeys(QT_COMPONENTS, level)})
+        LoggingService(settings).update_log_settings(settings)
+        for name, runtime_level in settings.get('qt_runtime_log_levels', {}).items():
+            logging.getLogger(name).setLevel(runtime_level)
+        self.controller = WorkbenchController(settings, self)
+        self.experience = ExperienceMode(settings, self)
+        self.settings_page = OverviewSettingsPage(
+            LoggingPanel(settings, verbose=self.verbose), settings, self.experience
+        )
+        self.recommendations_page = PlannedWorkflowPage(
+            'Recommendations',
+            'Beginner-friendly findings and guidance will be presented here using RecommendationsService. This page stays available in Standard mode; full recommendations require Full intelligence enrichment.',
+        )
+        self.prospective_page = ProspectiveStatementsPage()
+        self.simulation_page = SimulationPage()
+        self.simulation_page.manage_prospective.connect(
+            lambda: self.navigation.setCurrentRow(self.page_index('prospective'))
+        )
+        self.consolidation_page = PlannedWorkflowPage(
+            'Consolidation',
+            'Protect statements, select candidates, then review proposals and progress through ConsolidationWorkbenchService.',
+        )
+        self.tools_page = ToolsPage(self.experience)
+        self.browser_page = PolicyBrowserPage()
+        self.graph_page = PolicyGraphPage()
+        self.dynamic_groups_page = DynamicGroupsPage()
+        self.users_groups_page = UsersGroupsPage()
+        self.resource_principals_page = ResourcePrincipalsPage()
+        self.activity_page = LoadActivityPage()
+        self.mcp_page = McpAssistantPage(settings)
+        self.simulation_page.controller.busy_changed.connect(self._simulation_busy)
+        self._closing = False
+        self.mcp_page.locked.connect(self._mcp_locked)
+        self.mcp_page.idle.connect(self._mcp_idle)
+        root = QWidget()
+        self.setCentralWidget(root)
+        layout = QHBoxLayout(root)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        sidebar = QFrame()
+        self.sidebar = sidebar
+        sidebar.setObjectName('sidebar')
+        sidebar.setFixedWidth(225)
+        side = QVBoxLayout(sidebar)
+        side.setContentsMargins(18, 30, 18, 24)
+        side.addWidget(label('OCI / POLICY', 'brand'))
+        side.addSpacing(36)
+        self.navigation = QListWidget()
+        self.navigation.setObjectName('navigation')
+        self.navigation.setWordWrap(True)
+        self.navigation.setTextElideMode(Qt.TextElideMode.ElideNone)
+        self.navigation.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        # Navigation order and Standard/Advanced access policy live in this registry.
+        self.page_specs = [
+            ('overview', 'Overview & settings', self.settings_page, False),
+            ('browser', 'Policy browser', self.browser_page, False),
+            ('graph', 'Policy graph', self.graph_page, False),
+            ('users_groups', 'Users / Groups', self.users_groups_page, False),
+            ('dynamic_groups', 'Dynamic groups', self.dynamic_groups_page, False),
+            ('resource_principals', 'Resource principals', self.resource_principals_page, False),
+            ('recommendations', 'Recommendations', self.recommendations_page, False),
+            ('mcp', 'MCP & assistant', self.mcp_page, True),
+            ('prospective', 'Prospective statements', self.prospective_page, True),
+            ('simulation', 'Simulation', self.simulation_page, True),
+            ('consolidation', 'Consolidation', self.consolidation_page, True),
+            ('tools', 'Tools', self.tools_page, False),
+        ]
+        self.navigation.addItems(
+            [
+                'Prospective\nstatements' if key == 'prospective' else title
+                for key, title, _page, _advanced in self.page_specs
+            ]
+        )
+        side.addWidget(self.navigation)
+        layout.addWidget(sidebar)
+        body = QVBoxLayout()
+        body.setContentsMargins(30, 28, 30, 16)
+        body.setSpacing(14)
+        self.heading = label('Overview & settings', 'title')
+        body.addWidget(self.heading)
+        self.progress = QProgressBar()
+        self.progress.setRange(0, 0)
+        self.progress.hide()
+        body.addWidget(self.progress)
+        self.pages = QStackedWidget()
+        for _key, _title, page, _advanced in self.page_specs:
+            self.pages.addWidget(page)
+        body.addWidget(self.pages, 1)
+        self.data_as_of = label('No snapshot loaded', 'muted')
+        self.statusBar().addPermanentWidget(self.data_as_of)
+        layout.addLayout(body, 1)
+        self.drawer = DetailsDrawer(root)
+        self.browser_page.details_requested.connect(self.drawer.show_record)
+        self.simulation_page.details_requested.connect(self.drawer.show_record)
+        self.graph_page.details_requested.connect(self.drawer.show_record)
+        self.graph_page.focus_dynamic_group.connect(self._focus_dynamic_group)
+        self.dynamic_groups_page.details_requested.connect(self.drawer.show_record)
+        self.users_groups_page.details_requested.connect(self.drawer.show_record)
+        self.users_groups_page.focus_dynamic_group.connect(self._focus_dynamic_group)
+        self.resource_principals_page.details_requested.connect(self.drawer.show_record)
+        self.resource_principals_page.focus_dynamic_group.connect(self._focus_dynamic_group)
+        self.browser_page.focus_dynamic_group.connect(self._focus_dynamic_group)
+        self.dynamic_groups_page.focus_dynamic_group.connect(self._focus_dynamic_group)
+        self.navigation.currentRowChanged.connect(self._navigate)
+        self.settings_page.load_requested.connect(self.controller.start_load)
+        self.controller.activity.connect(self.activity_page.appendPlainText)
+        self.controller.busy_changed.connect(self._busy_changed)
+        self.controller.progress.connect(self._progress)
+        self.controller.loaded.connect(self._publish)
+        self.controller.failed.connect(self._failed)
+        self.log_dock = QDockWidget('Logs', self)
+        self.log_dock.setAllowedAreas(Qt.DockWidgetArea.BottomDockWidgetArea | Qt.DockWidgetArea.TopDockWidgetArea)
+        self.log_tabs = QTabWidget()
+        self.live_log = LiveLogView(self.log_bridge)
+        self.log_tabs.addTab(self.live_log, 'Live log')
+        self.log_tabs.addTab(self.activity_page, 'Load activity')
+        self.log_dock.setWidget(self.log_tabs)
+        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.log_dock)
+        self.log_dock.hide()
+        self.menuBar().addMenu('View').addAction(self.log_dock.toggleViewAction())
+        self.settings_page.show_log_requested.connect(self._show_logs)
+        self.settings_page.appearance_panel.changed.connect(self._apply_appearance)
+        self.tools_page.show_logs.connect(self._show_logs)
+        self.tools_page.show_logging_settings.connect(self._show_logging_settings)
+        self.prospective_page.changed.connect(self._prospects_changed)
+        self.simulation_page.prospective_requested.connect(self._review_simulation_drafts)
+        self.browser_page.include_prospective = self.experience.advanced
+        self.graph_page.include_prospective = self.experience.advanced
+        for table in (
+            self.users_groups_page.group_view.inventory,
+            self.users_groups_page.group_view.memberships,
+            self.users_groups_page.group_view.statements,
+            self.users_groups_page.user_view.inventory,
+            self.users_groups_page.user_view.memberships,
+            self.users_groups_page.user_view.statements,
+            self.browser_page.table,
+            self.graph_page.statements,
+            self.dynamic_groups_page.group_table,
+            self.dynamic_groups_page.statements,
+            self.resource_principals_page.groups,
+            self.resource_principals_page.statements,
+            self.prospective_page.table,
+            self.simulation_page.statements.selection.table,
+        ):
+            table.test_condition_requested.connect(self._open_condition_tester)
+        self.experience.changed.connect(self._experience_changed)
+        self._apply_appearance(settings)
+        self._set_data_available(False)
+        self.navigation.setCurrentRow(0)
+        self.statusBar().showMessage('Ready · No snapshot loaded')
+        logger.info('Qt shell ready: overview/settings, browser, graph, dynamic groups, MCP, resource principals')
+
+    def page_index(self, key: str) -> int:
+        """Return the navigation index for a stable page key.
+
+        Args:
+            key: Page registry key, independent of visual navigation order.
+
+        Returns:
+            int: Position shared by navigation and the page stack.
+        """
+        return next(index for index, spec in enumerate(self.page_specs) if spec[0] == key)
+
+    def _set_data_available(self, available: bool) -> None:
+        for index, (_key, _title, page, advanced) in enumerate(self.page_specs):
+            item = self.navigation.item(index)
+            visible = not advanced or self.experience.advanced
+            enabled = visible and (_key in {'overview', 'tools'} or available)
+            item.setHidden(not visible)
+            flags = item.flags()
+            item.setFlags(flags | Qt.ItemFlag.ItemIsEnabled if enabled else flags & ~Qt.ItemFlag.ItemIsEnabled)
+            item.setToolTip('' if enabled else 'Load a snapshot on Overview to open this page.')
+            page.setEnabled(enabled)
+
+    @Slot(bool)
+    def _experience_changed(self, _advanced: bool) -> None:
+        self.browser_page.include_prospective = _advanced
+        self.graph_page.include_prospective = _advanced
+        self._prospects_changed()
+        self._set_data_available(self.controller.context is not None)
+        index = self.pages.currentIndex()
+        if self.navigation.item(index).isHidden():
+            self.navigation.setCurrentRow(0)
+
+    @Slot()
+    def _prospects_changed(self) -> None:
+        self.drawer.clear()
+        self.simulation_page.refresh_prospective()
+        self.browser_page.apply_filters()
+        self.graph_page.search()
+
+    @Slot(object)
+    def _review_simulation_drafts(self, drafts) -> None:
+        if self.mcp_page.active or self.simulation_page.controller.worker is not None:
+            self.simulation_page.results.status.setText(
+                'Stop embedded MCP and wait for simulation work before editing prospects.'
+            )
+            return
+        report = self.simulation_page.results.report
+        if not report:
+            return
+        from copy import deepcopy
+
+        request = deepcopy(report['request'])
+        before = {str(row['internal_id']) for row in self.controller.context.simulation.get_prospective_statements()}
+        saved = False
+        for draft in drafts:
+            saved = self.prospective_page.review_draft(draft) or saved
+        if saved:
+            self.simulation_page.prepare_followup(request, before)
+
+    @Slot(str)
+    def _open_condition_tester(self, clause: str) -> None:
+        self.navigation.setCurrentRow(self.page_index('tools'))
+        self.tools_page.setCurrentIndex(0)
+        self.tools_page.condition_tester.set_clause_text(clause)
+
+    @Slot()
+    def _show_logging_settings(self) -> None:
+        self.navigation.setCurrentRow(0)
+        section = self.settings_page.sections['Logging']
+        section.button.setChecked(True)
+        self.settings_page.ensureWidgetVisible(section)
+
+    @Slot(int)
+    def _navigate(self, index: int) -> None:
+        if index < 0 or index >= len(self.page_specs):
+            return
+        if self.navigation.item(index).isHidden() or (
+            self.page_specs[index][0] not in {'overview', 'tools'} and self.controller.context is None
+        ):
+            self.navigation.setCurrentRow(0)
+            return
+        self.drawer.clear()
+        self.pages.setCurrentIndex(index)
+        self.heading.setText(self.page_specs[index][1])
+        logger.debug('Navigated to page=%s', self.page_specs[index][0])
+
+    @Slot(dict)
+    def _focus_dynamic_group(self, statement: dict) -> None:
+        self.navigation.setCurrentRow(self.page_index('dynamic_groups'))
+        self.dynamic_groups_page.focus_statement(statement)
+
+    @Slot(str, str, str)
+    def _progress(self, stage: str, detail: str, state: str) -> None:
+        self.statusBar().showMessage(f'{stage} · {detail}')
+        self.settings_page.load_status.setText(f'{stage} · {detail}')
+
+    @Slot(object, object, str)
+    def _publish(self, context, result, description: str) -> None:
+        self.drawer.clear()
+        self.settings_page.set_snapshot(context, result, description)
+        self.prospective_page.set_context(context)
+        self.simulation_page.set_context(context)
+        self.browser_page.set_context(context)
+        self.graph_page.set_context(context)
+        self.dynamic_groups_page.set_context(context)
+        self.users_groups_page.set_context(context)
+        self.mcp_page.set_context(context)
+        self.resource_principals_page.set_context(context)
+        self._set_data_available(True)
+        self.settings_page.refresh_caches()
+        self.data_as_of.setText(f'Data as of  ·  {getattr(context.policy_repo, "data_as_of", None) or "Not recorded"}')
+        self.statusBar().showMessage(f'Loaded · {description}')
+
+    @Slot(str)
+    def _failed(self, message: str) -> None:
+        self.statusBar().showMessage(f'Load failed · {message}')
+        self.settings_page.load_status.setText(f'Load failed: {message}')
+
+    @Slot(bool)
+    def _busy_changed(self, busy: bool) -> None:
+        self.settings_page.set_busy(busy)
+        self.mcp_page.set_loading(busy)
+        self.simulation_page.controller.block_reason = (
+            'Wait for snapshot loading to finish.'
+            if busy
+            else ('Stop embedded MCP before preparing simulation statements.' if self.mcp_page.active else '')
+        )
+        self.simulation_page.setEnabled(not busy and self.controller.context is not None)
+        self.progress.setVisible(busy)
+
+    @Slot(bool)
+    def _simulation_busy(self, busy: bool) -> None:
+        self.progress.setVisible(busy)
+        self.controller.load_block_reason = 'Wait for the current simulation task to finish.' if busy else ''
+        self.settings_page.set_load_locked(busy)
+        self.mcp_page.set_loading(busy)
+        if busy:
+            for _key, _title, page, _advanced in self.page_specs:
+                if page is not self.simulation_page:
+                    page.setEnabled(False)
+        else:
+            self._set_data_available(self.controller.context is not None)
+
+    @Slot()
+    def _show_logs(self) -> None:
+        self.log_tabs.setCurrentIndex(0)
+        self.log_dock.show()
+        self.resizeDocks([self.log_dock], [260], Qt.Orientation.Vertical)
+
+    @Slot(bool)
+    def _mcp_locked(self, locked: bool) -> None:
+        self.controller.load_block_reason = 'Stop embedded MCP before loading another snapshot.' if locked else ''
+        self.settings_page.set_load_locked(locked)
+        self.simulation_page.controller.block_reason = (
+            'Stop embedded MCP before preparing simulation statements.' if locked else ''
+        )
+
+    @Slot()
+    def _mcp_idle(self) -> None:
+        if self._closing:
+            self.close()
+
+    @Slot(dict)
+    def _apply_appearance(self, settings: dict) -> None:
+        size = {'Small': 11, 'Medium': 13, 'Large': 15, 'Extra Large': 20}.get(settings.get('font_size'), 13)
+        style = apply_theme(settings.get('qt_theme', 'Light'), size, settings.get('qt_color_theme', 'Forest'))
+        if settings.get('qt_fixed_width_font', False):
+            family = fixed_width_family()
+            style += f"\nQTableView, QHeaderView, QWidget#settingsContent, QWidget#settingsContent * {{ font-family: '{family}'; }}"
+        self.setStyleSheet(style)
+        self.settings_page.reflow_rows()
+        self.sidebar.setFixedWidth(max(225, round(225 * size / 13)))
+        self.graph_page.set_theme(settings.get('qt_theme', 'Light'), settings.get('qt_color_theme', 'Forest'))
+        for table in self.findChildren(QTableView):
+            table.ensurePolished()
+            height = QFontMetrics(table.font()).height()
+            padding = 8 if settings.get('qt_compact_rows', False) else 20
+            table.verticalHeader().setDefaultSectionSize(max(30, height + padding))
+            table.horizontalHeader().setMinimumHeight(height + 22)
+            for column, title in enumerate(table.model.headers):
+                if not table.isColumnHidden(column):
+                    minimum = QFontMetrics(table.horizontalHeader().font()).horizontalAdvance(title) + 34
+                    if table.columnWidth(column) < minimum:
+                        table.setColumnWidth(column, minimum)
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        """Keep an active worker alive and detach the UI log handler on close."""
+        if self.controller.worker is not None or self.simulation_page.controller.worker is not None:
+            logger.warning('Close deferred while loading')
+            self.statusBar().showMessage('A load or simulation task is running. Close the window after it finishes.')
+            event.ignore()
+        elif self.mcp_page.active:
+            self._closing = True
+            self.statusBar().showMessage('Stopping MCP and Codex before closing…')
+            event.ignore()
+            self.mcp_page.stop_all()
+        else:
+            logger.info('Closing Qt workbench')
+            self.log_bridge.close()
+            event.accept()
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Run the optional Qt workbench with independent pages over shared services.
+
+    Args:
+        argv: Application arguments; defaults to process arguments.
+
+    Returns:
+        int: Qt application exit code.
+
+    Notes:
+        --sample loads fictional data through LoadService. OCI authentication
+        occurs only after the user requests a live load on Overview & settings.
+    """
+    parser = argparse.ArgumentParser(description='OCI Policy Analysis Qt desktop preview')
+    parser.add_argument('--sample', action='store_true', help='Load fictional data without contacting OCI')
+    parser.add_argument(
+        '--verbose', '--debug', action='store_true', help='DEBUG to shell/app.log; in-app logs remain INFO+'
+    )
+    args = parser.parse_args(argv)
+    application = QApplication.instance() or QApplication([sys.argv[0]])
+    application.setStyle('Fusion')
+    application.setApplicationName('OCI Policy Analysis')
+    application.setWindowIcon(application_icon())
+    window = WorkbenchWindow(verbose=args.verbose)
+    window.show()
+    if args.sample:
+        window.settings_page.load_sample()
+    return application.exec()

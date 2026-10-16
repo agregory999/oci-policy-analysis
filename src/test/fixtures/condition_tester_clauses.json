@@ -1,0 +1,667 @@
+[
+  {
+    "clause": "request.operation = 'ListBuckets'",
+    "source": "src/test/test_api_simulation.py:160",
+    "status": "parsed",
+    "variables": [
+      "request.operation"
+    ]
+  },
+  {
+    "clause": "user.department = 'Finance'",
+    "source": "src/test/test_api_simulation.py:21",
+    "status": "parsed",
+    "variables": [
+      "user.department"
+    ]
+  },
+  {
+    "clause": "request.networkSource.name = 'MyOfficeNetwork'",
+    "source": "src/test/test_condition_parser.py:57",
+    "status": "parsed",
+    "variables": [
+      "request.networkSource.name"
+    ]
+  },
+  {
+    "clause": "request.networkSource.name = 'HomeNetwork'",
+    "source": "src/test/test_condition_parser.py:58",
+    "status": "parsed",
+    "variables": [
+      "request.networkSource.name"
+    ]
+  },
+  {
+    "clause": "target.tag.Operations.Project = 'Alpha'",
+    "source": "src/test/test_condition_parser.py:59",
+    "status": "parsed",
+    "variables": [
+      "target.tag.Operations.Project"
+    ]
+  },
+  {
+    "clause": "request.isLoggedIn = 'true'",
+    "source": "src/test/test_condition_parser.py:60",
+    "status": "parsed",
+    "variables": [
+      "request.isLoggedIn"
+    ]
+  },
+  {
+    "clause": "all {request.networkSource.name = 'MyOfficeNetwork', target.tag.Operations.Project = 'Alpha'}",
+    "source": "src/test/test_condition_parser.py:61",
+    "status": "parsed",
+    "variables": [
+      "request.networkSource.name",
+      "target.tag.Operations.Project"
+    ]
+  },
+  {
+    "clause": "all {request.networkSource.name = 'MyOfficeNetwork', target.tag.Operations.Project = 'Beta'}",
+    "source": "src/test/test_condition_parser.py:62",
+    "status": "parsed",
+    "variables": [
+      "request.networkSource.name",
+      "target.tag.Operations.Project"
+    ]
+  },
+  {
+    "clause": "any {request.networkSource.name = 'MyOfficeNetwork', target.tag.Operations.Project = 'Beta'}",
+    "source": "src/test/test_condition_parser.py:63",
+    "status": "parsed",
+    "variables": [
+      "request.networkSource.name",
+      "target.tag.Operations.Project"
+    ]
+  },
+  {
+    "clause": "all {request.networkSource.name = 'MyOfficeNetwork', any {target.tag.Operations.Project = 'Beta', target.compartment.name = 'Production'}}",
+    "source": "src/test/test_condition_parser.py:64",
+    "status": "parsed",
+    "variables": [
+      "request.networkSource.name",
+      "target.compartment.name",
+      "target.tag.Operations.Project"
+    ]
+  },
+  {
+    "clause": "all {request.networkSource.name = 'MyOfficeNetwork', all {request.principal.type = 'fnfunc', request.principal.id = 'ocid.xx.yy.zzz'}}",
+    "source": "src/test/test_condition_parser.py:65",
+    "status": "parsed",
+    "variables": [
+      "request.networkSource.name",
+      "request.principal.id",
+      "request.principal.type"
+    ]
+  },
+  {
+    "clause": "request.networkSource.name != 'IllegalNetwork'",
+    "source": "src/test/test_condition_parser.py:66",
+    "status": "parsed",
+    "variables": [
+      "request.networkSource.name"
+    ]
+  },
+  {
+    "clause": "request.networkSource.name in ('OfficeNetwork','GuestNetwork')'",
+    "source": "src/test/test_condition_parser.py:67",
+    "status": "unsupported",
+    "variables": []
+  },
+  {
+    "clause": "request.networkSource.name in ('OfficeNetwork2','MyOfficeNetwork2','GuestNetwork')",
+    "source": "src/test/test_condition_parser.py:68",
+    "status": "parsed",
+    "variables": [
+      "request.networkSource.name"
+    ]
+  },
+  {
+    "clause": "all {request.utc-timestamp after '2025-12-11T00:00:00Z', request.utc-timestamp before '2025-12-12T00:00:00Z'}",
+    "source": "src/test/test_condition_parser.py:69",
+    "status": "parsed",
+    "variables": [
+      "request.utc-timestamp"
+    ]
+  },
+  {
+    "clause": "any {request.utc-timestamp.day-of-week in ('monday', 'tuesday', 'wednesday', 'thursday', 'friday')}",
+    "source": "src/test/test_condition_parser.py:70",
+    "status": "parsed",
+    "variables": [
+      "request.utc-timestamp.day-of-week"
+    ]
+  },
+  {
+    "clause": "request.isLoggedIn",
+    "source": "src/test/test_condition_parser.py:94",
+    "status": "unsupported",
+    "variables": []
+  },
+  {
+    "clause": "request.principal.group.tag.MyTagNamespace.MyTag in (/*sample/, /sample1*/)",
+    "source": "src/test/test_condition_parser.py:121",
+    "status": "parsed",
+    "variables": [
+      "request.principal.group.tag.MyTagNamespace.MyTag"
+    ]
+  },
+  {
+    "clause": "request.principal.group.tag.MyTagNamespace.MyTag not in (/*sample/, /sample1*/)",
+    "source": "src/test/test_condition_parser.py:139",
+    "status": "parsed",
+    "variables": [
+      "request.principal.group.tag.MyTagNamespace.MyTag"
+    ]
+  },
+  {
+    "clause": "request.principal.group.tag.MyTagNamespace.MyTag in ('sample*', 'other')",
+    "source": "src/test/test_condition_parser.py:161",
+    "status": "parsed",
+    "variables": [
+      "request.principal.group.tag.MyTagNamespace.MyTag"
+    ]
+  },
+  {
+    "clause": "request.principal.group.tag.MyTagNamespace.MyTag not in ('sample*', 'other')",
+    "source": "src/test/test_condition_parser.py:177",
+    "status": "parsed",
+    "variables": [
+      "request.principal.group.tag.MyTagNamespace.MyTag"
+    ]
+  },
+  {
+    "clause": "target.resource.compartment.tag.Oracle-Tags.AllowCompartmentCreation = 'true'",
+    "source": "src/test/test_condition_parser.py:209",
+    "status": "parsed",
+    "variables": [
+      "target.resource.compartment.tag.Oracle-Tags.AllowCompartmentCreation"
+    ]
+  },
+  {
+    "clause": "all { target.resource.compartment.tag.Oracle-Tags.AllowCompartmentCreation = 'true',\n      any { request.permission = 'BUCKET_DELETE',\n            request.permission = 'PAR_MANAGE',\n            request.permission = 'RETENTION_RULE_LOCK',\n            request.permission = 'RETENTION_RULE_MANAGE' } }",
+    "source": "src/test/test_condition_parser.py:215",
+    "status": "parsed",
+    "variables": [
+      "request.permission",
+      "target.resource.compartment.tag.Oracle-Tags.AllowCompartmentCreation"
+    ]
+  },
+  {
+    "clause": "ALL { tc1, ANY { c2, c3, c4, c5 } }",
+    "source": "src/test/test_condition_parser.py:220",
+    "status": "unsupported",
+    "variables": []
+  },
+  {
+    "clause": "all { request.principal.type = 'containerinstance', request.principal.compartment.id = 'ocid1.compartment.oc1..app' }",
+    "source": "src/test/test_condition_structure.py:9",
+    "status": "parsed",
+    "variables": [
+      "request.principal.compartment.id",
+      "request.principal.type"
+    ]
+  },
+  {
+    "clause": "ALL { c1, c2 }",
+    "source": "src/test/test_condition_structure.py:13",
+    "status": "unsupported",
+    "variables": []
+  },
+  {
+    "clause": "any { instance.compartment.id = 'ocid1.compartment.oc1..app' }",
+    "source": "src/test/test_condition_structure.py:23",
+    "status": "parsed",
+    "variables": [
+      "instance.compartment.id"
+    ]
+  },
+  {
+    "clause": "ANY { c1 }",
+    "source": "src/test/test_condition_structure.py:26",
+    "status": "unsupported",
+    "variables": []
+  },
+  {
+    "clause": "request.user.id = abc",
+    "source": "src/test/test_consolidation_helpers.py:11",
+    "status": "parsed",
+    "variables": [
+      "request.user.id"
+    ]
+  },
+  {
+    "clause": "request.principal.type = 'instance' // retain comment",
+    "source": "src/test/test_consolidation_helpers.py:84",
+    "status": "unsupported",
+    "variables": []
+  },
+  {
+    "clause": "target.bucket.name =",
+    "source": "src/test/test_consolidation_policy_statement_limit.py:15",
+    "status": "unsupported",
+    "variables": []
+  },
+  {
+    "clause": "instance.compartment.id = 'ocid1.compartment.",
+    "source": "src/test/test_dynamic_group_search_repository.py:20",
+    "status": "unsupported",
+    "variables": []
+  },
+  {
+    "clause": "target.bucket.name = 'reports'",
+    "source": "src/test/test_group_similar_statements.py:54",
+    "status": "parsed",
+    "variables": [
+      "target.bucket.name"
+    ]
+  },
+  {
+    "clause": "ALL {resource.type = 'instance'}",
+    "source": "src/test/test_mcp_meta_tools.py:367",
+    "status": "parsed",
+    "variables": [
+      "resource.type"
+    ]
+  },
+  {
+    "clause": "ALL {instance.compartment.id = 'ocid1.compartment.oc1..networkapp'}",
+    "source": "src/test/test_mcp_meta_tools.py:413",
+    "status": "parsed",
+    "variables": [
+      "instance.compartment.id"
+    ]
+  },
+  {
+    "clause": "request.operation = 'CreateVcn'",
+    "source": "src/test/test_parsing_diagnostics.py:12",
+    "status": "parsed",
+    "variables": [
+      "request.operation"
+    ]
+  },
+  {
+    "clause": "instance.id = 'ocid1.instance.oc1..example'",
+    "source": "src/test/test_parsing_diagnostics.py:13",
+    "status": "parsed",
+    "variables": [
+      "instance.id"
+    ]
+  },
+  {
+    "clause": "target.bucket.name = '",
+    "source": "src/test/test_partial_cis_compliance_load.py:302",
+    "status": "unsupported",
+    "variables": []
+  },
+  {
+    "clause": "request.region = 'us-ashburn-1'",
+    "source": "src/test/test_policy_corpus.py:24",
+    "status": "parsed",
+    "variables": [
+      "request.region"
+    ]
+  },
+  {
+    "clause": "request.permission = 'OBJECT_CREATE'",
+    "source": "src/test/test_policy_graph_desktop.py:154",
+    "status": "parsed",
+    "variables": [
+      "request.permission"
+    ]
+  },
+  {
+    "clause": "all { request.permission = 'OBJECT_CREATE', target.bucket.name = 'somewhere' }",
+    "source": "src/test/test_policy_graph_service.py:202",
+    "status": "parsed",
+    "variables": [
+      "request.permission",
+      "target.bucket.name"
+    ]
+  },
+  {
+    "clause": "request.region = 'test'",
+    "source": "src/test/test_policy_graph_service.py:226",
+    "status": "parsed",
+    "variables": [
+      "request.region"
+    ]
+  },
+  {
+    "clause": "request.principal.group.tag.mytagnamespace.mytag = 'sample'",
+    "source": "src/test/test_policy_intelligence.py:315",
+    "status": "parsed",
+    "variables": [
+      "request.principal.group.tag.mytagnamespace.mytag"
+    ]
+  },
+  {
+    "clause": "request.principal.group.tag.MyTagNamespace.MyTag = 'sample'",
+    "source": "src/test/test_policy_intelligence.py:53",
+    "status": "parsed",
+    "variables": [
+      "request.principal.group.tag.MyTagNamespace.MyTag"
+    ]
+  },
+  {
+    "clause": "all { request.principal.type = 'computecontainerinstance', request.principal.compartment.id = 'ocid1.compartment.oc1..app' }",
+    "source": "src/test/test_policy_intelligence.py:558",
+    "status": "parsed",
+    "variables": [
+      "request.principal.compartment.id",
+      "request.principal.type"
+    ]
+  },
+  {
+    "clause": "all { request.principal.type = 'workload', request.principal.namespace = 'finance', request.principal.service_account = 'financesa', request.principal.cluster_id = 'ocid1.cluster.oc1..oke1' }",
+    "source": "src/test/test_policy_intelligence.py:581",
+    "status": "parsed",
+    "variables": [
+      "request.principal.cluster_id",
+      "request.principal.namespace",
+      "request.principal.service_account",
+      "request.principal.type"
+    ]
+  },
+  {
+    "clause": "all { request.principal.type = 'workload', request.principal.namespace = 'finance' }",
+    "source": "src/test/test_policy_intelligence.py:716",
+    "status": "parsed",
+    "variables": [
+      "request.principal.namespace",
+      "request.principal.type"
+    ]
+  },
+  {
+    "clause": "request.principal.type = 'computecontainerinstance'",
+    "source": "src/test/test_policy_intelligence.py:752",
+    "status": "parsed",
+    "variables": [
+      "request.principal.type"
+    ]
+  },
+  {
+    "clause": "target.resource.tag.Operations.Environment = 'prod'",
+    "source": "src/test/test_policy_intelligence.py:782",
+    "status": "parsed",
+    "variables": [
+      "target.resource.tag.Operations.Environment"
+    ]
+  },
+  {
+    "clause": "all {request.utc-timestamp after '2025-12-11t00:00:00z', request.utc-timestamp before '2026-01-12t00:00:00z'}",
+    "source": "src/test/test_policy_parser.py:22",
+    "status": "parsed",
+    "variables": [
+      "request.utc-timestamp"
+    ]
+  },
+  {
+    "clause": "all { request.principal.id = target.agent.id, request.principal.type = 'workloadprotectionagent' }",
+    "source": "src/test/test_policy_parser.py:207",
+    "status": "parsed",
+    "variables": [
+      "request.principal.id",
+      "request.principal.type",
+      "target.agent.id"
+    ]
+  },
+  {
+    "clause": "ALL {request.principal.type='virtualnode',request.operation='CreateContainerInstance'}",
+    "source": "src/test/test_policy_parser.py:233",
+    "status": "parsed",
+    "variables": [
+      "request.operation",
+      "request.principal.type"
+    ]
+  },
+  {
+    "clause": "request.principal.group.tag.aaa.aaa IN ('c','d',/e*/)",
+    "source": "src/test/test_policy_parser.py:543",
+    "status": "parsed",
+    "variables": [
+      "request.principal.group.tag.aaa.aaa"
+    ]
+  },
+  {
+    "clause": "request.principal.group.tag.MyTagNamespace.MyTag !=/*sample/ //Testing tags",
+    "source": "src/test/test_policy_parser.py:554",
+    "status": "unsupported",
+    "variables": []
+  },
+  {
+    "clause": "all {target.vcn.display-name ! = /mgmt-vcn\\*/, request.operation ! = 'CreateVcn'}",
+    "source": "src/test/test_policy_parser.py:569",
+    "status": "parsed",
+    "variables": [
+      "request.operation",
+      "target.vcn.display-name"
+    ]
+  },
+  {
+    "clause": "request.principal.group.tag.aaa.aaa NOT IN ('c','d',/e*/)",
+    "source": "src/test/test_policy_parser.py:585",
+    "status": "parsed",
+    "variables": [
+      "request.principal.group.tag.aaa.aaa"
+    ]
+  },
+  {
+    "clause": "request.user.id = 'xyz'",
+    "source": "src/test/test_policy_parser.py:42",
+    "status": "parsed",
+    "variables": [
+      "request.user.id"
+    ]
+  },
+  {
+    "clause": "request.network.source = '0.0.0.0/0'",
+    "source": "src/test/test_policy_parser.py:43",
+    "status": "parsed",
+    "variables": [
+      "request.network.source"
+    ]
+  },
+  {
+    "clause": "request.principal.id = target.agent.id",
+    "source": "src/test/test_policy_parser.py:217",
+    "status": "parsed",
+    "variables": [
+      "request.principal.id",
+      "target.agent.id"
+    ]
+  },
+  {
+    "clause": "all {target.secret.id = 'ocid1.vaultsecret.oc1.phx.amaaaaaabv6267iahq6a2abc66lvjgodpunhas2z52uf6nub5xvgjmoawr2q',request.principal.type = 'dbmgmtmanageddatabase'}",
+    "source": "src/test/test_policy_parser.py:288",
+    "status": "parsed",
+    "variables": [
+      "request.principal.type",
+      "target.secret.id"
+    ]
+  },
+  {
+    "clause": "all {request.principal.siOcid='ocid1.agcsgovernanceinstance.oc1.iad.example'}",
+    "source": "src/test/test_policy_parser.py:144",
+    "status": "parsed",
+    "variables": [
+      "request.principal.siOcid"
+    ]
+  },
+  {
+    "clause": "all {request.principal.type = 'serviceconnector', target.bucket.name = 'hammer_reports', request.principal.compartment.id = 'ocid1.compartment.oc1..aaaaaaaapfv3jno5r6qz6oeszde4uh4ksfox66zkj4i3crnxdy752beciq2q'}",
+    "source": "src/test/test_policy_parser.py:303",
+    "status": "parsed",
+    "variables": [
+      "request.principal.compartment.id",
+      "request.principal.type",
+      "target.bucket.name"
+    ]
+  },
+  {
+    "clause": "all { request.principal.type = 'computecontainerinstance', request.operation = 'PullImage' }",
+    "source": "src/test/test_policy_principal_search.py:197",
+    "status": "parsed",
+    "variables": [
+      "request.operation",
+      "request.principal.type"
+    ]
+  },
+  {
+    "clause": "all { request.principal.type = 'autonomousdatabase' }",
+    "source": "src/test/test_policy_principal_search.py:206",
+    "status": "parsed",
+    "variables": [
+      "request.principal.type"
+    ]
+  },
+  {
+    "clause": "all { request.principal.type = 'workload', request.principal.namespace = 'finance', request.principal.service_account = 'financesa', request.principal.cluster_id = 'ocid1.cluster.oc1..oke1', request.operation = 'GetObject' }",
+    "source": "src/test/test_policy_principal_search.py:281",
+    "status": "parsed",
+    "variables": [
+      "request.operation",
+      "request.principal.cluster_id",
+      "request.principal.namespace",
+      "request.principal.service_account",
+      "request.principal.type"
+    ]
+  },
+  {
+    "clause": "all { request.principal.type = 'serviceconnector' }",
+    "source": "src/test/test_principal_analysis_service.py:17",
+    "status": "parsed",
+    "variables": [
+      "request.principal.type"
+    ]
+  },
+  {
+    "clause": "all {request.principal.type='autonomousdatabase', request.operation='x'}",
+    "source": "src/test/test_principal_analysis_service.py:18",
+    "status": "parsed",
+    "variables": [
+      "request.operation",
+      "request.principal.type"
+    ]
+  },
+  {
+    "clause": "all { request.principal.type = \"FnFunc\" }",
+    "source": "src/test/test_principal_analysis_service.py:19",
+    "status": "unsupported",
+    "variables": []
+  },
+  {
+    "clause": "all { request.principal.id = 'ocid1.x' }",
+    "source": "src/test/test_principal_analysis_service.py:20",
+    "status": "parsed",
+    "variables": [
+      "request.principal.id"
+    ]
+  },
+  {
+    "clause": "all { request.principal.type = 'dbmgmt' }",
+    "source": "src/test/test_principal_analysis_service.py:31",
+    "status": "parsed",
+    "variables": [
+      "request.principal.type"
+    ]
+  },
+  {
+    "clause": "all { request.principal.type = 'DBMGMT' }",
+    "source": "src/test/test_principal_analysis_service.py:32",
+    "status": "parsed",
+    "variables": [
+      "request.principal.type"
+    ]
+  },
+  {
+    "clause": "all { request.principal.type='dbmgmt' }",
+    "source": "src/test/test_principal_analysis_service.py:33",
+    "status": "parsed",
+    "variables": [
+      "request.principal.type"
+    ]
+  },
+  {
+    "clause": "target.bucket.name = 'logs'",
+    "source": "src/test/test_supersession_analyzer.py:51",
+    "status": "parsed",
+    "variables": [
+      "target.bucket.name"
+    ]
+  },
+  {
+    "clause": "target.resource.compartment.tag.Operations.Env in ('Prod','Stage')",
+    "source": "src/test/test_tag_based_policy_service.py:56",
+    "status": "parsed",
+    "variables": [
+      "target.resource.compartment.tag.Operations.Env"
+    ]
+  },
+  {
+    "clause": "target.resource.tag.Operations.Env = 'Prod'",
+    "source": "src/test/test_tag_based_policy_service.py:12",
+    "status": "parsed",
+    "variables": [
+      "target.resource.tag.Operations.Env"
+    ]
+  },
+  {
+    "clause": "request.principal.group.tag.Team.Project != 'Blue'",
+    "source": "src/test/test_tag_based_policy_service.py:25",
+    "status": "parsed",
+    "variables": [
+      "request.principal.group.tag.Team.Project"
+    ]
+  },
+  {
+    "clause": "all { target.policy.type = 'deny', target.resource.tag.orcl-assurance.managed-resource = 'true', any { !request.principal.type, request.principal.type != 'assurance-governance', !request.principal.serviceType, request.principal.serviceType != 'Assurance', !request.principal.governingTenancyId, request.principal.governingTenancyId != 'ocid1.tenancy.oc1..example' } }",
+    "source": "src/test/test_unary_condition_presence.py:9",
+    "status": "parsed",
+    "variables": [
+      "request.principal.governingTenancyId",
+      "request.principal.serviceType",
+      "request.principal.type",
+      "target.policy.type",
+      "target.resource.tag.orcl-assurance.managed-resource"
+    ]
+  },
+  {
+    "clause": "all { target.resource.tag.orcl-assurance.managed-resource = 'true', any { target.security-zone.manageType = 'ASSURANCE', target.security-recipe.manageType = 'ASSURANCE' }, any { !request.principal.type, request.principal.type != 'assurance-governance', !request.principal.serviceType, request.principal.serviceType != 'Assurance', !request.principal.governingTenancyId, request.principal.governingTenancyId != 'ocid1.tenancy.oc1..example' } }",
+    "source": "src/test/test_unary_condition_presence.py:44",
+    "status": "parsed",
+    "variables": [
+      "request.principal.governingTenancyId",
+      "request.principal.serviceType",
+      "request.principal.type",
+      "target.resource.tag.orcl-assurance.managed-resource",
+      "target.security-recipe.manageType",
+      "target.security-zone.manageType"
+    ]
+  },
+  {
+    "clause": "all { target.policy.type = 'deny', any { !request.principal.type, request.principal.type != 'x' } }",
+    "source": "src/test/test_unary_condition_presence.py:68",
+    "status": "parsed",
+    "variables": [
+      "request.principal.type",
+      "target.policy.type"
+    ]
+  },
+  {
+    "clause": "!request.principal.type",
+    "source": "src/test/test_unary_condition_presence.py:29",
+    "status": "parsed",
+    "variables": [
+      "request.principal.type"
+    ]
+  },
+  {
+    "clause": "!request.principal.",
+    "source": "src/test/test_unary_condition_presence.py:23",
+    "status": "parsed",
+    "variables": [
+      "request.principal."
+    ]
+  }
+]

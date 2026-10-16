@@ -1,0 +1,8 @@
+# OCI is pinned in pyproject.toml. Freeze its normal lazy-import branch so
+# Nuitka does not compile every unrelated OCI service through the eager fallback.
+# Application imports still include all SDK clients/models used by the app.
+- module-name: 'oci'
+  anti-bloat:
+    - description: 'retain normal OCI lazy service imports in the Qt executable'
+      replacements_plain:
+        'if sys.version_info >= (3, 7) and os.getenv("OCI_PYTHON_SDK_LAZY_IMPORTS_DISABLED", "False").lower() != "true":': 'if True:'

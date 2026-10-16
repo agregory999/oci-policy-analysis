@@ -409,7 +409,7 @@ class ProspectiveStatementsService:
         )
         return rec
 
-    def persist_and_push_to_engine(self) -> None:
+    def persist_and_push_to_engine(self, *, strict: bool = False) -> None:
         """Persist current records to standalone prospects storage.
 
         This method performs two related operations:
@@ -419,6 +419,10 @@ class ProspectiveStatementsService:
         * Writes the same list to settings under the
           ``simulation_prospective_statements_by_tenancy`` key for the
           active tenancy, and attempts to save the settings file.
+
+        Args:
+            strict: Propagate storage or engine errors so interactive callers can
+                report failed saves. Defaults to the legacy best-effort behavior.
         """
 
         # Build the simple list representation expected by the engine,
@@ -463,6 +467,8 @@ class ProspectiveStatementsService:
         try:
             self._cache.save_prospects(self._tenancy_ocid, simple_list)
         except Exception:  # pragma: no cover - non-fatal persistence
+            if strict:
+                raise
             logger.warning(
                 'ProspectiveStatementsService: unable to persist prospects cache; in-memory state is updated',
                 exc_info=True,
@@ -472,6 +478,8 @@ class ProspectiveStatementsService:
             try:
                 self._simulation_engine.set_prospective_statements(simple_list)
             except Exception:  # pragma: no cover - defensive
+                if strict:
+                    raise
                 logger.warning(
                     'ProspectiveStatementsService: unable to push prospective statements to simulation engine',
                     exc_info=True,

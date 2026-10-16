@@ -18,6 +18,7 @@ Full documentation
 
    simulation
    core_integration
+   qt_mcp_codex
    consolidation
    recommendations
    reports

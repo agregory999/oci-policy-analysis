@@ -216,3 +216,55 @@ def test_condition_handoff_accepts_full_statement_or_prefixed_clause():
     assert extract_condition_clause(f'Allow group Ops to manage objects in tenancy where {clause}') == clause
     assert extract_condition_clause(clause) == clause
     assert extract_condition_clause('', "Allow group 'Where' to read objects in tenancy") == ''
+
+
+def test_selected_combination_joins_all_sources_and_full_detached_permission_facts():
+    from copy import deepcopy
+    from dataclasses import replace
+
+    first = _fact('one', 'group:Default/Ops', 'BUCKET_READ')
+    second = replace(_fact('two', 'group:Default/Ops', 'BUCKET_INSPECT'), condition="request.region = 'test'")
+    prospect = replace(first, prospective=True)
+    corpus = PolicyCorpus(
+        schema_version=1,
+        built_at='now',
+        facts=(
+            first,
+            replace(first, permission='BUCKET_INSPECT'),
+            second,
+            prospect,
+            _fact('deny', 'group:Default/Ops', 'BUCKET_READ', effect='deny'),
+            _fact('other', 'group:Default/Other', 'BUCKET_READ'),
+        ),
+    )
+    sources = [
+        {
+            'internal_id': 'one',
+            'policy_ocid': first.provenance.policy_ocid,
+            'statement_text': 'original text',
+            'policy_tags': {'project': 'test'},
+            'permission': ['BUCKET_READ', 'BUCKET_INSPECT'],
+        },
+        {
+            'internal_id': 'one',
+            'policy_ocid': first.provenance.policy_ocid,
+            'is_prospective': True,
+            'statement_text': 'prospective text',
+            'policy_name': 'Draft',
+        },
+    ]
+    before = deepcopy(sources)
+    service = PolicyGraphService(corpus)
+    selected = service.get_page(principal='ops', effect='allow', page_size=1)['grants']
+    rows = service.get_statement_evidence(selected, source_statements=sources)
+    assert len(rows) == 3  # Other sources with this combination are included beyond page one.
+    source = next(row for row in rows if row['internal_id'] == 'one' and not row['is_prospective'])
+    assert source['policy_tags'] == {'project': 'test'}
+    assert {fact['permission'] for fact in source['permission_facts']} == {'BUCKET_READ', 'BUCKET_INSPECT'}
+    assert source['permission_facts'][0]['provenance']['statement_id'] == 'one'
+    assert all(fact['effect'] == 'allow' for row in rows for fact in row['permission_facts'])
+    assert any(fact['condition'] for row in rows for fact in row['permission_facts'])
+    assert any(row['policy_name'] == '[Prospective] Draft' for row in rows)
+    source['policy_tags']['project'] = 'changed'
+    assert sources == before
+    assert service.get_statement_evidence([], source_statements=sources) == []

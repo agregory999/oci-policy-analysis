@@ -129,6 +129,39 @@ class PrincipalAnalysisService:
         """
         return self.by_groups_users(groups=groups, users=users)
 
+    def user_group_rows(self, users: list[User]) -> list[dict]:
+        """Describe each selected user's memberships from the current snapshot.
+
+        Args:
+            users: Loaded user records, including their retained group IDs.
+
+        Returns:
+            list[dict]: Detached rows with user identity, group evidence, and a
+            membership status. Unresolved IDs and users with no recorded groups
+            remain visible. No live lookup or cache write occurs.
+        """
+        groups = {group['group_ocid']: group for group in self.context.policy_repo.groups if group.get('group_ocid')}
+        rows = []
+        for user in users:
+            identity = {
+                'user_domain': user.get('domain_name') or 'Default',
+                'user_name': user.get('user_name') or '',
+                'user_ocid': user.get('user_ocid') or '',
+            }
+            memberships = list(dict.fromkeys(user.get('groups') or []))
+            if not memberships:
+                rows.append({**identity, 'membership_status': 'No memberships recorded'})
+            for ocid in memberships:
+                group = groups.get(ocid)
+                rows.append(
+                    {
+                        **(group or {'group_ocid': ocid}),
+                        **identity,
+                        'membership_status': 'Known group' if group else 'Group missing from snapshot',
+                    }
+                )
+        return rows
+
     def by_groups_users(
         self,
         *,

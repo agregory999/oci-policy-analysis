@@ -5,14 +5,17 @@ from pathlib import Path
 
 
 def main() -> int:
+    """Validate maintained build/deploy files and ignored operator configuration."""
     root = Path(sys.argv[1] if len(sys.argv) > 1 else '.').resolve()
     required = (
         '.oci-project.yml',
         'AGENTS.md',
         'README.md',
         'pyproject.toml',
-        'uv.lock',
         'Dockerfile',
+        'Dockerfile.pypi',
+        'docker/web-entrypoint.sh',
+        'docker/mcp-entrypoint.sh',
         '.dockerignore',
         'run/.env.example',
         'run-build/.env.example',
@@ -22,6 +25,9 @@ def main() -> int:
         'run/README.md',
         'run/local.sh',
         'run/build-push-image.sh',
+        'run/build-push-pypi.sh',
+        'run/build-push-image-common.sh',
+        'run/container-config.py',
         'run/deploy-container-instance.sh',
         'docs/architecture.md',
         'docs/requirements.md',

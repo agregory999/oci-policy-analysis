@@ -136,3 +136,36 @@ def test_dynamic_groups_tab_uses_weighted_rows_for_inventory_and_statements():
     assert 'tables_frame.grid_rowconfigure(1, weight=1)' in source
     assert "label_frm_dynamicgroups.grid(row=0, column=0, sticky='nsew'" in source
     assert "label_frm_policies.grid(row=1, column=0, sticky='nsew'" in source
+
+
+def test_user_group_rows_retains_per_user_and_unresolved_evidence():
+    from copy import deepcopy
+
+    repo = SimpleNamespace(
+        groups=[
+            {'domain_name': 'Default', 'group_name': 'Builders', 'group_ocid': 'GroupID'},
+            {'domain_name': 'Other', 'group_name': 'Builders', 'group_ocid': 'other-id'},
+        ]
+    )
+    users = [
+        {'user_name': 'Alice', 'domain_name': 'Default', 'groups': ['GroupID', 'GroupID', 'missing-id']},
+        {'user_name': 'Bob', 'domain_name': 'Other', 'groups': ['other-id']},
+        {'user_name': 'Empty'},
+    ]
+    original = deepcopy(users)
+    service = PrincipalAnalysisService(cast(Any, SimpleNamespace(policy_repo=repo)))
+    rows = service.user_group_rows(users)
+    assert len(rows) == 4
+    assert [(row['user_name'], row.get('group_ocid')) for row in rows] == [
+        ('Alice', 'GroupID'),
+        ('Alice', 'missing-id'),
+        ('Bob', 'other-id'),
+        ('Empty', None),
+    ]
+    assert rows[1]['membership_status'] == 'Group missing from snapshot'
+    assert rows[2]['domain_name'] == 'Other'
+    assert rows[3]['membership_status'] == 'No memberships recorded'
+    rows[0]['group_name'] = 'Changed display'
+    assert repo.groups[0]['group_name'] == 'Builders'
+    assert users == original
+    assert service.user_group_rows([]) == []

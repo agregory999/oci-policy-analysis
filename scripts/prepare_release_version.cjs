@@ -17,10 +17,4 @@ const projectPath = 'pyproject.toml';
 const project = fs.readFileSync(projectPath, 'utf8');
 if (!/^version\s*=\s*"[^"]+"/m.test(project)) throw new Error('Missing project version');
 fs.writeFileSync(projectPath, project.replace(/^version\s*=\s*"[^"]+"/m, `version = "${version}"`));
-if (fs.existsSync('uv.lock')) {
-  const lock = fs.readFileSync('uv.lock', 'utf8');
-  const root = /(\[\[package\]\]\nname = "oci-policy-analysis"\nversion = ")[^"]+("\n)/;
-  if (!root.test(lock)) throw new Error('Missing project package in uv.lock');
-  fs.writeFileSync('uv.lock', lock.replace(root, (_match, start, end) => `${start}${version}${end}`));
-}
 console.log(`Prepared ${raw} as Python version ${version}`);

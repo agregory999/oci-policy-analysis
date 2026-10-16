@@ -113,6 +113,7 @@ class PolicySearch(TypedDict, total=False):
         list[str],
         'Effective paths; exact or prefix match.',
     ]
+    exact_subject_types: Annotated[list[str], 'Exact case-insensitive parsed subject types; OR across values.']
     subject_type: Annotated[
         list[Literal['group', 'dynamic-group', 'any-user', 'any-group', 'service']],
         'Policy subject types.',

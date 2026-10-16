@@ -33,7 +33,7 @@ myst_enable_extensions = [
 ]
 myst_heading_anchors = 4
 
-autodoc_mock_imports = ['tkinter', 'ttkbootstrap', '_tkinter']
+autodoc_mock_imports = ['tkinter', 'ttkbootstrap', '_tkinter', 'PySide6']
 myst_fence_as_directive = ['mermaid']
 
 html_theme = 'sphinx_rtd_theme'

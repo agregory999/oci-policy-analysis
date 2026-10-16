@@ -1,6 +1,19 @@
 #!/usr/bin/env pwsh
+param(
+    [ValidateSet("desktop", "qt")][string]$Interface = "desktop",
+    [Parameter(ValueFromRemainingArguments = $true)][string[]]$BuildArgs
+)
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "common.ps1")
+
+if ($Interface -eq "qt") {
+    uv sync --inexact --extra qt --extra qt-build --extra web --extra mcp
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    uv pip check
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    & .venv\Scripts\python.exe scripts/build_qt_executable.py @BuildArgs
+    exit $LASTEXITCODE
+}
 
 Write-Host "==============================================="
 Write-Host "     LOCAL BUILD + PYINSTALLER (SOURCE ONLY)   "

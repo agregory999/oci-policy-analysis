@@ -38,6 +38,7 @@ class OperationPermissionsRow(TypedDict):
 
     api_name: str
     operation_name: str
+    request_operation: NotRequired[str]
     label: str
     permissions: list[str]
     notes: NotRequired[str]

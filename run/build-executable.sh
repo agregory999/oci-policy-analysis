@@ -4,6 +4,17 @@ source "$(dirname -- "${BASH_SOURCE[0]}")/common.sh"
 
 PYTHON_BIN=${PYTHON_BIN:-python3}
 
+if [[ "${1:-desktop}" == "qt" ]]; then
+    shift
+    uv sync --inexact --extra qt --extra qt-build --extra web --extra mcp --python "$PYTHON_BIN"
+    uv pip check
+    exec "$root_dir/.venv/bin/python" scripts/build_qt_executable.py "$@"
+elif [[ "${1:-desktop}" != "desktop" ]]; then
+    echo "Usage: run/build-executable.sh [desktop|qt] [Qt build options]" >&2
+    exit 2
+fi
+
+
 echo "==============================================="
 echo "     LOCAL BUILD + PYINSTALLER (SOURCE ONLY)   "
 echo "==============================================="

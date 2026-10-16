@@ -301,3 +301,104 @@ flowchart TB
 ## Canonical principal identity
 
 Named principal keys are case-folded to lowercase, including domain and identity names (for example `group:lz092026/opsteam`). Corpus construction also normalizes older mixed-case keys, so case variants share one graph node and permission identity. Exact filters and simulation accept either spelling. Subject/display fields and source statement text preserve their original spelling; normalization does not rewrite policy text. Opaque OCIDs, resource identifiers and condition-derived workload payloads retain their values. Cross-tenancy ownership remains a separate scope, so matching names in different tenancies do not become the same principal.
+
+
+## Optional Qt presentation
+
+The exploratory `presentation.qt` adapter composes independent overview/settings,
+policy-browser, policy-graph, dynamic-group, resource-principal, and MCP/assistant pages in a navigation shell, with a separate
+INFO+ log/load-activity dock.
+`WorkbenchController` owns the current context and serializes background loads;
+a worker constructs a fresh context for each attempt and publishes it only after
+`LoadService` succeeds. Pages rebind to the current context after publication.
+Only Overview is enabled before the first successful load; failed reloads retain
+the current snapshot and available navigation.
+Filtering and graph projection call `AnalysisService` and `PolicyGraphService`.
+Dynamic-group inventory uses repository filters, and selected groups query
+`PrincipalAnalysisService.by_exact_dynamic_groups`. The resource-principal page
+uses that same service for broad subjects, resource constraints and OKE workload
+selectors, preserving match confidence and residual evidence. Shared Qt tables retain source
+records behind proxy sorting; an explicit context-menu action opens a reusable
+right-side drawer that displays all fields
+without interpreting or modifying the snapshot.
+Qt scene items, tables, logging controls, and queued UI log delivery stay in the
+presentation layer. Shared Qt palettes cover widgets and graph items; appearance
+and logging preferences use the existing settings storage. OCI, named-cache,
+exported-snapshot, and CIS loads all publish through the same worker lifecycle.
+Embedded MCP pins a successful context with request-local binding, reuses the
+existing query tool schemas, and excludes data mutation/reload tools. Its owned
+listener locks loading until shutdown. The optional Codex adapter uses a child
+process and native JSONL streaming; model turns require explicit Send.
+The core has no PySide6 dependency. See
+[Qt integration and scope](core_integration.md#qt-desktop-exploration) for the
+current comparison with Tkinter and the remaining lifecycle limitations.
+
+The Qt presentation's `ExperienceMode` owns the saved Standard/Advanced display
+preference. Navigation access is declared in `page_specs`, while individual
+widgets/tabs register with the mode object. The mode does not authorize domain
+operations or modify the loaded snapshot. Checked tables use native model roles
+and stable adapter-supplied IDs; inclusion state stays outside source records.
+Workflow pages send explicit selected IDs to shared services, never infer policy
+eligibility or trigger persistent operations from selection-change signals.
+
+### Qt prospective workspace
+
+The Qt prospective page binds `ProspectiveWorkbenchService` to each newly loaded
+context. It reuses the tenancy-scoped `ProspectiveStatementsService` and standalone
+prospects cache, hydrates simulation on load without saving, and uses
+`ProspectiveBuilderService` for guided previews. Modal drafts remain local until
+Save. Successful saves refresh browser and graph projections; Standard mode uses
+only collected sources, while Advanced mode includes labelled what-if evidence.
+Invalid prospects remain browser evidence and appear as graph corpus exclusions.
+Potential-risk scoring runs against a detached statement and repository view,
+leaving collected sources and the active intelligence overlay unchanged. This is
+heuristic analysis of snapshot evidence, not an OCI authorization decision.
+
+The combined-cache format is unchanged (`version: 2`, `schema_version: 3`);
+prospects remain in their existing separate tenancy files. No data migration is
+required. Interactive saves opt into persistence-error propagation so failures
+are visible instead of being reported as successful saves.
+
+The Qt graph's related-statement table uses
+`PolicyGraphService.get_statement_evidence` to join selected combinations to
+current source records and direct corpus facts, across graph pagination. The
+returned records are detached copies and retain conditions and provenance. The
+shared details drawer exposes the complete source plus these permission facts;
+Standard mode uses the collected corpus only. Graph selections are not evaluated
+OCI decisions. Collection time is displayed once in the app's status-bar footer.
+
+### Qt condition tester
+
+The Tools condition tester uses `ConditionTesterService.parse_clause` to normalize
+handoffs, validate syntax and discover variables on both sides of predicates.
+`parse_condition_structure` captures lexer and parser diagnostics before the UI
+creates input fields. The same evaluator as simulation handles supplied values
+and nulls; missing RHS variable references fail comparisons, including inequality
+and list references. This is a runtime semantic correction with no stored-field
+or cache-format change, so no migration is required.
+
+Shared Qt record tables emit an explicit condition-test handoff. The shell opens
+the tester and clears previous inputs, while expression/value edits invalidate
+stale results. Testing remains available without tenancy data, never mutates the
+snapshot and does not authorize OCI requests. Test cases are session-local and are not saved to settings or caches.
+
+
+### Simulation execution and assistance
+
+Qt's SimulationController owns preparation/execution/suggestion workers and uses
+the shell mutation gate to serialize them with loads, prospective editing and
+embedded MCP. SimulationService resolves candidates on detached source copies;
+SimulationWorkbenchService validates explicit inclusion before running the active
+engine, then attaches original request evidence to the runtime history entry.
+Statement traces expose stable source IDs and provenance through additive fields.
+The engine's legacy result and history APIs remain compatible.
+
+Related scenarios always resolve a valid catalog operation and require a separate
+effective compartment choice and statement preparation. Reverse permission
+mapping belongs in SimulationWorkbenchService: bundled catalog mappings determine
+permission/resource/family candidates, and corpus facts supply scoped source
+examples. Parser validation does not establish an OCI decision. Only explicit
+review/save uses the existing prospective persistence service. Repreparation
+preserves the original selection plus newly eligible what-if rows. Snapshot
+replacement clears runtime history and its identity token; no reports, suggestion
+state or tokens enter combined-cache serialization. No cache migration is needed.

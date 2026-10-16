@@ -486,7 +486,9 @@ class PolicySimulationEngine:
                 api_operation = self.ref_data_repo.resolve_operation(api_operation)
             op_info = self.ref_data_repo.data.get('operations', {}).get(api_operation, {})
             where_context = dict(where_context or {})
-            where_context['request.operation'] = op_info.get('operation_name', api_operation.removeprefix('oci:'))
+            where_context['request.operation'] = op_info.get('request_operation') or op_info.get(
+                'operation_name', api_operation.removeprefix('oci:')
+            )
             # If checked_statement_ids not provided, use all statements applicable to this context.
             # We keep the derived list in a local variable for optional debug logging.
             stmts: list[dict[str, Any]] | None = None
@@ -587,6 +589,11 @@ class PolicySimulationEngine:
             # First pass: ALLOW statements
             for _internal_id, stmt in allow_statements:
                 stmt_entry = {
+                    'internal_id': str(_internal_id),
+                    'policy_name': stmt.get('policy_name', ''),
+                    'policy_ocid': stmt.get('policy_ocid', ''),
+                    'effective_path': stmt.get('effective_path', ''),
+                    'prospective': bool(stmt.get('is_prospective')),
                     'statement_text': stmt.get('statement_text', ''),
                     'permissions': [],
                     'conditional': bool(stmt.get('conditions')),
@@ -635,6 +642,11 @@ class PolicySimulationEngine:
             # DENY statements
             for _internal_id, stmt in deny_statements:
                 stmt_entry = {
+                    'internal_id': str(_internal_id),
+                    'policy_name': stmt.get('policy_name', ''),
+                    'policy_ocid': stmt.get('policy_ocid', ''),
+                    'effective_path': stmt.get('effective_path', ''),
+                    'prospective': bool(stmt.get('is_prospective')),
                     'statement_text': stmt.get('statement_text', ''),
                     'permissions': [],
                     'conditional': bool(stmt.get('conditions')),

@@ -50,7 +50,52 @@ Authentication, transport and bind addresses are filled automatically for contai
 
 ## Local build and clean
 
-`run/build.sh [--mode desktop|web|cli|mcp|all]` uses `uv sync` and `uv build`, preserving `uv.lock`; all is the default. `PYTHON_BIN` optionally selects Python. `run/build-executable.sh` retains platform-specific PyInstaller packaging and resource collection, installing the checked-out project and packaging dependencies through uv. It writes distributables to `dist/` and the generated package version file. PyInstaller packaging needs the platform's Python shared library and icon/archive tools; it is separate from container builds.
+`run/build.sh [--mode desktop|web|cli|mcp|all]` uses `uv sync` and `uv build`, generating an ignored local `uv.lock`; all is the default. `PYTHON_BIN` optionally selects Python. `run/build-executable.sh` retains platform-specific PyInstaller packaging and resource collection, installing the checked-out project and packaging dependencies through uv. It writes distributables to `dist/` and the generated package version file. PyInstaller packaging needs the platform's Python shared library and icon/archive tools; it is separate from container builds.
+
+Dependencies are declared in `pyproject.toml`; the repository does not track a lockfile. `uv sync` can reuse a local lock; use `uv lock --upgrade` to refresh it within the declared constraints. Fresh checkouts and pip-based container/release builds resolve those constraints independently.
+
+For the Qt workbench, use the local source Nuitka build path:
+
+```bash
+run/build-executable.sh qt                       # native .app on macOS, standalone directory elsewhere
+run/build-executable.sh qt --mode onefile        # single executable on Windows/Linux; native .app on macOS
+run/build-executable.sh qt --dry-run             # inspect compiler arguments
+```
+
+On Windows: `run/build-executable.ps1 qt` (optionally `--mode onefile`).
+The wrapper installs the `qt`, `qt-build`, `web` and `mcp` extras with uv,
+validates dependencies and Qt/MCP startup, then invokes
+`scripts/build_qt_executable.py`. Build on each target OS with its native C
+compiler (Xcode Command Line Tools on macOS, MSVC on Windows, GCC/Clang on
+Linux). Nuitka is pinned to 4.2.2 because 4.3 regressed compiled PySide6 signal
+connections. Upgrading the compiler requires passing the packaged smoke test.
+The PySide6 plugin collects native Qt libraries/plugins; package data
+includes icons, reference resources, parsers and the fictional sample. The
+package configuration retains the pinned OCI SDK’s normal lazy-import branch,
+avoiding compilation of unrelated services through its eager fallback. See
+[Qt's Nuitka deployment guide](https://doc.qt.io/qtforpython-6/deployment/deployment-nuitka.html).
+
+After compilation, the executable runs `--self-test` offline with temporary
+settings/cache storage, exercising Qt startup, packaged resources, sample
+loading, shared principal queries, typed MCP metadata and in-memory snapshot MCP
+queries. Only a passing bundle
+is archived. Compiler intermediates and native bundles stay under `build/qt/native/`,
+so `dist/qt/` contains release archives and their manifest. `dist/qt/build-result.json` identifies the executable and archive (ZIP on Windows, tar.gz on macOS/Linux to
+preserve symlinks and executable permissions);
+`build/qt/nuitka-report.xml` records module and data inclusion. Artifacts are
+ignored. These builds are unsigned and not notarized; external Codex CLI/login
+remain separate. Existing `run/build-executable.sh`/`.ps1` without `qt` retain
+the Tkinter/PyInstaller path.
+
+Both local and CI builds use the Nuitka project options in `scripts/qt_entry.py`.
+Nuitka may download compiler helpers without prompting. ccache is used when
+available on macOS/Linux; MSVC uses clcache on Windows. Install ccache locally
+with `brew install ccache` on macOS. Removing `dist/` does not clear compiler caches.
+The GitHub `build_qt` matrix uses the pinned official Nuitka action, persists its
+cache, and smoke-tests macOS arm64 and Windows x64 bundles before attaching their
+archives to the same semantic-release prerelease as the Tkinter installers.
+On Windows, extract the entire Qt ZIP and run `qt_entry.dist/oci-policy-analysis-qt.exe`;
+keep its adjacent DLLs and resource folders together.
 
 `run/clean.sh` deliberately removes `.venv`, `dist`, `build`, `wheels`, generated dependency lists and source Python caches. It preserves configuration, signing keys and application data. Build again afterward. Root `local-run.sh`, `local-build.sh`, `local-clean.sh`, `local-build-with-pyinstaller.sh`, and MCP build/deploy shell/PowerShell names are compatibility adapters into `run/`; they use the same configuration. Native Windows commands are `run/local.ps1`, `run/build.ps1`, `run/clean.ps1`, and `run/build-executable.ps1`; they read the same literal assignments in the shared file. PowerShell container adapters require Bash. PowerShell configuration supports literal quoted values, not shell expansion/command substitution. The ignored old `env.sh` is no longer sourced by these commands.
 

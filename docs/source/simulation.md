@@ -232,3 +232,58 @@ Simulation runs are automatically stored for later review.
 
 - [Permissions Report](./usage.md#permissions-report-tab)  
   - See all permissions granted/denied as a result of current policies.
+
+
+## Qt execution and failure investigation
+
+The optional Qt workbench follows Environment → Statements → Request context →
+Results & history. **Run simulation** evaluates explicit checked statements and
+records the original request. Native tables show each required permission as
+granted, missing or covered by a matching deny. Expandable statement evidence
+retains source IDs, policy names, paths, prospective markers and failure reasons;
+condition comparisons expose supplied and expected values. Full run JSON and
+explicit history export remain available. These are snapshot-model outcomes,
+not authoritative OCI authorization decisions. Missing inputs, unsupported
+conditions, exclusions and absent operation mappings remain visible.
+
+On failure, inspect conditions, scope, unchecked statements and denies before
+adding a grant. **Policy candidates** lets users choose the grant principal,
+permission/resource/family granularity, policy compartment, target compartment
+and optional operation or custom where restrictions. Candidate text is validated
+against the local parser and reference model. Broader candidates list additional
+permissions, unmapped permissions remain unresolved, and corpus examples retain
+their original principal/path/condition provenance. Examples from another scope
+do not establish access for this request. The catalog search uses greedy coverage;
+it does not prove a globally minimal or OCI-accepted policy. An allow cannot
+override a matching deny. User simulations must select a grant-bearing principal
+such as a group rather than generating a direct user grant.
+
+Select drafts to review in the existing prospective editor. Only explicit Save
+persists local what-if evidence. Preparation then includes new eligible prospects
+while preserving prior exclusions, operation and surviving condition values.
+Review any new fields and run again. Original failures and reruns remain distinct
+history entries. No action in this workflow creates a live OCI policy.
+
+### Related resources in a different compartment
+
+**Related simulations** suggests valid catalog operations from structured
+dependency metadata. Choose the related resource compartment, then prepare and
+run a separate request. The original statement selection is discarded for this
+follow-up and scope is resolved again through the shared service. Advisory checks
+against the primary permission set do not establish access to resources elsewhere.
+
+For example, `core:LaunchInstance` in an application compartment offers
+`core:LaunchInstance (Subnet)` for the subnet check. Choose the network compartment
+for that follow-up. Oracle lists `SUBNET_ATTACH` among the launch requirements;
+the existing local reference model splits that dependency into its own scenario.
+The scoped catalog entry sets `request_operation: LaunchInstance`, so policy
+conditions see the actual API name rather than the helper label with `(Subnet)`.
+See [Oracle's permissions required for each core API operation](https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/corepolicyreference_topic-Permissions_Required_for_Each_API_Operation.htm).
+
+History records all primary/related/what-if runs with their own inputs and paths.
+Changing inputs marks older results as saved evidence. Refresh history includes
+other runs on the same engine, and legacy traces remain inspectable as JSON.
+Replacing a snapshot clears the active engine history; exported history remains
+a detached artifact and must be rerun before creating candidates for a new snapshot.
+Reports and history are not added to combined-cache payloads. No cache migration
+is required; existing version-2/schema-3 and supported older snapshots remain valid.

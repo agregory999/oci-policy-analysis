@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
+from dataclasses import asdict
 from time import perf_counter
 from typing import Any
 
@@ -110,6 +112,7 @@ class PolicyGraphService:
             if key not in grouped:
                 grouped[key] = {
                     'id': '|'.join(key),
+                    'prospective': fact.prospective,
                     'principal': fact.principal_key,
                     'path': fact.grant_path,
                     'resource': fact.resource,
@@ -211,3 +214,57 @@ class PolicyGraphService:
                 'exclusions': len(corpus.exclusions),
             },
         }
+
+    def get_statement_evidence(self, grants: list[dict], *, source_statements: list[dict]) -> list[dict]:
+        """Join selected graph combinations to complete source records and facts.
+
+        Args:
+            grants: Selected rows from get_page, including rows beyond a visible
+                graph page when the caller requests all_results.
+            source_statements: Current collected and optional prospective statement
+                views. Source IDs, policy OCIDs and prospective markers identify rows.
+
+        Returns:
+            list[dict]: Detached source records with permission_facts containing all
+            direct corpus contributions for the selected combinations. Conditions,
+            effect, paths and provenance remain attached to each fact. Permission
+            contributions do not establish an OCI authorization decision.
+        """
+        if self.corpus is None:
+            return []
+        combinations = {(row['principal'], row['path'], row['resource'], row['effect']) for row in grants}
+        sources = {
+            (str(row.get('internal_id') or ''), str(row.get('policy_ocid') or ''), bool(row.get('is_prospective'))): row
+            for row in source_statements
+        }
+        grouped = {}
+        for fact in self.corpus.facts:
+            combination = (fact.principal_key, fact.grant_path, fact.resource, fact.effect)
+            if combination not in combinations:
+                continue
+            source = fact.provenance
+            identity = (source.statement_id, source.policy_ocid, fact.prospective)
+            if identity not in grouped:
+                row = {
+                    'internal_id': source.statement_id,
+                    'policy_name': source.policy_name,
+                    'policy_ocid': source.policy_ocid,
+                    'statement_text': source.statement_text,
+                    'action': fact.effect,
+                    'resource': fact.resource,
+                    'effective_path': fact.grant_path,
+                    'conditions': fact.condition,
+                    **deepcopy(sources.get(identity) or {}),
+                }
+                if fact.prospective and not str(row.get('policy_name') or '').startswith('[Prospective]'):
+                    row['policy_name'] = '[Prospective] ' + str(row.get('policy_name') or 'What-if')
+                row['is_prospective'] = fact.prospective
+                row['permission_facts'] = []
+                row['graph_selection'] = []
+                grouped[identity] = row
+            row = grouped[identity]
+            row['permission_facts'].append(asdict(fact))
+            selection = dict(zip(('principal', 'effective_path', 'resource', 'action'), combination, strict=True))
+            if selection not in row['graph_selection']:
+                row['graph_selection'].append(selection)
+        return list(grouped.values())

@@ -1897,9 +1897,20 @@
                 "VNIC_CREATE",
                 "VNIC_ATTACH"
             ],
-            "notes": "Launch instance does require SUBNET_ATTACH, however since the subnet may be in another compartment, please run a separate Simulation for LaunchInstance (Subnet). If putting the instance in a network security group during instance creation, also need NETWORK_SECURITY_GROUP_UPDATE_MEMBERS and VNIC_ASSOCIATE_NETWORK_SECURITY_GROUP. If creating an instance in a compute cluster, also need COMPUTE_CLUSTER_LAUNCH_INSTANCE"
+            "notes": "Launch instance does require SUBNET_ATTACH, however since the subnet may be in another compartment, please run a separate Simulation for LaunchInstance (Subnet). If putting the instance in a network security group during instance creation, also need NETWORK_SECURITY_GROUP_UPDATE_MEMBERS and VNIC_ASSOCIATE_NETWORK_SECURITY_GROUP. If creating an instance in a compute cluster, also need COMPUTE_CLUSTER_LAUNCH_INSTANCE",
+            "related_checks": [
+                {
+                    "resource": "subnets",
+                    "operation": "LaunchInstance (Subnet)",
+                    "permissions": ["SUBNET_ATTACH"],
+                    "applies_when": "The instance attaches to a subnet, potentially in a different network compartment.",
+                    "reason": "Run the subnet permission check in the subnet compartment, separately from the instance compartment.",
+                    "failure_hint": "Select the network compartment for the follow-up simulation."
+                }
+            ]
         },
         "LaunchInstance (Subnet)": {
+            "request_operation": "LaunchInstance",
             "permissions": [
                 "SUBNET_ATTACH"
             ],

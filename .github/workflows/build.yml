@@ -19,8 +19,10 @@ jobs:
       - name: Skip release if docs-only commit
         id: skip_release
         shell: bash
+        env:
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
-          if [[ "${{ github.event.head_commit.message }}" == docs:* ]]; then
+          if [[ "$HEAD_COMMIT_MESSAGE" == docs:* ]]; then
             echo "skip=true" >> $GITHUB_OUTPUT
             echo "Skipping release for docs commit."
           else
@@ -67,8 +69,10 @@ jobs:
       - name: Skip package if docs-only commit
         id: skip_package
         shell: bash
+        env:
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
-          if [[ "${{ github.event.head_commit.message }}" == docs:* ]]; then
+          if [[ "$HEAD_COMMIT_MESSAGE" == docs:* ]]; then
             echo "skip=true" >> $GITHUB_OUTPUT
             echo "Skipping package for docs commit."
           else
@@ -157,8 +161,10 @@ jobs:
       - name: Skip build if docs-only commit
         id: skip_build
         shell: bash
+        env:
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
-          if [[ "${{ github.event.head_commit.message }}" == docs:* ]]; then
+          if [[ "$HEAD_COMMIT_MESSAGE" == docs:* ]]; then
             echo "skip=true" >> $GITHUB_OUTPUT
             echo "Skipping build for docs commit."
           else
@@ -369,16 +375,87 @@ jobs:
             dist/oci-policy-analysis-*.zip
           retention-days: 30
 
+  build_qt:
+    needs: release
+    if: needs.release.outputs.version != ''
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: macos
+            architecture: arm64
+          - os: windows-latest
+            platform: windows
+            architecture: x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          architecture: ${{ matrix.architecture }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+      - name: Install ccache for macOS
+        if: runner.os == 'macOS'
+        run: brew install ccache
+      - name: Prepare version, dependencies and offline source smoke test
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          node scripts/prepare_release_version.cjs "$RELEASE_VERSION"
+          python -m pip install -e '.[qt,qt-build,web,mcp]'
+          python -m pip check
+          python scripts/build_qt_executable.py --prepare-only
+      - name: Compile Qt workbench with Nuitka
+        uses: Nuitka/Nuitka-Action@bb65ca8023bef5f41a2114acd387b5f36d860145
+        with:
+          nuitka-version: '4.2.2'
+          script-name: scripts/qt_entry.py
+          mode: app-dist
+          output-dir: build/qt/native
+          output-file: oci-policy-analysis-qt${{ runner.os == 'Windows' && '.exe' || '' }}
+          jobs: 3
+          caching-key: qt-nuitka-4.2.2
+      - name: Verify native executable and archive it
+        run: python scripts/build_qt_executable.py --package-only
+      - name: Upload verified Qt application
+        uses: actions/upload-artifact@v6
+        with:
+          name: oci-policy-analysis-qt-${{ matrix.platform }}
+          path: |
+            dist/qt/*.zip
+            dist/qt/*.tar.gz
+            dist/qt/build-result.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload Nuitka diagnostic report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: qt-nuitka-report-${{ matrix.platform }}
+          path: build/qt/nuitka-report.xml
+          if-no-files-found: ignore
+          retention-days: 7
+
   publish_github_release:
-    needs: [release, build_desktop]
+    needs: [release, build_desktop, build_qt]
     if: github.ref_name == 'main' || github.ref_name == 'develop' || startsWith(github.ref_name, 'feature/')
     runs-on: ubuntu-latest
     steps:
       - name: Skip publish if docs-only commit
         id: skip_publish
         shell: bash
+        env:
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
-          if [[ "${{ github.event.head_commit.message }}" == docs:* ]]; then
+          if [[ "$HEAD_COMMIT_MESSAGE" == docs:* ]]; then
             echo "skip=true" >> $GITHUB_OUTPUT
             echo "Skipping publish for docs commit."
           else
@@ -406,6 +483,8 @@ jobs:
         with:
           tag_name: v${{ needs.release.outputs.version }}
           files: |
+            dist/oci-policy-analysis-qt-*/*.zip
+            dist/oci-policy-analysis-qt-*/*.tar.gz
             dist/oci-policy-analysis-linux/oci-policy-analysis-linux-${{ needs.release.outputs.version }}.tar.gz
             dist/oci-policy-analysis-macos/oci-policy-analysis-macos-${{ needs.release.outputs.version }}.app.tar.gz
             dist/oci-policy-analysis-windows/oci-policy-analysis-windows-${{ needs.release.outputs.version }}.zip
@@ -423,8 +502,10 @@ jobs:
       - name: Skip PyPI publish if docs-only commit
         id: skip_pypi
         shell: bash
+        env:
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
-          if [[ "${{ github.event.head_commit.message }}" == docs:* ]]; then
+          if [[ "$HEAD_COMMIT_MESSAGE" == docs:* ]]; then
             echo "skip=true" >> $GITHUB_OUTPUT
             echo "Skipping PyPI publish for docs commit."
           else

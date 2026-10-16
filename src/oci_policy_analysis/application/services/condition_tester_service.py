@@ -17,6 +17,7 @@ from oci_policy_analysis.application.core.parser import (
     extract_variable_names,
     format_policy_clause,
 )
+from oci_policy_analysis.application.core.parser.condition_structure import parse_condition_structure
 from oci_policy_analysis.application.core.parser.policy_parser.PolicyLexer import PolicyLexer
 from oci_policy_analysis.application.core.support.logger import get_logger
 
@@ -88,6 +89,22 @@ class ConditionTesterService:
             Sorted list of discovered variable names.
         """
         return sorted(extract_variable_names(clause))
+
+    def parse_clause(self, clause: str) -> dict[str, Any]:
+        """Parse entered conditions or a full policy and discover both operand inputs.
+
+        Args:
+            clause: Condition expression, optional leading where, or full policy.
+
+        Returns:
+            dict[str, Any]: Extracted clause, display structure including syntax
+            diagnostics, and sorted variable names. Invalid/absent expressions
+            have no input fields and must not be treated as evaluated denials.
+        """
+        text = extract_condition_clause(clause)
+        structure = parse_condition_structure(text)
+        variables = self.extract_variables(text) if structure['parse_status'] == 'parsed' else []
+        return {'clause': text, 'structure': structure, 'variables': variables}
 
     def evaluate(self, clause: str, variables: dict[str, Any]) -> ConditionEvaluationResult:
         """Evaluate a condition clause against simulated variables.

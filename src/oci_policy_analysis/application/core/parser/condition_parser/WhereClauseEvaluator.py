@@ -174,6 +174,15 @@ class WhereClauseEvaluator(OciIamPolicyConditionVisitor):
             operator = ''.join(op_token.getText().split()).lower() if op_token is not None else ''
         value = None
         value_2 = None
+        missing_right_variables = []
+
+        def resolve_identifier(text):
+            if '.' in text or text in self.variables:
+                resolved = self.variables.get(text)
+                if resolved is None:
+                    missing_right_variables.append(text)
+                return resolved
+            return text
 
         logger.info(f'Evaluating condition: variable={variable}, operator={operator}')
 
@@ -211,7 +220,12 @@ class WhereClauseEvaluator(OciIamPolicyConditionVisitor):
                     'literal_list_content children type/value: %s',
                     [(type(c).__name__, c.getText()) for c in list_content.getChildren()],
                 )
-                values = [normalize_literal(c.getText()) for c in list_content.getChildren()]
+                values = [
+                    resolve_identifier(c.getText())
+                    if getattr(getattr(c, 'symbol', None), 'type', None) == OciIamPolicyConditionLexer.IDENTIFIER
+                    else normalize_literal(c.getText())
+                    for c in list_content.getChildren()
+                ]
                 value = [v for v in values if v not in [',']]
                 logger.debug(f"Extracted IN list literals for variable '{variable}': {value}")
                 logger.debug(f'IN LIST: variable={variable!r} value_list={value!r}')
@@ -236,9 +250,8 @@ class WhereClauseEvaluator(OciIamPolicyConditionVisitor):
                 elif is_string:
                     value = _normalize_timestring(value_raw[1:-1])
                 else:
-                    if value_token_type == 'IDENTIFIER' and value_raw in self.variables:
-                        logger.info(f"RHS IDENTIFIER '{value_raw}' replaced with value '{self.variables[value_raw]}'")
-                        value = self.variables[value_raw]
+                    if value_token_type == 'IDENTIFIER':
+                        value = resolve_identifier(value_raw)
                     else:
                         value = _normalize_timestring(value_raw)
         except Exception as ex:
@@ -250,6 +263,8 @@ class WhereClauseEvaluator(OciIamPolicyConditionVisitor):
             value_2 = value_2_ctx.getText().strip()
             if value_2_ctx.STRING_LITERAL() or value_2_ctx.PATTERN_LITERAL():
                 value_2 = _normalize_timestring(value_2[1:-1])
+            elif value_2_ctx.IDENTIFIER():
+                value_2 = resolve_identifier(value_2)
 
         sim_value = self.variables.get(variable)
         log_entry = {
@@ -260,6 +275,15 @@ class WhereClauseEvaluator(OciIamPolicyConditionVisitor):
             'result': False,
             'type': 'Simple Comparison',
         }
+
+        if missing_right_variables:
+            log_entry.update(
+                type='Missing right-hand variable',
+                missing_variables=missing_right_variables,
+                info='Right-hand variable not supplied: ' + ', '.join(missing_right_variables),
+            )
+            self.comparison_log.append(log_entry)
+            return False
 
         logger.info(f"Comparing: sim_value={sim_value}; expected={log_entry['expected']} (operator '{operator}').")
         if sim_value is None:

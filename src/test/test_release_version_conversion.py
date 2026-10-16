@@ -1,4 +1,4 @@
-"""Release preparation preserves prerelease sequence numbers and lock metadata."""
+"""Release preparation preserves prerelease sequence numbers without requiring a lockfile."""
 
 import json
 import shlex
@@ -21,19 +21,15 @@ import pytest
         ('7.0.0-rc.2', '7.0.0rc2'),
     ],
 )
-def test_release_prepare_command_updates_package_and_lock_versions(tmp_path, release, expected):
+def test_release_prepare_command_updates_package_version_without_lockfile(tmp_path, release, expected):
     root = Path(__file__).parents[2]
     config = json.loads((root / '.releaserc.json').read_text())
     command = next(plugin[1]['prepareCmd'] for plugin in config['plugins'] if plugin[0] == '@semantic-release/exec')
     command = command.replace('scripts/prepare_release_version.cjs', str(root / 'scripts/prepare_release_version.cjs'))
     command = command.replace('${nextRelease.version}', release)
     (tmp_path / 'pyproject.toml').write_text('[project]\nname = "oci-policy-analysis"\nversion = "7.0.0.dev0"\n')
-    (tmp_path / 'uv.lock').write_text(
-        'version = 1\n[[package]]\nname = "oci-policy-analysis"\nversion = "7.0.0.dev0"\n'
-        '[[package]]\nname = "other"\nversion = "1.2.3"\n'
-    )
     subprocess.run(shlex.split(command), cwd=tmp_path, capture_output=True, text=True, check=True)
     assert tomllib.loads((tmp_path / 'pyproject.toml').read_text())['project']['version'] == expected
-    packages = tomllib.loads((tmp_path / 'uv.lock').read_text())['package']
-    assert packages[0]['version'] == expected
-    assert packages[1]['version'] == '1.2.3'
+    assert not (tmp_path / 'uv.lock').exists()
+    assets = next(plugin[1]['assets'] for plugin in config['plugins'] if plugin[0] == '@semantic-release/git')
+    assert 'uv.lock' not in assets

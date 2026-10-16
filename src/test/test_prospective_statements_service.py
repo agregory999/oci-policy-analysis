@@ -176,3 +176,20 @@ def test_validate_and_update_text_without_engine_marks_unvalidated() -> None:
     assert updated.valid is False
     assert updated.invalid_reasons  # should contain a message about engine not available
     assert updated.effective_path == 'ROOT'
+
+
+def test_builder_root_scope_and_effective_path_boundary():
+    from types import SimpleNamespace
+
+    from oci_policy_analysis.application.services.prospective_builder_service import ProspectiveBuilderService
+
+    builder = ProspectiveBuilderService(SimpleNamespace(regular_statements=[]), None, None)
+    preview = builder.build_preview({'location': 'ROOT', 'effective_path': 'ROOT'})
+    assert preview.statement_text.endswith(' in tenancy')
+    preview = builder.build_preview({'location': 'ROOT', 'effective_path': 'ROOT/Finance/Payroll'})
+    assert preview.statement_text.endswith(' in compartment Finance:Payroll')
+    assert not preview.warnings
+    preview = builder.build_preview({'location': 'ROOT/Finance', 'effective_path': 'ROOT/IT'})
+    assert preview.effective_path == 'ROOT/Finance'
+    assert preview.warnings
+    assert preview.statement_text.endswith(' in compartment Finance')
