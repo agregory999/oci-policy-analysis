@@ -1,3 +1,10 @@
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.3](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.2...v7.0.0-7-0-0-policy-corpus-cross-tenancy.3) (2026-10-16)
+
+
+### Features
+
+* add Qt workbench and native prerelease builds ([1a89243](https://github.com/agregory999/oci-policy-analysis/commit/1a89243c012d741f43ae184dcae7291cc9dfb1e9))
+
 ## [7.0.0-7-0-0-policy-corpus-cross-tenancy.2](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.1...v7.0.0-7-0-0-policy-corpus-cross-tenancy.2) (2026-10-14)
 
 
