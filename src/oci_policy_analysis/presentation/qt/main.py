@@ -110,7 +110,8 @@ class WorkbenchWindow(QMainWindow):
         )
         self.historical_page = HistoricalPage(self.settings_page.cache_service.cache)
         self.historical_page.busy_changed.connect(self._historical_busy)
-        self.tools_page = ToolsPage(self.experience)
+        self.tools_page = ToolsPage(self.experience, self.settings_page.cache_service.cache)
+        self.tools_page.maintenance.changed.connect(self._caches_changed)
         self.tools_page.reports.busy_changed.connect(self._reports_busy)
         self.browser_page = PolicyBrowserPage()
         self.graph_page = PolicyGraphPage()
@@ -364,8 +365,19 @@ class WorkbenchWindow(QMainWindow):
         self._set_data_available(True)
         self.settings_page.refresh_caches()
         self.historical_page.refresh_caches()
+        self.tools_page.maintenance.refresh_caches()
         self.data_as_of.setText(f'Data as of  ·  {getattr(context.policy_repo, "data_as_of", None) or "Not recorded"}')
         self.statusBar().showMessage(f'Loaded · {description}')
+
+    @Slot(object)
+    def _caches_changed(self, change) -> None:
+        context = self.controller.context
+        if context is not None and change['action'] == 'Renamed':
+            if context.policy_repo.current_cache_name == change['old_name']:
+                context.policy_repo.current_cache_name = change['new_name']
+        self.settings_page.refresh_caches()
+        self.historical_page.refresh_caches()
+        self.tools_page.maintenance.refresh_caches()
 
     @Slot(str)
     def _failed(self, message: str) -> None:
@@ -374,6 +386,9 @@ class WorkbenchWindow(QMainWindow):
 
     @Slot(bool)
     def _busy_changed(self, busy: bool) -> None:
+        self.tools_page.maintenance.set_block_reason(
+            'Wait for the active task or embedded MCP to stop.' if busy else ''
+        )
         self.historical_page.set_block_reason('Wait for snapshot loading to finish.' if busy else '')
         self.recommendations_page.set_block_reason('Wait for snapshot loading to finish.' if busy else '')
         self.tools_page.reports.set_block_reason('Wait for snapshot loading to finish.' if busy else '')
@@ -389,6 +404,9 @@ class WorkbenchWindow(QMainWindow):
 
     @Slot(bool)
     def _simulation_busy(self, busy: bool) -> None:
+        self.tools_page.maintenance.set_block_reason(
+            'Wait for the active task or embedded MCP to stop.' if busy else ''
+        )
         self.historical_page.set_block_reason('Wait for the current simulation task to finish.' if busy else '')
         self.recommendations_page.set_block_reason('Wait for the current simulation task to finish.' if busy else '')
         self.tools_page.reports.set_block_reason('Wait for the current simulation task to finish.' if busy else '')
@@ -405,6 +423,9 @@ class WorkbenchWindow(QMainWindow):
 
     @Slot(bool)
     def _reports_busy(self, busy: bool) -> None:
+        self.tools_page.maintenance.set_block_reason(
+            'Wait for the active task or embedded MCP to stop.' if busy else ''
+        )
         reason = 'Wait for the current report to finish.' if busy else ''
         self.historical_page.set_block_reason(reason)
         self.recommendations_page.set_block_reason(reason)
@@ -422,6 +443,9 @@ class WorkbenchWindow(QMainWindow):
 
     @Slot(bool)
     def _recommendations_busy(self, busy: bool) -> None:
+        self.tools_page.maintenance.set_block_reason(
+            'Wait for the active task or embedded MCP to stop.' if busy else ''
+        )
         reason = 'Wait for recommendation analysis to finish.' if busy else ''
         self.historical_page.set_block_reason(reason)
         self.drawer.clear()
@@ -442,6 +466,9 @@ class WorkbenchWindow(QMainWindow):
 
     @Slot(bool)
     def _historical_busy(self, busy: bool) -> None:
+        self.tools_page.maintenance.set_block_reason(
+            'Wait for the active task or embedded MCP to stop.' if busy else ''
+        )
         reason = 'Wait for historical comparison to finish.' if busy else ''
         self.drawer.clear()
         self.progress.setVisible(busy)
@@ -486,6 +513,9 @@ class WorkbenchWindow(QMainWindow):
 
     @Slot(bool)
     def _mcp_locked(self, locked: bool) -> None:
+        self.tools_page.maintenance.set_block_reason(
+            'Wait for the active task or embedded MCP to stop.' if locked else ''
+        )
         self.historical_page.set_block_reason('Stop embedded MCP before comparing snapshots.' if locked else '')
         self.recommendations_page.set_block_reason('Stop embedded MCP before running analysis.' if locked else '')
         self.tools_page.reports.set_block_reason('Stop embedded MCP before generating reports.' if locked else '')

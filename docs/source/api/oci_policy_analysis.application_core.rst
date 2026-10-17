@@ -160,3 +160,8 @@ Support
 .. automodule:: oci_policy_analysis.application.services.historical_analysis_service
    :members:
    :show-inheritance:
+
+
+.. automodule:: oci_policy_analysis.application.services.cache_service
+   :members:
+   :show-inheritance:

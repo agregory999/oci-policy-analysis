@@ -15,10 +15,12 @@
 
 import hashlib
 import json
+import os
 import re
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from typing import Any
 
 from oci.identity.models import Domain
@@ -619,7 +621,12 @@ class CacheManager:
                 try:
                     cache = json.loads(line)
                     if cache.get('tenancy_name') == tenancy_name:
-                        if cache.get('preserved', False):
+                        cache_path = (
+                            self.cache_dir / f'combined_cache_{cache["tenancy_name"]}_{cache["cache_date"]}.json'
+                        )
+                        if cache.get('preserved', False) or (
+                            cache_path.is_file() and parse_date_from_file(cache_path) is None
+                        ):
                             remaining.append(line)
                         elif count < 10:
                             remaining.append(line)
@@ -898,139 +905,157 @@ class CacheManager:
             logger.warning('Could not save tenancy policy limits with cache %s: %s', named_cache, exc)
             return False
 
+    @staticmethod
+    def _valid_cache_name(name: str) -> bool:
+        return (
+            isinstance(name, str)
+            and bool(name.strip())
+            and name == name.strip()
+            and '_' in name
+            and all(name.split('_', 1))
+            and not any(ord(char) < 32 or char in '<>:"/\\|?*' for char in name)
+            and not name.endswith(('.', ' '))
+        )
+
+    def _write_cache_index(self, lines: list[str]) -> None:
+        """Atomically replace the local index, retaining malformed legacy lines."""
+        temporary = None
+        try:
+            with NamedTemporaryFile(
+                mode='w', encoding='utf-8', dir=self.cache_dir, prefix='.cache-index-', delete=False
+            ) as stream:
+                temporary = Path(stream.name)
+                stream.writelines(lines)
+            temporary.replace(self.cache_dir / 'cache_entries.json')
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
+
+    @staticmethod
+    def _cache_index_name(line: str) -> str | None:
+        try:
+            entry = json.loads(line)
+            return f'{entry["tenancy_name"]}_{entry["cache_date"]}'
+        except (ValueError, KeyError, TypeError):
+            return None
+
     def remove_cache_entry(self, named_cache: str) -> bool:
-        """
-        Remove specified cache file AND its entry from cache_entries.json.
+        """Delete an unlocked cache and its index entry, preserving data on failure.
 
         Args:
-            named_cache: The tenancy_date string of the cache name to remove
+            named_cache: Existing tenancy_label cache name; path components are rejected.
 
         Returns:
-            True if both file and entry were removed, False otherwise
+            bool: True after removal. Locked, missing or failed operations return False.
         """
+        if not self._valid_cache_name(named_cache):
+            return False
         cache_file = self.cache_dir / f'combined_cache_{named_cache}.json'
-        removed_file = False
-        if cache_file.exists():
-            try:
-                cache_file.unlink()
-                removed_file = True
-                logger.info(f'Removed cache file: {cache_file}')
-            except Exception as e:
-                logger.error(f'Could not remove cache file {cache_file}: {e}')
-        # Remove entry from cache_entries.json
-        entries_path = self.cache_dir / 'cache_entries.json'
-        updated = False
-        if entries_path.exists():
-            with open(entries_path, encoding='utf-8') as f:
-                entry_lines = f.readlines()
-            with open(entries_path, 'w', encoding='utf-8') as f:
-                for line in entry_lines:
-                    try:
-                        cache = json.loads(line)
-                        entry_name = f'{cache["tenancy_name"]}_{cache["cache_date"]}'
-                        if entry_name == named_cache:
-                            updated = True
-                            continue  # Skip (remove) this entry
-                    except Exception:
-                        pass
-                    f.write(line)
-        return removed_file and updated
-
-    def rename_cache_entry(self, old_named_cache: str, new_named_cache: str) -> bool:  # noqa: C901
-        """
-        Rename both the cache file and its entry in cache_entries.json.
-
-        Args:
-            old_named_cache: The current tenancy_date string of the cache name
-            new_named_cache: The new tenancy_date string of the cache name
-
-        Returns:
-            True if both file and entry were renamed, False otherwise.
-            Returns False (and does NOT rename) if a cache file or entry already exists with the new name.
-        """
-        old_file = self.cache_dir / f'combined_cache_{old_named_cache}.json'
-        new_file = self.cache_dir / f'combined_cache_{new_named_cache}.json'
-
-        # Defensive: if new_file exists, refuse to rename.
-        if new_file.exists():
-            logger.error(f'Refusing to rename: target exists: {new_file}')
+        entries = self.cache_dir / 'cache_entries.json'
+        original = None
+        changed = False
+        try:
+            original = entries.read_text(encoding='utf-8').splitlines(keepends=True)
+            matches = [line for line in original if self._cache_index_name(line) == named_cache]
+            if not cache_file.is_file() or not matches or any(json.loads(line).get('preserved') for line in matches):
+                return False
+            self._write_cache_index([line for line in original if self._cache_index_name(line) != named_cache])
+            changed = True
+            cache_file.unlink()
+            logger.info('Removed cache %s', named_cache)
+            return True
+        except OSError:
+            logger.exception('Cache deletion failed: %s', named_cache)
+            if changed and original is not None:
+                try:
+                    self._write_cache_index(original)
+                except OSError:
+                    logger.exception('Could not restore cache index; snapshot file is retained')
             return False
 
-        # Defensive: refuse if target new_named_cache already in entries
-        entries_path = self.cache_dir / 'cache_entries.json'
-        if entries_path.exists():
-            with open(entries_path, encoding='utf-8') as f:
-                entry_lines = f.readlines()
-            for line in entry_lines:
-                try:
-                    cache = json.loads(line)
-                    entry_name = f'{cache["tenancy_name"]}_{cache["cache_date"]}'
-                    if entry_name == new_named_cache:
-                        logger.error(
-                            f'Refusing to rename: entry already exists in cache_entries.json as {new_named_cache}'
-                        )
-                        return False
-                except Exception:
-                    continue
-
-        renamed_file = False
-        if old_file.exists():
-            try:
-                old_file.rename(new_file)
-                renamed_file = True
-                logger.info(f'Renamed cache file {old_file} -> {new_file}')
-            except Exception as e:
-                logger.error(f'Could not rename cache file {old_file}: {e}')
-        updated = False
-        if entries_path.exists():
-            with open(entries_path, encoding='utf-8') as f:
-                entry_lines = f.readlines()
-            with open(entries_path, 'w', encoding='utf-8') as f:
-                for line in entry_lines:
-                    try:
-                        cache = json.loads(line)
-                        entry_name = f'{cache["tenancy_name"]}_{cache["cache_date"]}'
-                        if entry_name == old_named_cache:
-                            # Must split new_named_cache into tenancy_name, cache_date
-                            tn, cd = new_named_cache.split('_', 1)
-                            cache['tenancy_name'] = tn
-                            cache['cache_date'] = cd
-                            line = json.dumps(cache, ensure_ascii=False) + '\n'
-                            updated = True
-                    except Exception:
-                        pass
-                    f.write(line)
-        return renamed_file and updated
-
-    def preserve_cache_entry(self, named_cache: str, preserve: bool = True) -> bool:
-        """
-        Mark or unmark a cache entry as preserved in cache_entries.json.
+    def rename_cache_entry(self, old_named_cache: str, new_named_cache: str) -> bool:
+        """Rename an indexed cache without overwriting another snapshot.
 
         Args:
-            named_cache: The tenancy_date string of the cache name to update
-            preserve: True to mark as preserved, False to unmark
+            old_named_cache: Existing tenancy_label cache name.
+            new_named_cache: New tenancy_label name with no path or Windows-invalid characters.
 
         Returns:
-            True if the entry was updated, False otherwise
+            bool: True after rename. Invalid names, collisions and failures return False.
+
+        Notes:
+            Source bytes and lock state are retained. The index is replaced atomically;
+            an exclusive hard link prevents target clobbering before the old name is removed.
         """
-        entries_path = self.cache_dir / 'cache_entries.json'
-        updated = False
-        if entries_path.exists():
-            with open(entries_path, encoding='utf-8') as f:
-                entry_lines = f.readlines()
-            with open(entries_path, 'w', encoding='utf-8') as f:
-                for line in entry_lines:
-                    try:
-                        cache = json.loads(line)
-                        entry_name = f'{cache["tenancy_name"]}_{cache["cache_date"]}'
-                        if entry_name == named_cache:
-                            cache['preserved'] = preserve
-                            line = json.dumps(cache, ensure_ascii=False) + '\n'
-                            updated = True
-                    except Exception:
-                        pass
-                    f.write(line)
-        return updated
+        if not all(self._valid_cache_name(name) for name in (old_named_cache, new_named_cache)):
+            return False
+        old_file = self.cache_dir / f'combined_cache_{old_named_cache}.json'
+        new_file = self.cache_dir / f'combined_cache_{new_named_cache}.json'
+        entries = self.cache_dir / 'cache_entries.json'
+        linked = changed = False
+        original = None
+        try:
+            original = entries.read_text(encoding='utf-8').splitlines(keepends=True)
+            names = [self._cache_index_name(line) for line in original]
+            if old_named_cache == new_named_cache:
+                return old_named_cache in names and old_file.is_file()
+            if old_named_cache not in names or new_named_cache in names or not old_file.is_file():
+                return False
+            updated = []
+            for line in original:
+                if self._cache_index_name(line) == old_named_cache:
+                    entry = json.loads(line)
+                    entry['tenancy_name'], entry['cache_date'] = new_named_cache.split('_', 1)
+                    line = json.dumps(entry, ensure_ascii=False) + '\n'
+                updated.append(line)
+            os.link(old_file, new_file)  # Exclusive creation; never overwrites a target.
+            linked = True
+            self._write_cache_index(updated)
+            changed = True
+            old_file.unlink()
+            logger.info('Renamed cache %s to %s', old_named_cache, new_named_cache)
+            return True
+        except OSError:
+            logger.exception('Cache rename failed: %s -> %s', old_named_cache, new_named_cache)
+            try:
+                if changed and original is not None:
+                    self._write_cache_index(original)
+                if linked:
+                    new_file.unlink(missing_ok=True)
+            except OSError:
+                logger.exception('Could not finish rename rollback; snapshot files are retained')
+            return False
+
+    def preserve_cache_entry(self, named_cache: str, preserve: bool = True) -> bool:
+        """Lock or unlock an existing cache against cleanup and manual deletion.
+
+        Args:
+            named_cache: Existing tenancy_label cache name.
+            preserve: True to lock, False to unlock.
+
+        Returns:
+            bool: True after the index is updated; False for missing or failed operations.
+        """
+        if not self._valid_cache_name(named_cache):
+            return False
+        try:
+            entries = self.cache_dir / 'cache_entries.json'
+            original = entries.read_text(encoding='utf-8').splitlines(keepends=True)
+            updated, found = [], False
+            for line in original:
+                if self._cache_index_name(line) == named_cache:
+                    entry = json.loads(line)
+                    entry['preserved'] = preserve
+                    line = json.dumps(entry, ensure_ascii=False) + '\n'
+                    found = True
+                updated.append(line)
+            if not found or not (self.cache_dir / f'combined_cache_{named_cache}.json').is_file():
+                return False
+            self._write_cache_index(updated)
+            return True
+        except OSError:
+            logger.exception('Could not update cache lock: %s', named_cache)
+            return False
 
     def update_policy_section(
         self,

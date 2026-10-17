@@ -2880,3 +2880,81 @@ def test_live_qt_load_saves_snapshot_for_history_only_after_success(workbench, m
     assert window.settings_page.cache_list.currentData() == names[0]
     for combo in window.historical_page.sources:
         assert any(combo.itemData(i) == {'kind': 'cache', 'value': names[0]} for i in range(combo.count()))
+
+
+def test_historical_incomplete_sources_show_observed_removal_and_strict_skip(workbench, monkeypatch):
+    application, window = workbench
+    window.experience.set_advanced(True)
+    page = window.historical_page
+    left = {
+        'tenancy_ocid': 'T',
+        'inventory_complete': False,
+        'policies': [{'policy_ocid': 'p', 'policy_name': 'Deleted'}],
+        'policy_statements': [],
+    }
+    right = {**left, 'policies': []}
+    monkeypatch.setattr(
+        page.cache,
+        'load_cache_into_local_json',
+        lambda *, cached_tenancy: left if cached_tenancy == 'baseline' else right,
+    )
+    _historical_sources(page, 'baseline', 'target')
+    page.compare_button.click()
+    _wait_for_historical(application, window)
+    assert 'Unverified snapshot differences' in page.status.text()
+    assert '1 removed' in page.status.text()
+    table = page.tables['policy']
+    table.setCurrentIndex(table.proxy.index(0, 0))
+    application.processEvents()
+    page.copy_change()
+    assert 'not confirmed OCI' in json.loads(application.clipboard().text())['comparison_warning']
+    page.include_incomplete.setChecked(False)
+    assert page.result is None
+    page.compare_button.click()
+    _wait_for_historical(application, window)
+    assert 'No sections were compared' in page.status.text()
+    assert '0 removed' not in page.status.text()
+
+
+def test_maintenance_rename_lock_delete_refreshes_other_cache_selectors(workbench, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    application, window = workbench
+    page = window.tools_page.maintenance
+    cache = page.service.cache
+    name = 'tenant_original'
+    path = cache.cache_dir / f'combined_cache_{name}.json'
+    original = b'{"policies":[],"policy_statements":[]}'
+    path.write_bytes(original)
+    (cache.cache_dir / 'cache_entries.json').write_text(
+        json.dumps({'tenancy_name': 'tenant', 'cache_date': 'original'}) + '\n'
+    )
+    page.refresh_caches()
+    page.table.selectRow(0)
+    page.lock_button.click()
+    page.table.selectRow(0)
+    assert not page.delete_button.isEnabled()
+    assert page.lock_button.text() == 'Unlock'
+    monkeypatch.setattr(
+        'oci_policy_analysis.presentation.qt.pages.maintenance.QInputDialog.getText',
+        lambda *args, **kwargs: ('tenant_baseline', True),
+    )
+    page.rename_button.click()
+    renamed = cache.cache_dir / 'combined_cache_tenant_baseline.json'
+    assert renamed.read_bytes() == original and not path.exists()
+    assert window.settings_page.cache_list.findData('tenant_baseline') >= 0
+    assert any(combo.findText('tenant_baseline') >= 0 for combo in window.historical_page.sources)
+    page.table.selectRow(0)
+    page.set_block_reason('Busy')
+    page._lock()
+    assert 'tenant_baseline' in cache.get_preserved_cache_set()
+    page.set_block_reason('')
+    page.lock_button.click()
+    page.table.selectRow(0)
+    monkeypatch.setattr(QMessageBox, 'question', lambda *args: QMessageBox.StandardButton.No)
+    page.delete_button.click()
+    assert renamed.exists()
+    monkeypatch.setattr(QMessageBox, 'question', lambda *args: QMessageBox.StandardButton.Yes)
+    page.delete_button.click()
+    assert not renamed.exists() and not page.table.model.records
+    assert window.settings_page.cache_list.findData('tenant_baseline') < 0

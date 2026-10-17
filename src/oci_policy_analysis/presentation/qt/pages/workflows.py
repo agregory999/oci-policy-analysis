@@ -4,6 +4,7 @@ from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QPushButton, QTabWidget, QVBoxLayout, QWidget
 
 from oci_policy_analysis.presentation.qt.pages.condition_tester import ConditionTesterPage
+from oci_policy_analysis.presentation.qt.pages.maintenance import MaintenancePage
 from oci_policy_analysis.presentation.qt.pages.reports import ReportsPage
 from oci_policy_analysis.presentation.qt.widgets import label
 
@@ -33,6 +34,7 @@ class ToolsPage(QTabWidget):
 
     Args:
         experience: Shared mode policy controlling advanced-only Maintenance.
+        cache: Shared cache manager used for saved snapshot maintenance.
 
     Attributes:
         show_logs: Request the shell's existing log dock.
@@ -42,18 +44,14 @@ class ToolsPage(QTabWidget):
     show_logs = Signal()
     show_logging_settings = Signal()
 
-    def __init__(self, experience) -> None:
+    def __init__(self, experience, cache) -> None:
         super().__init__()
         self.condition_tester = ConditionTesterPage()
         self.addTab(self.condition_tester, 'Condition Tester')
         self.reports = ReportsPage()
         self.addTab(self.reports, 'Reports')
-        self.addTab(
-            PlannedWorkflowPage(
-                'Maintenance', 'Advanced cache and workbench maintenance. Explicit actions will be added here.'
-            ),
-            'Maintenance',
-        )
+        self.maintenance = MaintenancePage(cache)
+        self.addTab(self.maintenance, 'Maintenance')
         experience.bind_advanced_tab(self, 2)
         logging = QWidget()
         layout = QVBoxLayout(logging)

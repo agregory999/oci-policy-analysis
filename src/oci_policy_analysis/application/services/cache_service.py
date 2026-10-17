@@ -43,6 +43,27 @@ class CacheService:
         """
         return self.cache.get_preserved_cache_set()
 
+    def maintenance_records(self) -> list[dict[str, Any]]:
+        """List cache names and their current lock state without reading snapshot data.
+
+        Returns:
+            list[dict[str, Any]]: Names and preserved/locked flags from the cache index.
+        """
+        locked = self.get_preserved_cache_set()
+        return [{'name': name, 'locked': name in locked} for name in self.list_caches()]
+
+    def set_locked(self, cache_name: str, locked: bool) -> bool:
+        """Preserve or release a saved cache for automatic and explicit cleanup.
+
+        Args:
+            cache_name: Existing saved cache name.
+            locked: True to protect the cache, False to allow deletion.
+
+        Returns:
+            bool: Whether the cache lock was updated successfully.
+        """
+        return self.cache.preserve_cache_entry(cache_name, preserve=locked)
+
     def load_cache(self, policy_repo, cache_name: str) -> str:
         """Load a named cache into the provided policy repository.
 

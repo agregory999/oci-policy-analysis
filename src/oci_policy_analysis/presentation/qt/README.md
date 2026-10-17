@@ -143,8 +143,8 @@ owned by the page so future draft editors need not lose unsaved work.
 - Tools is one left-nav destination with native `QTabWidget` tabs for Condition
   Tester, Reports, Maintenance and Logging. Logging opens the existing dock and
   Overview settings rather than creating another handler or settings copy.
-- Consolidation and Maintenance are **planned destinations**, not implemented
-  analysis workflows. Their pages say so explicitly; opening them runs nothing.
+- Consolidation remains a planned destination. Maintenance implements only saved-cache
+  rename, lock/unlock and explicitly confirmed deletion.
 
 For future controls, call `experience.bind_advanced(widget)` or
 `experience.bind_advanced_tab(tab_widget, index)` during page construction.
@@ -569,3 +569,22 @@ Successful live OCI loads always request a new combined-cache snapshot through
 LoadService, including Query foundations loads. Overview and Historical comparison
 refresh their cache choices after publishing the load. Opening an existing cache,
 JSON file or fictional sample stays read-only and does not create another cache.
+
+Qt historical comparison enables **Compare incomplete snapshots with warnings**
+by default. Collection errors mark an entire snapshot incomplete, even when the
+policy inventory contains useful differences. Observed additions/removals remain
+unverified: a missing record can reflect a collection gap. Warnings accompany
+section counts, JSON inspection, copy and exports. Turning this option off keeps
+strict coverage gating and explicitly reports when no sections were compared.
+Missing sections, incompatible scope and inherited IAM remain excluded. The shared
+service retains strict behavior by default; callers opt in with `include_incomplete=True`.
+
+Maintenance is an Advanced tab under Tools. Search and select a cache to rename,
+lock/unlock or delete it. Names use `tenancy_label` and cannot contain paths or
+Windows-invalid filename characters. Rename retains source bytes and lock state
+and never overwrites another file. A lock is the existing index `preserved` flag:
+it prevents automatic cleanup and manual deletion until unlocked. Delete requires
+confirmation. Cache selectors refresh after changes; the loaded snapshot stays in
+memory. Mutations are blocked during loads, analysis, reports, simulation, historical
+comparison and embedded MCP. Combined-cache version 2/schema 3 and index field
+names are unchanged; no migration is required and old snapshots remain readable.

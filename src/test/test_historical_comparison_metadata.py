@@ -205,3 +205,44 @@ def test_meaningful_comparison_keeps_arbitrary_nested_tag_keys_literal():
         'freeform_tags._owner',
         'defined_tags.Audit.stable_key',
     }
+
+
+def test_incomplete_snapshot_policy_removal_is_observable_only_with_explicit_warning():
+    from copy import deepcopy
+
+    left = {
+        'tenancy_ocid': 'T',
+        'inventory_complete': False,
+        'policies': [
+            {'policy_ocid': 'p1', 'policy_name': 'retained'},
+            {'policy_ocid': 'p2', 'policy_name': 'deleted'},
+        ],
+        'policy_statements': [],
+        'snapshot_kind': 'full',
+    }
+    right = deepcopy(left)
+    right['policies'].pop()
+    before = deepcopy((left, right))
+    service = _service(left, right)
+    strict = service.compare_caches(left_cache='left', right_cache='right')
+    assert not strict.policy_sections and not strict.identity_sections
+    observed = service.compare_caches(left_cache='left', right_cache='right', include_incomplete=True)
+    policies = next(section for section in observed.policy_sections if section.key == 'policies')
+    assert policies.removed == 1 and policies.items[0].title == 'deleted'
+    assert 'not confirmed OCI' in observed.section_warnings[policies.section]
+    assert 'Users' in observed.skipped_sections
+    assert (left, right) == before
+
+
+def test_incomplete_opt_in_does_not_override_inherited_iam_or_scope_mismatch():
+    left = {
+        'inventory_complete': False,
+        'groups': [],
+        'snapshot_kind': 'policy_reload',
+        'recursive': True,
+        'policies': [],
+    }
+    right = {'inventory_complete': False, 'groups': [], 'snapshot_kind': 'full', 'recursive': False, 'policies': []}
+    result = _service(left, right).compare_caches(left_cache='left', right_cache='right', include_incomplete=True)
+    assert not result.identity_sections and not result.policy_sections
+    assert result.skipped_sections

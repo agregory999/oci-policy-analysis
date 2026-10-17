@@ -47,6 +47,7 @@ class HistoricalCompareResult:
     identity_comparable: bool = True
     skipped_sections: dict[str, str] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
+    section_warnings: dict[str, str] = field(default_factory=dict)
 
 
 class HistoricalAnalysisService:
@@ -402,13 +403,13 @@ class HistoricalAnalysisService:
         return '\n'.join(lines)
 
     @classmethod
-    def _unavailable_reason(cls, snapshot: dict[str, Any], key: str) -> str:
+    def _unavailable_reason(cls, snapshot: dict[str, Any], key: str, *, include_incomplete: bool = False) -> str:
         iam = key in {'identity_domains', 'groups', 'dynamic_groups', 'users'}
         if iam and cls.snapshot_kind(snapshot) == 'policy_reload':
             return 'IAM was inherited from the base cache, not refreshed by this policy reload.'
         if key == 'users' and snapshot.get('load_all_users') is False:
             return 'User inventory was not loaded.'
-        if snapshot.get('inventory_complete') is False:
+        if snapshot.get('inventory_complete') is False and not include_incomplete:
             return 'The load reported API errors; inventory may be incomplete.'
         capability = {
             'identity_domains': 'domains_inventory',
@@ -426,7 +427,7 @@ class HistoricalAnalysisService:
         return ''
 
     def compare_caches(
-        self, *, left_cache: str, right_cache: str, meaningful_only: bool = False
+        self, *, left_cache: str, right_cache: str, meaningful_only: bool = False, include_incomplete: bool = False
     ) -> HistoricalCompareResult:
         """Read two caches and compare their sections without changing active data.
 
@@ -434,6 +435,8 @@ class HistoricalAnalysisService:
             left_cache: Baseline cache name.
             right_cache: Target cache name.
             meaningful_only: Ignore ephemeral internal_id and stable_key fields.
+            include_incomplete: Compare observed data despite incomplete-collection
+                metadata, with warnings; differences do not establish OCI changes.
 
         Returns:
             HistoricalCompareResult: Sectioned changes and coverage limitations.
@@ -441,7 +444,12 @@ class HistoricalAnalysisService:
         left = self.cache_manager.load_cache_into_local_json(cached_tenancy=left_cache)
         right = self.cache_manager.load_cache_into_local_json(cached_tenancy=right_cache)
         return self.compare_snapshots(
-            left, right, left_name=left_cache, right_name=right_cache, meaningful_only=meaningful_only
+            left,
+            right,
+            left_name=left_cache,
+            right_name=right_cache,
+            meaningful_only=meaningful_only,
+            include_incomplete=include_incomplete,
         )
 
     def compare_snapshots(
@@ -452,6 +460,7 @@ class HistoricalAnalysisService:
         left_name: str = 'Baseline',
         right_name: str = 'Target',
         meaningful_only: bool = False,
+        include_incomplete: bool = False,
     ) -> HistoricalCompareResult:
         """Compare detached JSON snapshots using the same cache compatibility rules.
 
@@ -461,6 +470,8 @@ class HistoricalAnalysisService:
             left_name: Display name for the baseline.
             right_name: Display name for the target.
             meaningful_only: Omit ephemeral internal IDs; preserve original evidence.
+            include_incomplete: Compare available sections even when collection was
+                incomplete. Missing target records are unverified snapshot differences.
 
         Returns:
             HistoricalCompareResult: Changes plus per-section non-comparison reasons.
@@ -480,7 +491,7 @@ class HistoricalAnalysisService:
         if left.get('tenancy_ocid') and right.get('tenancy_ocid') and left['tenancy_ocid'] != right['tenancy_ocid']:
             raise ValueError('Select two snapshots from the same tenancy.')
 
-        skipped = {}
+        skipped, warnings = {}, {}
         policy_sections, identity_sections = [], []
         for definitions, destination in [
             (self.POLICY_SECTIONS, policy_sections),
@@ -490,7 +501,7 @@ class HistoricalAnalysisService:
                 reasons = [
                     f'{side}: {reason}'
                     for side, snapshot in [('Left', left), ('Right', right)]
-                    if (reason := self._unavailable_reason(snapshot, key))
+                    if (reason := self._unavailable_reason(snapshot, key, include_incomplete=include_incomplete))
                 ]
                 scope_key = (
                     'recursive'
@@ -506,6 +517,17 @@ class HistoricalAnalysisService:
                 if reasons:
                     skipped[label] = ' '.join(reasons)
                 else:
+                    incomplete_sides = [
+                        side
+                        for side, snapshot in [('Baseline', left), ('Target', right)]
+                        if snapshot.get('inventory_complete') is False
+                    ]
+                    if incomplete_sides:
+                        warnings[label] = (
+                            ' and '.join(incomplete_sides) + ' collection is incomplete. '
+                            'These are observed snapshot differences; missing records may reflect '
+                            'collection gaps and are not confirmed OCI additions/deletions.'
+                        )
                     destination.append(
                         self._compare_section(left, right, label=label, key=key, meaningful_only=meaningful_only)
                     )
@@ -518,11 +540,13 @@ class HistoricalAnalysisService:
                 label in skipped for label, key in self.IDENTITY_SECTIONS if key != 'compartments'
             ),
             skipped_sections=skipped,
+            section_warnings=warnings,
             metadata={
                 'baseline': self.describe_snapshot(left),
                 'target': self.describe_snapshot(right),
                 'tenancy': right.get('tenancy_name') or left.get('tenancy_name') or '',
                 'tenancy_verified': bool(left.get('tenancy_ocid') and right.get('tenancy_ocid')),
                 'meaningful_only': meaningful_only,
+                'include_incomplete': include_incomplete,
             },
         )

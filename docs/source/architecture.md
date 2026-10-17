@@ -437,3 +437,18 @@ fields do not collapse into JSON null. The stored snapshot schema is unchanged.
 Qt only renders shared deltas and lazy original-JSON trees. A retained thread and
 selection generations protect comparison lifecycle; no source cache or active
 engine is written. Legacy missing scope metadata remains an explicit limitation.
+
+Qt cache maintenance delegates rename, delete and lock operations through
+`CacheService` to `CacheManager`; it does not reload or rewrite snapshot JSON.
+The existing index `preserved` flag protects both automatic cleanup and explicit
+deletion. Rename preserves bytes and lock state, rejects collisions, and updates
+the index atomically with rollback on filesystem errors. No combined-cache or
+index schema migration is needed. The shell blocks mutations while shared
+snapshot tasks or embedded MCP are active and refreshes cache selectors after
+changes. Renamed non-date snapshots remain indexed during automatic cleanup.
+
+Historical comparison retains strict coverage gating by default at the service
+boundary. The Qt adapter explicitly enables observed differences for incomplete
+collections, with per-section warnings in the result, inspector and exports. This
+does not override missing-section, inherited-IAM or scope checks. An all-skipped
+comparison is presented as unperformed rather than a zero-change finding.

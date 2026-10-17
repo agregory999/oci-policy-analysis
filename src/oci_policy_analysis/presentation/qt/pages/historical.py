@@ -41,15 +41,17 @@ class HistoricalWorker(QThread):
         meaningful_only: Omit ephemeral internal IDs from changed-field analysis.
         generation: Owner's selection generation for stale result rejection.
         parent: Owning page retaining this worker until finished.
+        include_incomplete: Compare observed incomplete inventories with explicit warnings.
     """
 
     completed = Signal(int, object)
     failed = Signal(int, str)
 
-    def __init__(self, cache, sources, meaningful_only, generation, parent):
+    def __init__(self, cache, sources, meaningful_only, generation, parent, *, include_incomplete=False):
         super().__init__(parent)
         self.cache, self.sources = cache, deepcopy(sources)
         self.meaningful_only, self.generation = meaningful_only, generation
+        self.include_incomplete = include_incomplete
 
     def run(self) -> None:
         """Load each source once and run the shared section comparison off-thread."""
@@ -65,6 +67,7 @@ class HistoricalWorker(QThread):
                 left_name=self.sources[0]['value'],
                 right_name=self.sources[1]['value'],
                 meaningful_only=self.meaningful_only,
+                include_incomplete=self.include_incomplete,
             )
             self.completed.emit(self.generation, result)
         except Exception as exc:
@@ -135,6 +138,13 @@ class HistoricalPage(QWidget):
         )
         self.meaningful.toggled.connect(self._invalidate)
         option_layout.addWidget(self.meaningful)
+        self.include_incomplete = QCheckBox('Compare incomplete snapshots with warnings')
+        self.include_incomplete.setChecked(True)
+        self.include_incomplete.setToolTip(
+            'Shows differences in observed JSON even when collection reported errors. Missing records are unverified; this does not confirm OCI deletion. Missing sections and incompatible scopes remain unavailable.'
+        )
+        self.include_incomplete.toggled.connect(self._invalidate)
+        option_layout.addWidget(self.include_incomplete)
         option_layout.addWidget(
             label(
                 'Changes are from baseline to target. Stable identities align entities; changes to identity keys can appear as removal/addition. Nested arrays retain order. Snapshot differences do not establish effective OCI access.',
@@ -320,6 +330,7 @@ class HistoricalPage(QWidget):
             self.meaningful.isChecked(),
             self.generation,
             self,
+            include_incomplete=self.include_incomplete.isChecked(),
         )
         self.worker.completed.connect(self._completed)
         self.worker.failed.connect(self._failed)
@@ -346,7 +357,14 @@ class HistoricalPage(QWidget):
 
     def _controls(self):
         busy = self.worker is not None
-        for widget in (*self.sources, *self.file_buttons, self.refresh_button, self.swap_button, self.meaningful):
+        for widget in (
+            *self.sources,
+            *self.file_buttons,
+            self.refresh_button,
+            self.swap_button,
+            self.meaningful,
+            self.include_incomplete,
+        ):
             widget.setEnabled(not busy)
         self.compare_button.setEnabled(
             not busy and not self.block_reason and all(combo.currentData() for combo in self.sources)
@@ -363,9 +381,10 @@ class HistoricalPage(QWidget):
         self.source_section.button.setChecked(False)
         meta = result.metadata
         self.provenance.show()
+        warning_text = '\n'.join(f'{section}: {reason}' for section, reason in result.section_warnings.items())
         skipped_text = '\n'.join(f'{section}: {reason}' for section, reason in result.skipped_sections.items())
         self.provenance.setPlainText(
-            f'Baseline: {result.left_cache}\n{meta.get("baseline", "")}\n\nTarget: {result.right_cache}\n{meta.get("target", "")}\n\nNot compared:\n{skipped_text or "None"}\nLegacy metadata can leave tenancy identity or load scope unverified.'
+            f'Baseline: {result.left_cache}\n{meta.get("baseline", "")}\n\nTarget: {result.right_cache}\n{meta.get("target", "")}\n\nNot compared:\n{skipped_text or "None"}\nWarnings:\n{warning_text or "None"}\nLegacy metadata can leave tenancy identity or load scope unverified.'
         )
         for category, definitions, sections in (
             ('policy', HistoricalAnalysisService.POLICY_SECTIONS, result.policy_sections),
@@ -390,7 +409,16 @@ class HistoricalPage(QWidget):
         warnings = f' · {len(result.skipped_sections)} sections not compared' if result.skipped_sections else ''
         if not meta.get('tenancy_verified'):
             warnings += ' · Tenancy identity not recorded on both sources'
-        self.status.setText(f'{summary}{warnings}. Select a row for JSON details.')
+        if result.section_warnings:
+            self.status.setText(
+                f'Unverified snapshot differences: {summary}{warnings}. Collection is incomplete; missing records are not confirmed OCI deletions.'
+            )
+        elif not result.policy_sections and not result.identity_sections:
+            self.status.setText(
+                'No sections were compared. Review the section reasons; this does not mean there were no changes.'
+            )
+        else:
+            self.status.setText(f'{summary}{warnings}. Select a row for JSON details.')
         self._controls()
 
     def _filter(self, category):
@@ -410,7 +438,10 @@ class HistoricalPage(QWidget):
                         'section': item.section,
                         'title': item.title,
                         'fields': ', '.join(change['field'] for change in item.changed_fields or []) or 'Whole item',
-                        'change': asdict(item),
+                        'change': {
+                            **asdict(item),
+                            'comparison_warning': self.result.section_warnings.get(section.section, ''),
+                        },
                     }
                 )
         table = self.tables[category]
@@ -428,8 +459,19 @@ class HistoricalPage(QWidget):
             if selected
             else (f'{len(unavailable)} sections unavailable; choose a section for its reason.' if unavailable else '')
         )
+        qualification = (
+            self.result.section_warnings.get(selected, '')
+            if selected
+            else (
+                'Incomplete collection: differences are unverified.'
+                if any(title in self.result.section_warnings for title, _ in definitions)
+                else ''
+            )
+        )
         self.counts[category].setText(
-            f'Showing {table.proxy.rowCount()} of {len(rows)} changes.' + (f' Not compared: {reason}' if reason else '')
+            f'Showing {table.proxy.rowCount()} of {len(rows)} changes.'
+            + (f' Not compared: {reason}' if reason else '')
+            + (f' {qualification}' if qualification else '')
         )
 
     def _selection(self, category):
@@ -442,8 +484,9 @@ class HistoricalPage(QWidget):
         change = self.selected_change or {}
         if not change:
             self.detail_window.hide()
+        self.item_title.setToolTip(change.get('comparison_warning', ''))
         self.item_title.setText(
-            f'{change.get("action")} · {change.get("section")} · {change.get("title")}'
+            f'{"UNVERIFIED · " if change.get("comparison_warning") else ""}{change.get("action")} · {change.get("section")} · {change.get("title")}'
             if change
             else 'Select a changed item to inspect its JSON.'
         )

@@ -143,6 +143,20 @@ def main() -> int:
             application.processEvents()
             assert historical.detail_window.isVisible()
             historical.detail_window.close()
+            maintenance = window.tools_page.maintenance
+            cache = maintenance.service.cache
+            cache_file = cache.cache_dir / 'combined_cache_smoke_baseline.json'
+            cache_file.write_text(json.dumps(history_data), encoding='utf-8')
+            (cache.cache_dir / 'cache_entries.json').write_text(
+                json.dumps({'tenancy_name': 'smoke', 'cache_date': 'baseline'}) + '\n', encoding='utf-8'
+            )
+            assert maintenance.service.set_locked('smoke_baseline', True)
+            assert not maintenance.service.remove_cache('smoke_baseline')
+            assert maintenance.service.rename_cache('smoke_baseline', 'smoke_renamed')
+            maintenance.refresh_caches()
+            assert maintenance.table.model.records == [{'name': 'smoke_renamed', 'locked': True}]
+            assert maintenance.service.set_locked('smoke_renamed', False)
+            assert maintenance.service.remove_cache('smoke_renamed')
             assert not window.windowIcon().isNull()
             assert window.users_groups_page.user_view.inventory.model.rowCount() == len(context.policy_repo.users)
             application.processEvents()
