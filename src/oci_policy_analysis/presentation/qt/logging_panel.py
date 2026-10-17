@@ -28,6 +28,7 @@ QT_COMPONENTS = (
     'qt.load',
     'qt.simulation',
     'qt.reports',
+    'qt.recommendations',
     'qt.pages.browser',
     'qt.pages.graph',
     'qt.pages.dynamic_groups',

@@ -37,6 +37,7 @@ from oci_policy_analysis.presentation.qt.pages.graph import PolicyGraphPage
 from oci_policy_analysis.presentation.qt.pages.mcp import McpAssistantPage
 from oci_policy_analysis.presentation.qt.pages.overview import OverviewSettingsPage
 from oci_policy_analysis.presentation.qt.pages.prospective import ProspectiveStatementsPage
+from oci_policy_analysis.presentation.qt.pages.recommendations import RecommendationsPage
 from oci_policy_analysis.presentation.qt.pages.resource_principals import ResourcePrincipalsPage
 from oci_policy_analysis.presentation.qt.pages.simulation import SimulationPage
 from oci_policy_analysis.presentation.qt.pages.users_groups import UsersGroupsPage
@@ -94,10 +95,9 @@ class WorkbenchWindow(QMainWindow):
         self.settings_page = OverviewSettingsPage(
             LoggingPanel(settings, verbose=self.verbose), settings, self.experience
         )
-        self.recommendations_page = PlannedWorkflowPage(
-            'Recommendations',
-            'Beginner-friendly findings and guidance will be presented here using RecommendationsService. This page stays available in Standard mode; full recommendations require Full intelligence enrichment.',
-        )
+        self.recommendations_page = RecommendationsPage(settings)
+        self.recommendations_page.busy_changed.connect(self._recommendations_busy)
+        self.recommendations_page.analysis_finished.connect(self._analysis_refreshed)
         self.prospective_page = ProspectiveStatementsPage()
         self.simulation_page = SimulationPage()
         self.simulation_page.manage_prospective.connect(
@@ -178,6 +178,7 @@ class WorkbenchWindow(QMainWindow):
         self.statusBar().addPermanentWidget(self.data_as_of)
         layout.addLayout(body, 1)
         self.drawer = DetailsDrawer(root)
+        self.recommendations_page.details_requested.connect(self.drawer.show_record)
         self.browser_page.details_requested.connect(self.drawer.show_record)
         self.simulation_page.details_requested.connect(self.drawer.show_record)
         self.graph_page.details_requested.connect(self.drawer.show_record)
@@ -259,7 +260,12 @@ class WorkbenchWindow(QMainWindow):
             item.setFlags(flags | Qt.ItemFlag.ItemIsEnabled if enabled else flags & ~Qt.ItemFlag.ItemIsEnabled)
             item.setToolTip('' if enabled else 'Load a snapshot on Overview to open this page.')
             report_busy = self.tools_page.reports.worker is not None
-            page.setEnabled(enabled and (not report_busy or page is self.tools_page))
+            analysis_busy = self.recommendations_page.worker is not None
+            page.setEnabled(
+                enabled
+                and (not report_busy or page is self.tools_page)
+                and (not analysis_busy or page is self.recommendations_page)
+            )
 
     @Slot(bool)
     def _experience_changed(self, _advanced: bool) -> None:
@@ -348,6 +354,7 @@ class WorkbenchWindow(QMainWindow):
         self.mcp_page.set_context(context)
         self.resource_principals_page.set_context(context)
         self.tools_page.reports.set_context(context)
+        self.recommendations_page.set_context(context)
         self._set_data_available(True)
         self.settings_page.refresh_caches()
         self.data_as_of.setText(f'Data as of  ·  {getattr(context.policy_repo, "data_as_of", None) or "Not recorded"}')
@@ -360,6 +367,7 @@ class WorkbenchWindow(QMainWindow):
 
     @Slot(bool)
     def _busy_changed(self, busy: bool) -> None:
+        self.recommendations_page.set_block_reason('Wait for snapshot loading to finish.' if busy else '')
         self.tools_page.reports.set_block_reason('Wait for snapshot loading to finish.' if busy else '')
         self.settings_page.set_busy(busy)
         self.mcp_page.set_loading(busy)
@@ -373,6 +381,7 @@ class WorkbenchWindow(QMainWindow):
 
     @Slot(bool)
     def _simulation_busy(self, busy: bool) -> None:
+        self.recommendations_page.set_block_reason('Wait for the current simulation task to finish.' if busy else '')
         self.tools_page.reports.set_block_reason('Wait for the current simulation task to finish.' if busy else '')
         self.progress.setVisible(busy)
         self.controller.load_block_reason = 'Wait for the current simulation task to finish.' if busy else ''
@@ -388,6 +397,7 @@ class WorkbenchWindow(QMainWindow):
     @Slot(bool)
     def _reports_busy(self, busy: bool) -> None:
         reason = 'Wait for the current report to finish.' if busy else ''
+        self.recommendations_page.set_block_reason(reason)
         self.progress.setVisible(busy)
         self.controller.load_block_reason = reason
         self.settings_page.set_load_locked(busy)
@@ -400,6 +410,45 @@ class WorkbenchWindow(QMainWindow):
         else:
             self._set_data_available(self.controller.context is not None)
 
+    @Slot(bool)
+    def _recommendations_busy(self, busy: bool) -> None:
+        reason = 'Wait for recommendation analysis to finish.' if busy else ''
+        self.drawer.clear()
+        self.progress.setVisible(busy)
+        self.controller.load_block_reason = reason
+        self.settings_page.set_load_locked(busy)
+        self.mcp_page.set_loading(busy)
+        self.simulation_page.controller.block_reason = reason
+        self.tools_page.reports.set_block_reason(reason)
+        if busy:
+            # Existing report previews belong to the old derived analysis.
+            self.tools_page.reports.set_context(None)
+            for _key, _title, page, _advanced in self.page_specs:
+                if page is not self.recommendations_page:
+                    page.setEnabled(False)
+        else:
+            self._set_data_available(self.controller.context is not None)
+
+    @Slot(object)
+    def _analysis_refreshed(self, context) -> None:
+        if context is not self.controller.context:
+            return
+        # Full enrichment replaces engines; discard simulation results and stale evidence.
+        for page in (
+            self.prospective_page,
+            self.simulation_page,
+            self.browser_page,
+            self.graph_page,
+            self.dynamic_groups_page,
+            self.users_groups_page,
+            self.resource_principals_page,
+            self.mcp_page,
+            self.tools_page.reports,
+            self.recommendations_page,
+        ):
+            page.set_context(context)
+        self._apply_appearance(self.controller.settings)
+
     @Slot()
     def _show_logs(self) -> None:
         self.log_tabs.setCurrentIndex(0)
@@ -408,6 +457,7 @@ class WorkbenchWindow(QMainWindow):
 
     @Slot(bool)
     def _mcp_locked(self, locked: bool) -> None:
+        self.recommendations_page.set_block_reason('Stop embedded MCP before running analysis.' if locked else '')
         self.tools_page.reports.set_block_reason('Stop embedded MCP before generating reports.' if locked else '')
         self.controller.load_block_reason = 'Stop embedded MCP before loading another snapshot.' if locked else ''
         self.settings_page.set_load_locked(locked)
@@ -449,10 +499,11 @@ class WorkbenchWindow(QMainWindow):
             self.controller.worker is not None
             or self.simulation_page.controller.worker is not None
             or self.tools_page.reports.worker is not None
+            or self.recommendations_page.worker is not None
         ):
             logger.warning('Close deferred while loading')
             self.statusBar().showMessage(
-                'A load, simulation or report task is running. Close the window after it finishes.'
+                'A load, analysis, simulation or report task is running. Close the window after it finishes.'
             )
             event.ignore()
         elif self.mcp_page.active:

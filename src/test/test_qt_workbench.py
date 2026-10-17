@@ -42,6 +42,7 @@ def workbench(qt_application, monkeypatch, tmp_path, request):
     _wait_for_load(application, window)
     _wait_for_simulation(application, window)
     _wait_for_reports(application, window)
+    _wait_for_recommendations(application, window)
     window.mcp_page.stop_all()
     deadline = time.monotonic() + 20
     while window.mcp_page.active and time.monotonic() < deadline:
@@ -2474,3 +2475,208 @@ def test_report_html_cannot_fetch_local_or_remote_resources(workbench):
     preview = window.tools_page.reports.html_preview
     for url in ['file:///etc/passwd', 'https://example.invalid/private.png']:
         assert preview.loadResource(QTextDocument.ResourceType.ImageResource, QUrl(url)).isEmpty()
+
+
+def _wait_for_recommendations(application, window):
+    deadline = time.monotonic() + 30
+    while window.recommendations_page.worker is not None and time.monotonic() < deadline:
+        application.processEvents()
+        time.sleep(0.01)
+    assert window.recommendations_page.worker is None, 'Recommendation analysis did not finish'
+
+
+def test_recommendations_run_builds_reports_and_rebinds_consumers(workbench, monkeypatch):
+    from oci_policy_analysis.application.services.recommendations_service import RecommendationsService
+    from oci_policy_analysis.application.services.reports_service import ReportsService
+
+    application, window = workbench
+    window.settings_page.load_sample()
+    _wait_for_load(application, window)
+    page = window.recommendations_page
+    context = window.controller.context
+    records = window.prospective_page.service.records
+    prospect = records.create(
+        'ROOT/Applications',
+        'Preserve local what-if',
+        'allow group AppDevelopers to read buckets in compartment Applications',
+    )
+    records.validate_and_update_text(prospect.id, prospect.statement_text)
+    records.persist_and_push_to_engine()
+    prospective_ids = {row['internal_id'] for row in context.simulation.get_prospective_statements()}
+    previous_simulation = context.simulation
+    assert not context.intelligence.permissions_report
+    assert 'Query foundations' in page.status.text()
+    original = RecommendationsService.refresh_analysis
+    threads = []
+
+    def run(service, **kwargs):
+        threads.append(QThread.currentThread() is application.thread())
+        return original(service, **kwargs)
+
+    monkeypatch.setattr(RecommendationsService, 'refresh_analysis', run)
+    window.controller.settings['enabled_intelligence_checks'] = ['risk', 'supersession', 'recommendations']
+    page.where_reduction.setCurrentIndex(page.where_reduction.findData(25))
+    page.run_button.click()
+    _wait_for_recommendations(application, window)
+    assert threads == [False]
+    assert context.simulation is not previous_simulation
+    assert prospective_ids == {row['internal_id'] for row in context.simulation.get_prospective_statements()}
+    assert context.simulation.get_prospective_statements()[0]['statement_text'] == prospect.statement_text
+    prospect.description = 'Updated after engine replacement'
+    records.persist_and_push_to_engine()
+    assert context.simulation.get_prospective_statements()[0]['description'] == prospect.description
+    assert context.intelligence.permissions_report
+    assert page.tables['summary'].model.rowCount() > 0
+    assert page.tables['risk_statement'].model.rowCount() > 0
+    assert context.settings['risk_where_clause_reduction_pct'] == 25
+    assert context.settings['enabled_intelligence_checks'] == ['risk', 'supersession', 'recommendations']
+    assert window.simulation_page.controller.context is context
+    assert window.tools_page.reports.context is context
+    reports = window.tools_page.reports
+    reports.report_choice.setCurrentIndex(reports.report_choice.findData('permissions'))
+    assert reports.run_button.isEnabled()
+    reports.run_report()
+    _wait_for_reports(application, window)
+    assert reports.report['report_id'] == 'permissions'
+    assert ReportsService(context).get_report('supersession')['report_id'] == 'supersession'
+    assert page.run_button.isEnabled()
+    assert not window.controller.load_block_reason
+
+
+def test_recommendations_filters_numeric_sort_and_formatted_supersession(workbench):
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QLabel
+
+    application, window = workbench
+    window.settings_page.load_sample()
+    _wait_for_load(application, window)
+    context = window.controller.context
+    candidate = context.policy_repo.regular_statements[0]
+    candidate['statement_text'] = '<literal & source> ' + 'long policy text ' * 80
+    candidate['effective_path'] = 'ROOT/Applications/Child'
+    context.intelligence.overlay['supersessions'] = [
+        {
+            'statement_internal_id': candidate['internal_id'],
+            'classification': 'Single Statement',
+            'candidate_permissions': ['READ', 'WRITE'],
+            'notes': 'Full unconditional coverage.',
+            'evidence': [
+                {
+                    'policy_name': '<Ancestor>',
+                    'statement_text': 'allow group Admin to manage all-resources in tenancy',
+                    'effective_path': 'ROOT',
+                    'relationship': 'Ancestor',
+                    'covered_permissions': ['READ', 'WRITE'],
+                    'conditional': False,
+                },
+                {
+                    'policy_name': 'Qualified',
+                    'statement_text': "allow any-user to read buckets in tenancy where request.user.id = 'alice'",
+                    'effective_path': 'ROOT',
+                    'relationship': 'Ancestor',
+                    'covered_permissions': ['READ'],
+                    'conditional': True,
+                },
+            ],
+        }
+    ]
+    context.intelligence.overlay['recommendations'] = [
+        {'Priority': 'High', 'Category': 'Risk', 'Recommendation': 'Review broad access'},
+        {'Priority': 'Low', 'Category': 'Cleanup', 'Recommendation': 'Review objects'},
+    ]
+    page = window.recommendations_page
+    page.set_context(context)
+    page.severity.setCurrentIndex(page.severity.findData('High'))
+    assert page.tables['summary'].model.rowCount() == 1
+    page.searches['summary'].setText('absent')
+    assert page.tables['summary'].proxy.rowCount() == 0
+    page.searches['summary'].clear()
+    page.category.setCurrentIndex(page.category.findData('Cleanup'))
+    assert page.tables['summary'].model.rowCount() == 0
+    page.compartment.setCurrentIndex(page.compartment.findData('ROOT/Applications'))
+    table = page.tables['supersession']
+    assert table.model.rowCount() == 1  # descendant included
+    menu = table.context_menu(table.model.records[0])
+    menu.actions()[0].trigger()
+    menu.deleteLater()
+    dialog = page.dialog
+    assert dialog is not None
+    assert dialog.details['candidate']['statement_text'] == candidate['statement_text']
+    assert any(widget.text() == candidate['statement_text'] for widget in dialog.findChildren(QLabel))
+    assert all(widget.textFormat() == Qt.TextFormat.PlainText for widget in dialog.findChildren(QLabel))
+    assert dialog.coverage.model.records[1]['Conditional evidence (review only)'] == 'None'
+    raw = dialog.raw.toPlainText()
+    dialog._coverage_details(dialog.coverage.model.records[0])
+    assert dialog.raw.toPlainText() == raw  # Copy all remains complete
+    risk = page.tables['risk_statement']
+    risk.model.replace([{'Relative Risk': 9}, {'Relative Risk': 100}, {'Relative Risk': 20}])
+    risk.sortByColumn(1, Qt.SortOrder.DescendingOrder)
+    assert [risk.record_at(risk.proxy.index(i, 0))['Relative Risk'] for i in range(3)] == [100, 20, 9]
+    page.set_context(None)
+    assert page.dialog is None and not page.run_button.isEnabled()
+    assert page.tables['supersession'].model.rowCount() == 0
+
+
+def test_recommendations_worker_gates_competing_tasks_and_recovers_failure(workbench, monkeypatch):
+    from oci_policy_analysis.application.services.recommendations_service import RecommendationsService
+
+    application, window = workbench
+    window.settings_page.load_sample()
+    _wait_for_load(application, window)
+    page = window.recommendations_page
+    context = window.controller.context
+    entered, release = threading.Event(), threading.Event()
+
+    def fail(service, **kwargs):
+        entered.set()
+        release.wait(10)
+        raise RuntimeError('deliberate incomplete enrichment')
+
+    monkeypatch.setattr(RecommendationsService, 'refresh_analysis', fail)
+    page.run_analysis()
+    assert entered.wait(5)
+    try:
+        page.run_analysis()  # duplicate submission ignored
+        assert window.controller.load_block_reason
+        assert not window.tools_page.reports.run_button.isEnabled()
+        assert not window.mcp_page.start_button.isEnabled()
+        window.settings_page.advanced_mode.setChecked(True)
+        assert not window.browser_page.isEnabled()
+        window.close()
+        assert window.recommendations_page.worker is not None
+    finally:
+        release.set()
+    _wait_for_recommendations(application, window)
+    assert 'deliberate incomplete enrichment' in page.status.text()
+    assert page.run_button.isEnabled()
+    assert window.tools_page.reports.context is context
+    assert not window.controller.load_block_reason
+    window._mcp_locked(True)
+    assert not page.run_button.isEnabled()
+    window._mcp_locked(False)
+    assert page.run_button.isEnabled()
+
+
+def test_recommendations_reject_obsolete_worker_results(workbench, monkeypatch):
+    from oci_policy_analysis.application.context import AppContext
+    from oci_policy_analysis.application.services.recommendations_service import RecommendationsService
+
+    application, window = workbench
+    window.settings_page.load_sample()
+    _wait_for_load(application, window)
+    page = window.recommendations_page
+    release = threading.Event()
+
+    def obsolete(service, **kwargs):
+        release.wait(10)
+        return {'summary': [{'Recommendation': 'Obsolete result'}]}
+
+    monkeypatch.setattr(RecommendationsService, 'refresh_analysis', obsolete)
+    page.run_analysis()
+    new_context = AppContext.from_settings({})
+    window.controller.context = new_context
+    page.set_context(new_context)
+    release.set()
+    _wait_for_recommendations(application, window)
+    assert not page.payload['summary']
+    assert page.context is new_context

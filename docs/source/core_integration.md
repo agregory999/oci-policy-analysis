@@ -116,8 +116,9 @@ and keeps its pages available.
 A prominent **Advanced mode** toggle on Overview persists the Qt experience
 preference. Recommendations and Tools stay in Standard mode; Advanced adds
 Prospective statements, Simulation, Consolidation and Tools → Maintenance.
-These new workflow destinations are labeled planned, with Logging in Tools
-reusing the existing dock/settings. The other Tools tabs are Condition Tester
+Recommendations provides the shared read-only finding dashboard and explicit
+full analysis; Consolidation and Maintenance remain planned. Logging in Tools
+reuses the existing dock/settings. The other Tools tabs are Condition Tester
 and Reports. Mode changes never run operations or reload data.
 
 `experience.py` supplies one shared mode object: pages register advanced widgets
@@ -297,7 +298,7 @@ matching statements, not distinct resources or authorization decisions.
 | Statement details | Shared animated drawer, full source/parsed/validity fields, raw JSON and copy |
 | Policy graph | Direct source grants, exclusions, filters, paging, and native evidence selection |
 | Intelligence | Minimal/full loading and strategy/risk settings; dedicated results pages remain to be explored |
-| Simulation, consolidation, report UI | Native simulation and on-demand Reports under Tools; recommendations and consolidation remain planned destinations |
+| Simulation, consolidation, report UI | Native simulation, Recommendations with explicit full enrichment, and on-demand Reports under Tools; consolidation remains planned |
 | Logging | All declared/registered loggers, saved global/component controls, INFO+ live view |
 | Appearance | Saved Light/Dark appearance, color palette, text sizes through Extra Large, optional fixed-width tables/Overview, and table density |
 | Embedded MCP and assistant | Managed query-only snapshot host; optional native Codex chat; loading locked during serving |

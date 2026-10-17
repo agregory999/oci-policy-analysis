@@ -143,7 +143,7 @@ owned by the page so future draft editors need not lose unsaved work.
 - Tools is one left-nav destination with native `QTabWidget` tabs for Condition
   Tester, Reports, Maintenance and Logging. Logging opens the existing dock and
   Overview settings rather than creating another handler or settings copy.
-- Recommendations, Consolidation and Maintenance are **planned destinations**, not implemented
+- Consolidation and Maintenance are **planned destinations**, not implemented
   analysis workflows. Their pages say so explicitly; opening them runs nothing.
 
 For future controls, call `experience.bind_advanced(widget)` or
@@ -531,3 +531,19 @@ export. Snapshot replacement clears previews; simultaneous loads, simulation,
 prospective editing and embedded MCP are blocked during report work. Full
 permissions require Full enrichment; supersession depends on existing strategy
 findings. Report counts and empty findings do not establish authoritative access.
+
+
+## Native Recommendations
+
+Recommendations is a Standard-mode page using the shared dashboard service:
+Summary, policy/statement risk, supersession, cross-tenancy, consolidation,
+cleanup guidance and limits. Search/filter/sort tables and right-click or
+double-click for evidence. Supersession has a formatted resizable dialog with
+full source, scope, conditional qualifications, and separate permission coverage.
+
+Run analysis explicitly rebuilds full derived state and report prerequisites with
+configured checks and risk reductions. The worker retains the context and gates
+loads, simulation, reports, prospective edits and MCP until finished. Consumers
+rebind even after partial failure; local prospective statements and their CRUD
+manager survive simulation-engine replacement. Stale completions are discarded.
+Tk cleanup tracking/ignores and consolidation plan handoff are not yet exposed.

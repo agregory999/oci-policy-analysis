@@ -157,6 +157,18 @@ class ProspectiveStatementsService:
         logger.info('ProspectiveStatementsService: initializing for tenancy %s', self._tenancy_ocid)
         self._load_from_cache()
 
+    def bind_simulation_engine(self, simulation_engine) -> None:
+        """Retarget validation and future pushes after derived-engine replacement.
+
+        Args:
+            simulation_engine: Current snapshot simulation engine.
+
+        Notes:
+            Keeps in-memory records and persisted storage unchanged. The caller
+            hydrates the replacement engine separately before exposing it.
+        """
+        self._simulation_engine = simulation_engine
+
     @property
     def settings(self) -> dict[str, Any] | None:
         """Return underlying legacy settings dict when using adapter mode."""

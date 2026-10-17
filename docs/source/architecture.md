@@ -414,3 +414,14 @@ The shared service owns report choices and JSON/Markdown/portable HTML export;
 Qt owns file dialogs and palette-aware, resource-blocked rich-text previews.
 The permissions report is a Full-profile prerequisite; supersession consumes
 existing findings, while Full Overlaps explicitly refreshes derived overlap data.
+
+
+The Qt Recommendations page reads `RecommendationsService` without fetching
+missing live limits during display. Explicit Run analysis calls its
+`refresh_analysis` method on a retained worker, using the shared full post-load
+pipeline. The shell serializes access against loads, MCP, reports, prospective
+edits and simulation. Rebinding drops old simulation results and report previews;
+prospective statements and their CRUD manager are retargeted to the replacement
+engine. Enrichment failures can be partial and are surfaced rather than treated
+as complete results. Supersession detail shaping separates unconditional coverage
+from conditional review evidence in the shared service; Qt only renders it.

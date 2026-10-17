@@ -82,6 +82,38 @@ def main() -> int:
             assert reports.report and reports.report['report_id'] == 'policy-inventory'
             reports.format_choice.setCurrentIndex(reports.format_choice.findData('html'))
             assert 'Policy Inventory' in reports.html_preview.toPlainText()
+            recommendations = window.recommendations_page
+            window.controller.settings['enabled_intelligence_checks'] = ['risk', 'supersession', 'recommendations']
+            recommendations.run_analysis()
+            deadline = time.monotonic() + 60
+            while recommendations.worker is not None and time.monotonic() < deadline:
+                application.processEvents()
+                time.sleep(0.01)
+            assert recommendations.worker is None, 'Packaged recommendation worker did not finish'
+            assert context.intelligence.permissions_report, recommendations.status.text()
+            assert recommendations.tables['summary'].model.rowCount() > 0
+            reports.report_choice.setCurrentIndex(reports.report_choice.findData('permissions'))
+            assert reports.run_button.isEnabled(), 'Analysis did not enable permissions report'
+            from oci_policy_analysis.presentation.qt.pages.recommendations import SupersessionDialog
+
+            details = SupersessionDialog(
+                {
+                    'candidate': context.policy_repo.regular_statements[0],
+                    'finding': {
+                        'Classification': 'Formatting smoke check',
+                        'Notes': 'No authorization conclusion.',
+                        'Evidence': [],
+                    },
+                    'coverage': [],
+                },
+                window,
+            )
+            details.show()
+            application.processEvents()
+            assert details.tabs.count() == 3
+            details.close()
+            details.deleteLater()
+
             assert not window.windowIcon().isNull()
             assert window.users_groups_page.user_view.inventory.model.rowCount() == len(context.policy_repo.users)
             application.processEvents()
