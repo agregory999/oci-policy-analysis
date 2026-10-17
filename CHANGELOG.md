@@ -1,3 +1,10 @@
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.8](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.7...v7.0.0-7-0-0-policy-corpus-cross-tenancy.8) (2026-10-17)
+
+
+### Features
+
+* add Qt cache maintenance and reveal incomplete snapshot differences ([350d9ab](https://github.com/agregory999/oci-policy-analysis/commit/350d9ab0b527b2fa80286216ad309d18b31d888e))
+
 ## [7.0.0-7-0-0-policy-corpus-cross-tenancy.7](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.6...v7.0.0-7-0-0-policy-corpus-cross-tenancy.7) (2026-10-17)
 
 
