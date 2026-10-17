@@ -47,7 +47,7 @@ class LoadWorker(QThread):
                     recursive=self.options['recursive'],
                     load_all_users=self.options.get('load_all_users', True),
                     compartment_domain_search_depth=self.options['depth'],
-                    save_cache_after_load=False,
+                    save_cache_after_load=True,
                     **common,
                 )
             elif self.source == 'cache':

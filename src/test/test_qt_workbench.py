@@ -816,7 +816,7 @@ def test_export_is_unchanged_and_failed_reload_retains_snapshot(workbench, tmp_p
     assert 'Previous snapshot retained' in window.activity_page.toPlainText()
 
 
-def test_selected_profile_is_loaded_in_worker_without_saving_cache(workbench, monkeypatch):
+def test_selected_profile_is_loaded_in_worker_with_cache_saving_enabled(workbench, monkeypatch):
     application, window = workbench
     captured = {}
 
@@ -835,7 +835,7 @@ def test_selected_profile_is_loaded_in_worker_without_saving_cache(workbench, mo
     assert captured['profile'] == 'TEAM'
     assert captured['recursive'] is False
     assert captured['compartment_domain_search_depth'] == 2
-    assert captured['save_cache_after_load'] is False
+    assert captured['save_cache_after_load'] is True
     assert captured['post_load_profile'] == 'minimal'
 
 
@@ -2847,3 +2847,36 @@ def test_lazy_json_model_preserves_types_paths_and_only_materializes_expanded_no
     assert model.data(model.index(3, 1, array)) == '"<text>"'
     assert model.parent(null) == array
     assert len(model.root.children[0].children) == 1  # second large array never visited
+
+
+@pytest.mark.parametrize('successful_load', [True, False])
+def test_live_qt_load_saves_snapshot_for_history_only_after_success(workbench, monkeypatch, successful_load):
+    from copy import deepcopy
+
+    from oci_policy_analysis.application.core.repo.policy_analysis_repository import PolicyAnalysisRepository
+
+    application, window = workbench
+    snapshot = sample_snapshot()
+
+    def initialize(repo, **kwargs):
+        if not successful_load:
+            return False
+        return caching.CacheManager().load_cache_from_json(loaded_json=deepcopy(snapshot), policy_analysis=repo)
+
+    monkeypatch.setattr(PolicyAnalysisRepository, 'initialize_client', initialize)
+    for method in ('load_compartments_only', 'load_complete_identity_domains', 'load_policies_only'):
+        monkeypatch.setattr(PolicyAnalysisRepository, method, lambda *args, **kwargs: True)
+    window.settings_page.load_button.click()
+    _wait_for_load(application, window)
+    names = window.settings_page.cache_service.list_caches()
+    if not successful_load:
+        assert not names
+        assert window.controller.context is None
+        return
+    assert len(names) == 1
+    saved = window.controller.context.cache.load_cache_into_local_json(cached_tenancy=names[0])
+    assert saved['version'] == 2 and saved['schema_version'] == 3
+    assert len(saved['policy_statements']) == len(snapshot['policy_statements'])
+    assert window.settings_page.cache_list.currentData() == names[0]
+    for combo in window.historical_page.sources:
+        assert any(combo.itemData(i) == {'kind': 'cache', 'value': names[0]} for i in range(combo.count()))

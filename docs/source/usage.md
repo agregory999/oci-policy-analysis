@@ -363,8 +363,9 @@ Use this tab when you want a **clear, report-style view** of what access actuall
 **Qt:** Enable Advanced mode, then open **Historical comparison** immediately
 above Tools. It works before loading an active tenancy. Choose baseline and
 target saved caches, or use **Open JSON…** for exported combined-cache files.
-Comparison never imports these sources into the active repository or rewrites
-snapshot files. **Swap** reverses direction and clears the old result.
+Successful Qt live OCI loads automatically save a fresh combined-cache snapshot,
+which appears in both Overview and Historical comparison. Comparison never imports
+these sources into the active repository or rewrites snapshot files. **Swap** reverses direction and clears the old result.
 
 The **Policy changes** and **IAM changes** tabs separate policy/statement/alias
 changes from compartments, domains, groups, dynamic groups and users. Select a

@@ -563,3 +563,9 @@ No browser component or JSON UI dependency is required. Export/copy retain full
 JSON. Default comparison omits only entity-level ephemeral IDs, uses exact source
 identity for statements, and preserves duplicate statement occurrences. Nested
 JSON/tag keys remain literal; original sources are never normalized in place.
+
+
+Successful live OCI loads always request a new combined-cache snapshot through
+LoadService, including Query foundations loads. Overview and Historical comparison
+refresh their cache choices after publishing the load. Opening an existing cache,
+JSON file or fictional sample stays read-only and does not create another cache.
