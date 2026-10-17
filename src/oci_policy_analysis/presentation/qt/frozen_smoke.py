@@ -114,6 +114,35 @@ def main() -> int:
             details.close()
             details.deleteLater()
 
+            window.experience.set_advanced(True)
+            baseline = root / 'history-baseline.json'
+            target = root / 'history-target.json'
+            history_data = {
+                'snapshot_kind': 'self-test-fixture',
+                'tenancy_ocid': 'self-test',
+                'groups': [{'group_ocid': 'self-test-group', 'group_name': 'Before'}],
+            }
+            baseline.write_text(json.dumps(history_data), encoding='utf-8')
+            history_data['groups'][0]['group_name'] = 'After'
+            target.write_text(json.dumps(history_data), encoding='utf-8')
+            historical = window.historical_page
+            for combo, path in zip(historical.sources, (baseline, target), strict=True):
+                combo.addItem(path.name, {'kind': 'file', 'value': str(path)})
+                combo.setCurrentIndex(combo.count() - 1)
+            historical.compare()
+            deadline = time.monotonic() + 30
+            while historical.worker is not None and time.monotonic() < deadline:
+                application.processEvents()
+                time.sleep(0.01)
+            assert historical.worker is None and historical.result, historical.status.text()
+            assert historical.tables['iam'].model.rowCount() == 1, historical.result
+            historical.inspect(historical.tables['iam'].model.records[0])
+            assert historical.selected_change['action'] == 'Modified'
+            assert historical.after.model().rowCount() == 1
+            historical.show_details()
+            application.processEvents()
+            assert historical.detail_window.isVisible()
+            historical.detail_window.close()
             assert not window.windowIcon().isNull()
             assert window.users_groups_page.user_view.inventory.model.rowCount() == len(context.policy_repo.users)
             application.processEvents()

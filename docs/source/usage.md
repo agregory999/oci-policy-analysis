@@ -358,6 +358,39 @@ The **Permissions Report Tab** is the application’s **effective-access auditor
 Use this tab when you want a **clear, report-style view** of what access actually exists.
 
 ### Historical Comparison Tab
+
+
+**Qt:** Enable Advanced mode, then open **Historical comparison** immediately
+above Tools. It works before loading an active tenancy. Choose baseline and
+target saved caches, or use **Open JSON…** for exported combined-cache files.
+Comparison never imports these sources into the active repository or rewrites
+snapshot files. **Swap** reverses direction and clears the old result.
+
+The **Policy changes** and **IAM changes** tabs separate policy/statement/alias
+changes from compartments, domains, groups, dynamic groups and users. Select a
+section to see its added/removed/modified totals, or its reason for not being
+compared. Search across the change list to narrow titles and field paths.
+
+Select an item, then choose **Inspect JSON change**, double-click it, or use its
+right-click menu. The resizable inspector has expandable **Field changes** with
+typed baseline/target values, plus lazy **Baseline JSON** and **Target JSON** trees
+for the complete original records. An absent field is `<missing>`; explicit JSON
+`null`, booleans and numbers remain distinct. Literal dots or slashes in source
+keys stay intact in the tree. Right-click original JSON nodes to copy a value or
+JSON Pointer. Copy a complete change, or export all comparison results and
+coverage metadata as JSON.
+
+The default **Ignore ephemeral internal IDs** option omits only entity-level
+`internal_id`, `stable_key` and underscore-prefixed runtime fields. Nested JSON,
+including arbitrary tag keys, remains literal. Statements match by exact source
+text within a policy; edits appear as removal/addition and duplicate occurrences
+are retained. Turning this option off uses the existing stable-key matching.
+Nested arrays retain their order. Original JSON is always retained for inspection.
+Snapshot controls collapse after comparison to leave room for the change lists.
+Open **Snapshots and comparison options** to change sources or review provenance.
+Unknown legacy tenancy/scope metadata cannot establish comparable collection
+coverage; unavailable sections are never presented as zero-change evidence.
+
 <!-- Anchor link; do not change or remove this line! -->
 
 The **Historical Comparison Tab** lets you compare **snapshots of policy and IAM data over time**.

@@ -156,3 +156,7 @@ Support
 
 .. automodule:: oci_policy_analysis.application.services.reports_service
    :members:
+
+.. automodule:: oci_policy_analysis.application.services.historical_analysis_service
+   :members:
+   :show-inheritance:

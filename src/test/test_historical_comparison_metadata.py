@@ -107,3 +107,101 @@ def test_reload_description_shows_provenance():
     assert 'IAM as of: 2026-09-08' in description
     assert 'Reload source: base.json' in description
     assert 'Users: not loaded' in description
+
+
+def test_json_field_changes_preserve_null_presence_types_and_literal_paths():
+    service = _service({}, {})
+    changes = service._extract_changed_fields(
+        {'null_removed': None, 'flag': True, 'a.b': {'x/y': 1}, 'array': [None]},
+        {'null_added': None, 'flag': 1, 'a.b': {'x/y': 2}, 'array': []},
+    )
+    by_field = {item['field']: item for item in changes}
+    assert by_field['null_removed']['action'] == 'Removed'
+    assert by_field['null_removed']['old_present'] and not by_field['null_removed']['new_present']
+    assert by_field['null_added']['action'] == 'Added'
+    assert by_field['null_added']['new'] is None
+    assert by_field['flag']['old'] is True and type(by_field['flag']['new']) is int
+    assert by_field['a.b.x/y']['path'] == ['a.b', 'x/y']
+    assert by_field['array[0]']['new_present'] is False
+
+
+def test_meaningful_comparison_ignores_ephemeral_ids_but_keeps_full_source():
+    from copy import deepcopy
+
+    left = {
+        'tenancy_ocid': 'T',
+        'groups': [{'group_ocid': 'g', 'group_name': 'G', 'internal_id': 'old', 'members': ['A'], '_runtime': 1}],
+    }
+    right = deepcopy(left)
+    right['groups'][0].update(internal_id='new', _runtime=2)
+    service = _service(left, right)
+    assert service.compare_caches(left_cache='left', right_cache='right').identity_sections[0].modified == 1
+    assert (
+        service.compare_caches(left_cache='left', right_cache='right', meaningful_only=True)
+        .identity_sections[0]
+        .modified
+        == 0
+    )
+    right['groups'][0]['members'].append('B')
+    before = deepcopy((left, right))
+    result = service.compare_caches(left_cache='left', right_cache='right', meaningful_only=True)
+    item = result.identity_sections[0].items[0]
+    assert item.old_value['internal_id'] == 'old' and item.new_value['internal_id'] == 'new'
+    assert item.changed_fields[0]['field'] == 'members[1]'
+    assert (left, right) == before
+    assert result.metadata['tenancy_verified'] is True
+
+
+def test_runtime_only_fields_do_not_count_as_modified_and_entity_order_is_ignored():
+    left = {'groups': [{'group_ocid': 'g1', '_runtime': 1}, {'group_ocid': 'g2'}]}
+    right = {'groups': [{'group_ocid': 'g2'}, {'group_ocid': 'g1', '_runtime': 2}]}
+    section = _service(left, right).compare_caches(left_cache='left', right_cache='right').identity_sections[0]
+    assert (section.added, section.removed, section.modified) == (0, 0, 0)
+
+
+def test_meaningful_statement_matching_ignores_runtime_keys_and_preserves_duplicates():
+    from copy import deepcopy
+
+    statement = {
+        'policy_ocid': 'p',
+        'statement_text': 'allow group G to read buckets in tenancy',
+        'internal_id': 'old',
+        'stable_key': 'old-key',
+    }
+    left = {'policy_statements': [statement, deepcopy(statement)], 'cross_tenancy_statements': [statement]}
+    right = deepcopy(left)
+    for key in ('policy_statements', 'cross_tenancy_statements'):
+        for row in right[key]:
+            row.update(internal_id='new', stable_key='new-key')
+    result = _service(left, right).compare_caches(left_cache='left', right_cache='right', meaningful_only=True)
+    assert all(section.modified == section.added == section.removed == 0 for section in result.policy_sections)
+    right['policy_statements'].pop()
+    result = _service(left, right).compare_caches(left_cache='left', right_cache='right', meaningful_only=True)
+    regular = next(section for section in result.policy_sections if section.key == 'policy_statements')
+    assert (regular.added, regular.removed, regular.modified) == (0, 1, 0)
+
+
+def test_meaningful_comparison_keeps_arbitrary_nested_tag_keys_literal():
+    from copy import deepcopy
+
+    left = {
+        'policies': [
+            {
+                'policy_ocid': 'p',
+                'internal_id': 'old',
+                'freeform_tags': {'internal_id': 'before', '_owner': 'Alice'},
+                'defined_tags': {'Audit': {'stable_key': 'before'}},
+            }
+        ]
+    }
+    right = deepcopy(left)
+    right['policies'][0]['internal_id'] = 'new'
+    right['policies'][0]['freeform_tags'] = {'internal_id': 'after', '_owner': 'Bob'}
+    right['policies'][0]['defined_tags']['Audit']['stable_key'] = 'after'
+    result = _service(left, right).compare_caches(left_cache='left', right_cache='right', meaningful_only=True)
+    item = result.policy_sections[0].items[0]
+    assert {field['field'] for field in item.changed_fields} == {
+        'freeform_tags.internal_id',
+        'freeform_tags._owner',
+        'defined_tags.Audit.stable_key',
+    }

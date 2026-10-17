@@ -43,6 +43,7 @@ def workbench(qt_application, monkeypatch, tmp_path, request):
     _wait_for_simulation(application, window)
     _wait_for_reports(application, window)
     _wait_for_recommendations(application, window)
+    _wait_for_historical(application, window)
     window.mcp_page.stop_all()
     deadline = time.monotonic() + 20
     while window.mcp_page.active and time.monotonic() < deadline:
@@ -968,7 +969,7 @@ def test_graph_pagination_exclusions_and_unresolved_source_survive_import(workbe
 def test_settings_start_collapsed_and_widgets_apply_session_values(workbench):
     application, window = workbench
     page = window.settings_page
-    assert window.navigation.count() == 12
+    assert window.navigation.count() == 13
     assert page.results.isHidden()
     assert window.log_dock.isHidden()
     assert not window.windowIcon().isNull()
@@ -2680,3 +2681,169 @@ def test_recommendations_reject_obsolete_worker_results(workbench, monkeypatch):
     _wait_for_recommendations(application, window)
     assert not page.payload['summary']
     assert page.context is new_context
+
+
+def _wait_for_historical(application, window):
+    deadline = time.monotonic() + 20
+    while window.historical_page.worker is not None and time.monotonic() < deadline:
+        application.processEvents()
+        time.sleep(0.01)
+    assert window.historical_page.worker is None, 'Historical comparison did not finish'
+
+
+def _historical_sources(page, left, right):
+    for combo, name in zip(page.sources, (left, right), strict=True):
+        combo.addItem(name, {'kind': 'cache', 'value': name})
+        combo.setCurrentIndex(combo.count() - 1)
+
+
+def test_historical_advanced_navigation_comparison_and_json_inspection(workbench, monkeypatch, tmp_path):
+    from copy import deepcopy
+
+    from PySide6.QtCore import Qt
+
+    application, window = workbench
+    page = window.historical_page
+    assert window.navigation.item(window.page_index('historical')).isHidden()
+    assert window.page_index('historical') + 1 == window.page_index('tools')
+    window.experience.set_advanced(True)
+    assert window.navigation.item(window.page_index('historical')).flags() & Qt.ItemFlag.ItemIsEnabled
+    window.navigation.setCurrentRow(window.page_index('historical'))
+    assert window.pages.currentWidget() is page
+    assert window.controller.context is None
+    left = {
+        'tenancy_ocid': 'T',
+        'policies': [{'policy_ocid': 'p', 'policy_name': '<Literal>', 'tags': {'cost.center': None}}],
+        'policy_statements': [],
+        'groups': [{'group_ocid': 'g', 'group_name': 'Before'}],
+    }
+    right = deepcopy(left)
+    right['policies'][0]['tags'] = {'cost.center': 'new'}
+    right['groups'][0]['group_name'] = 'After'
+    threads = []
+
+    def read(*, cached_tenancy):
+        threads.append(QThread.currentThread() is application.thread())
+        return deepcopy(left if cached_tenancy == 'baseline' else right)
+
+    monkeypatch.setattr(page.cache, 'load_cache_into_local_json', read)
+    _historical_sources(page, 'baseline', 'target')
+    page.compare_button.click()
+    _wait_for_historical(application, window)
+    assert threads == [False, False]
+    assert page.result and page.tables['policy'].model.rowCount() == 1
+    assert page.tables['iam'].model.rowCount() == 1
+    assert window.controller.context is None
+    table = page.tables['policy']
+    table.setCurrentIndex(table.proxy.index(0, 0))
+    application.processEvents()
+    assert page.selected_change['title'] == '<Literal>'
+    assert page.changes.model().item(0).text() == 'tags'
+    assert page.changes.model().item(0).child(0).text() == 'cost.center'
+    assert page.field_values[0].toPlainText() == 'null'
+    assert page.field_values[1].toPlainText() == '"new"'
+    page.show_details()
+    assert page.detail_window.isVisible()
+    page.copy_change()
+    assert json.loads(application.clipboard().text())['old_value'] == page.selected_change['old_value']
+    export = tmp_path / 'comparison.json'
+    monkeypatch.setattr(
+        'oci_policy_analysis.presentation.qt.pages.historical.QFileDialog.getSaveFileName',
+        lambda *args: (str(export), ''),
+    )
+    page.export_comparison()
+    assert json.loads(export.read_text())['left_cache'] == 'baseline'
+    page.searches['policy'].setText('no matches')
+    assert table.proxy.rowCount() == 0 and page.selected_change is None
+    page.swap_sources()
+    assert page.result is None
+    assert page.sources[0].currentData()['value'] == 'target'
+    assert page.sources[1].currentData()['value'] == 'baseline'
+    assert page.counts['policy'].text() == 'No current comparison.'
+    assert page.sections['policy'].count() == 1
+    assert not page.detail_window.isVisible()
+
+
+def test_historical_json_file_inputs_skip_inherited_iam_and_do_not_rewrite(workbench, monkeypatch, tmp_path):
+    application, window = workbench
+    page = window.historical_page
+    window.experience.set_advanced(True)
+    left = {'tenancy_ocid': 'T', 'policies': [], 'groups': [{'group_ocid': 'g'}], 'users': []}
+    right = {**left, 'snapshot_kind': 'policy_reload'}
+    paths = [tmp_path / 'baseline.json', tmp_path / 'target.json']
+    for path, source in zip(paths, (left, right), strict=True):
+        path.write_text(json.dumps(source))
+    before = [path.read_bytes() for path in paths]
+    choices = iter(paths)
+    monkeypatch.setattr(
+        'oci_policy_analysis.presentation.qt.pages.historical.QFileDialog.getOpenFileName',
+        lambda *args: (str(next(choices)), ''),
+    )
+    page.open_file(0)
+    page.open_file(1)
+    page.compare()
+    _wait_for_historical(application, window)
+    assert 'Groups' in page.result.skipped_sections
+    page.sections['iam'].setCurrentIndex(page.sections['iam'].findData('Groups'))
+    assert 'inherited' in page.counts['iam'].text()
+    assert page.tables['iam'].model.rowCount() == 0
+    assert [path.read_bytes() for path in paths] == before
+    page.meaningful.setChecked(False)
+    assert page.result is None and page.before.model().rowCount() == 0
+    paths[1].write_text('{broken')
+    page.compare()
+    _wait_for_historical(application, window)
+    assert 'Comparison failed' in page.status.text()
+    assert page.compare_button.isEnabled() and not window.controller.load_block_reason
+
+
+def test_historical_retains_worker_blocks_close_and_discards_stale_results(workbench, monkeypatch):
+    application, window = workbench
+    page = window.historical_page
+    window.experience.set_advanced(True)
+    entered, release = threading.Event(), threading.Event()
+
+    def read(*, cached_tenancy):
+        entered.set()
+        release.wait(10)
+        return {'tenancy_ocid': 'T', 'policies': []}
+
+    monkeypatch.setattr(page.cache, 'load_cache_into_local_json', read)
+    _historical_sources(page, 'baseline', 'target')
+    page.compare()
+    assert entered.wait(5)
+    try:
+        worker = page.worker
+        page.compare()
+        assert page.worker is worker
+        assert window.controller.load_block_reason
+        assert not window.settings_page.sample_button.isEnabled()
+        assert not window.tools_page.reports.run_button.isEnabled()
+        window.close()
+        assert page.worker is not None
+        page._invalidate()  # forced programmatic source change rejects old completion
+    finally:
+        release.set()
+    _wait_for_historical(application, window)
+    assert page.result is None
+    assert not window.controller.load_block_reason
+    assert window.settings_page.sample_button.isEnabled()
+
+
+def test_lazy_json_model_preserves_types_paths_and_only_materializes_expanded_nodes(qt_application):
+    from oci_policy_analysis.presentation.qt.json_view import JsonModel
+
+    source = {'literal.key': [None, True, 1, '<text>'], 'many': list(range(10000))}
+    model = JsonModel(source)
+    root = model.index(0, 0)
+    assert model.root.children[0].children == {}
+    assert model.rowCount(root) == 2
+    array = model.index(0, 0, root)
+    assert model.parent(array) == root
+    null = model.index(0, 1, array)
+    assert model.data(null) == 'null'
+    assert model.data(model.index(1, 1, array)) == 'true'
+    assert model.data(model.index(2, 1, array)) == '1'
+    assert model.data(model.index(3, 1, array)) == '"<text>"'
+    assert model.parent(null) == array
+    assert len(model.root.children[0].children) == 1  # second large array never visited

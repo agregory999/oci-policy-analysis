@@ -425,3 +425,15 @@ prospective statements and their CRUD manager are retargeted to the replacement
 engine. Enrichment failures can be partial and are surfaced rather than treated
 as complete results. Supersession detail shaping separates unconditional coverage
 from conditional review evidence in the shared service; Qt only renders it.
+
+
+Qt Historical comparison is an Advanced destination independent of active tenancy
+loading. HistoricalAnalysisService.compare_snapshots accepts detached combined
+cache JSON and applies the same coverage checks as compare_caches. Optional
+meaningful comparison ignores entity-level ephemeral IDs; statement matching
+uses exact source/policy identity and retains duplicate occurrences. Field deltas
+include path tokens, type distinctions and old/new presence flags, so absent
+fields do not collapse into JSON null. The stored snapshot schema is unchanged.
+Qt only renders shared deltas and lazy original-JSON trees. A retained thread and
+selection generations protect comparison lifecycle; no source cache or active
+engine is written. Legacy missing scope metadata remains an explicit limitation.

@@ -189,3 +189,11 @@ For the ASGI application and server launcher, see :doc:`oci_policy_analysis`.
 .. automodule:: oci_policy_analysis.presentation.qt.pages.recommendations
    :members:
    :show-inheritance:
+
+.. automodule:: oci_policy_analysis.presentation.qt.pages.historical
+   :members:
+   :show-inheritance:
+
+.. automodule:: oci_policy_analysis.presentation.qt.json_view
+   :members:
+   :show-inheritance:

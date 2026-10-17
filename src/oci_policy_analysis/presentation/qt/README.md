@@ -547,3 +547,19 @@ loads, simulation, reports, prospective edits and MCP until finished. Consumers
 rebind even after partial failure; local prospective statements and their CRUD
 manager survive simulation-engine replacement. Stale completions are discarded.
 Tk cleanup tracking/ignores and consolidation plan handoff are not yet exposed.
+
+
+## Historical comparison
+
+Advanced mode adds Historical comparison immediately above Tools. It compares
+named caches or explicit JSON files independently of the active AppContext.
+A retained worker reads each source once and calls HistoricalAnalysisService.
+The shell gates competing tasks and closing; input-generation checks discard
+obsolete results. Policy and IAM queues preserve per-section coverage reasons.
+
+A resizable inspector renders presence-aware typed deltas as expandable field
+paths and complete original records using a lazy QAbstractItemModel JSON tree.
+No browser component or JSON UI dependency is required. Export/copy retain full
+JSON. Default comparison omits only entity-level ephemeral IDs, uses exact source
+identity for statements, and preserves duplicate statement occurrences. Nested
+JSON/tag keys remain literal; original sources are never normalized in place.

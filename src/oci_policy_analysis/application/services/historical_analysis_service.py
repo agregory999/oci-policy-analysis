@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -43,6 +46,7 @@ class HistoricalCompareResult:
     identity_sections: list[HistoricalSectionResult]
     identity_comparable: bool = True
     skipped_sections: dict[str, str] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class HistoricalAnalysisService:
@@ -181,11 +185,36 @@ class HistoricalAnalysisService:
         return f'{section_key}#{idx}'
 
     @staticmethod
-    def _to_keyed_map(snapshot: dict[str, Any], key: str) -> dict[str, dict[str, Any]]:
+    def _to_keyed_map(
+        snapshot: dict[str, Any], key: str, *, meaningful_only: bool = False
+    ) -> dict[str, dict[str, Any]]:
         by_key_name = f'{key}_by_key'
         existing = snapshot.get(by_key_name)
         if key == 'identity_domains' and not existing:
             existing = snapshot.get('domains_by_key')
+        if meaningful_only and key in {'policy_statements', 'cross_tenancy_statements'}:
+            # Statement text has no durable OCI row ID. Match exact source within
+            # its policy; preserve duplicate occurrences instead of collapsing them.
+            rows = snapshot.get(key)
+            if not isinstance(rows, list):
+                rows = list(existing.values()) if isinstance(existing, dict) else []
+            result, occurrences = {}, {}
+            for index, row in enumerate(rows):
+                if not isinstance(row, dict):
+                    continue
+                identity = [
+                    row.get('policy_ocid') or row.get('policy_name'),
+                    row.get('compartment_ocid') or row.get('compartment_path'),
+                    row.get('statement_text'),
+                ]
+                if row.get('statement_text'):
+                    base = hashlib.sha256(json.dumps(identity, ensure_ascii=False).encode()).hexdigest()
+                else:
+                    base = str(row.get('stable_key') or HistoricalAnalysisService._fallback_stable_key(key, row, index))
+                occurrence = occurrences.get(base, 0)
+                occurrences[base] = occurrence + 1
+                result[f'{base}#{occurrence}'] = dict(row)
+            return result
         if isinstance(existing, dict) and existing:
             return {str(k): v for k, v in existing.items() if isinstance(v, dict)}
 
@@ -211,9 +240,10 @@ class HistoricalAnalysisService:
         *,
         label: str,
         key: str,
+        meaningful_only: bool = False,
     ) -> HistoricalSectionResult:
-        left_map = self._to_keyed_map(left, key)
-        right_map = self._to_keyed_map(right, key)
+        left_map = self._to_keyed_map(left, key, meaningful_only=meaningful_only)
+        right_map = self._to_keyed_map(right, key, meaningful_only=meaningful_only)
 
         left_keys = set(left_map.keys())
         right_keys = set(right_map.keys())
@@ -250,9 +280,11 @@ class HistoricalAnalysisService:
         for stable_key in shared_keys:
             old_val = left_map[stable_key]
             new_val = right_map[stable_key]
-            if old_val != new_val:
+            comparison_old = self.comparison_value(old_val, meaningful_only=meaningful_only)
+            comparison_new = self.comparison_value(new_val, meaningful_only=meaningful_only)
+            changed_fields = self._extract_changed_fields(comparison_old, comparison_new)
+            if changed_fields:
                 modified_count += 1
-                changed_fields = self._extract_changed_fields(old_val, new_val)
                 items.append(
                     HistoricalDiffItem(
                         action='Modified',
@@ -275,40 +307,71 @@ class HistoricalAnalysisService:
         )
 
     @staticmethod
-    def _extract_changed_fields(old_val: dict[str, Any], new_val: dict[str, Any]) -> list[dict[str, Any]]:
-        """Return recursive field-level deltas using dotted/indexed paths.
+    def comparison_value(value: Any, *, meaningful_only: bool = False) -> Any:
+        """Return detached comparable JSON without ephemeral implementation fields.
 
-        Example paths:
-        - policy_name
-        - principals[0].display_name
-        - tags.defined.cost_center
+        Args:
+            value: JSON source value; never changed in place.
+            meaningful_only: Also omit entity-level internal_id and stable_key fields.
+                OCI IDs, timestamps, conditions, validity and array order remain.
+
+        Returns:
+            Any: Detached comparison value. Underscore-prefixed runtime fields
+            are omitted only at the entity level. Nested JSON, including arbitrary
+            OCI tag keys, is preserved literally.
         """
+        if isinstance(value, dict):
+            return deepcopy(
+                {
+                    key: child
+                    for key, child in value.items()
+                    if not str(key).startswith('_') and not (meaningful_only and key in {'internal_id', 'stable_key'})
+                }
+            )
+        return deepcopy(value)
 
-        changed: list[dict[str, Any]] = []
+    @staticmethod
+    def _extract_changed_fields(old_val: dict[str, Any], new_val: dict[str, Any]) -> list[dict[str, Any]]:
+        """Return typed, presence-aware field deltas with unambiguous path tokens."""
+        changed = []
 
-        def _walk(old_item: Any, new_item: Any, path: str) -> None:
-            if isinstance(old_item, dict) and isinstance(new_item, dict):
-                keys = sorted(set(old_item.keys()) | set(new_item.keys()))
-                for key in keys:
-                    if isinstance(key, str) and key.startswith('_'):
-                        continue
-                    child_path = f'{path}.{key}' if path else str(key)
-                    _walk(old_item.get(key), new_item.get(key), child_path)
+        def walk(old, new, path, tokens, old_present=True, new_present=True):
+            if old_present and new_present and isinstance(old, dict) and isinstance(new, dict):
+                for key in sorted(set(old) | set(new)):
+                    walk(
+                        old.get(key),
+                        new.get(key),
+                        f'{path}.{key}' if path else str(key),
+                        [*tokens, key],
+                        key in old,
+                        key in new,
+                    )
                 return
-
-            if isinstance(old_item, list) and isinstance(new_item, list):
-                max_len = max(len(old_item), len(new_item))
-                for idx in range(max_len):
-                    old_child = old_item[idx] if idx < len(old_item) else None
-                    new_child = new_item[idx] if idx < len(new_item) else None
-                    child_path = f'{path}[{idx}]' if path else f'[{idx}]'
-                    _walk(old_child, new_child, child_path)
+            if old_present and new_present and isinstance(old, list) and isinstance(new, list):
+                for index in range(max(len(old), len(new))):
+                    walk(
+                        old[index] if index < len(old) else None,
+                        new[index] if index < len(new) else None,
+                        f'{path}[{index}]',
+                        [*tokens, index],
+                        index < len(old),
+                        index < len(new),
+                    )
                 return
+            if old_present != new_present or type(old) is not type(new) or old != new:
+                changed.append(
+                    {
+                        'field': path or '(value)',
+                        'path': tokens,
+                        'old': deepcopy(old),
+                        'new': deepcopy(new),
+                        'old_present': old_present,
+                        'new_present': new_present,
+                        'action': 'Added' if not old_present else 'Removed' if not new_present else 'Modified',
+                    }
+                )
 
-            if old_item != new_item:
-                changed.append({'field': path or '(value)', 'old': old_item, 'new': new_item})
-
-        _walk(old_val, new_val, '')
+        walk(old_val, new_val, '', [])
         return changed
 
     @staticmethod
@@ -362,9 +425,56 @@ class HistoricalAnalysisService:
             return 'Inventory is missing from this cache.'
         return ''
 
-    def compare_caches(self, *, left_cache: str, right_cache: str) -> HistoricalCompareResult:
+    def compare_caches(
+        self, *, left_cache: str, right_cache: str, meaningful_only: bool = False
+    ) -> HistoricalCompareResult:
+        """Read two caches and compare their sections without changing active data.
+
+        Args:
+            left_cache: Baseline cache name.
+            right_cache: Target cache name.
+            meaningful_only: Ignore ephemeral internal_id and stable_key fields.
+
+        Returns:
+            HistoricalCompareResult: Sectioned changes and coverage limitations.
+        """
         left = self.cache_manager.load_cache_into_local_json(cached_tenancy=left_cache)
         right = self.cache_manager.load_cache_into_local_json(cached_tenancy=right_cache)
+        return self.compare_snapshots(
+            left, right, left_name=left_cache, right_name=right_cache, meaningful_only=meaningful_only
+        )
+
+    def compare_snapshots(
+        self,
+        left: dict,
+        right: dict,
+        *,
+        left_name: str = 'Baseline',
+        right_name: str = 'Target',
+        meaningful_only: bool = False,
+    ) -> HistoricalCompareResult:
+        """Compare detached JSON snapshots using the same cache compatibility rules.
+
+        Args:
+            left: Baseline combined-cache JSON.
+            right: Target combined-cache JSON.
+            left_name: Display name for the baseline.
+            right_name: Display name for the target.
+            meaningful_only: Omit ephemeral internal IDs; preserve original evidence.
+
+        Returns:
+            HistoricalCompareResult: Changes plus per-section non-comparison reasons.
+
+        Raises:
+            ValueError: Either snapshot is missing or known tenancy OCIDs differ.
+
+        Notes:
+            List items align by stable keys, with legacy fallback identities. An
+            identity change can appear as removal/addition rather than modification.
+            Meaningful mode aligns statements by exact text within a policy and retains
+            duplicate occurrences; edits appear as removal/addition. Nested JSON
+            arrays retain their order. No source files or engines change.
+        """
         if not isinstance(left, dict) or not left or not isinstance(right, dict) or not right:
             raise ValueError('Unable to load cache json for historical comparison.')
         if left.get('tenancy_ocid') and right.get('tenancy_ocid') and left['tenancy_ocid'] != right['tenancy_ocid']:
@@ -396,14 +506,23 @@ class HistoricalAnalysisService:
                 if reasons:
                     skipped[label] = ' '.join(reasons)
                 else:
-                    destination.append(self._compare_section(left, right, label=label, key=key))
+                    destination.append(
+                        self._compare_section(left, right, label=label, key=key, meaningful_only=meaningful_only)
+                    )
         return HistoricalCompareResult(
-            left_cache=left_cache,
-            right_cache=right_cache,
+            left_cache=left_name,
+            right_cache=right_name,
             policy_sections=policy_sections,
             identity_sections=identity_sections,
             identity_comparable=not any(
                 label in skipped for label, key in self.IDENTITY_SECTIONS if key != 'compartments'
             ),
             skipped_sections=skipped,
+            metadata={
+                'baseline': self.describe_snapshot(left),
+                'target': self.describe_snapshot(right),
+                'tenancy': right.get('tenancy_name') or left.get('tenancy_name') or '',
+                'tenancy_verified': bool(left.get('tenancy_ocid') and right.get('tenancy_ocid')),
+                'meaningful_only': meaningful_only,
+            },
         )
