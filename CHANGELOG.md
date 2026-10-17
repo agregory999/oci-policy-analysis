@@ -1,3 +1,10 @@
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.7](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.6...v7.0.0-7-0-0-policy-corpus-cross-tenancy.7) (2026-10-17)
+
+
+### Bug Fixes
+
+* always save a cache after Qt live tenancy loads ([1628256](https://github.com/agregory999/oci-policy-analysis/commit/1628256a5fc86c6c4184185a8a917718bb008d4b))
+
 ## [7.0.0-7-0-0-policy-corpus-cross-tenancy.6](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.5...v7.0.0-7-0-0-policy-corpus-cross-tenancy.6) (2026-10-17)
 
 
