@@ -122,8 +122,9 @@ operation-only runs, retaining events across repeated initialization before a
 flush, starting a new run after a prior flush, sanitizing URL-bearing errors,
 handling malformed event containers, pagination, and exposing partial-read counts.
 
-Live bucket results and upload-PAR expiry are **not verified** by offline tests.
-No analytics read/list URL was configured during implementation. Supply that URL
-in the viewer to inspect the actual historical dataset. Do not use the app's
-write-only PAR as the viewer credential. The existing write endpoint can be
-rotated through its environment override if a live upload reports failure.
+Live bucket results and upload-PAR expiry are not verified by offline tests.
+Configure a runtime read/list PAR to inspect the historical dataset; a successful
+read does not independently verify write-PAR expiry. No synthetic usage document
+is uploaded during validation. Keep private usage findings outside published
+repository documentation. The write endpoint can be rotated through its
+environment override if a normal application upload reports failure.
