@@ -1,3 +1,10 @@
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.5](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.4...v7.0.0-7-0-0-policy-corpus-cross-tenancy.5) (2026-10-17)
+
+
+### Features
+
+* add native Recommendations and supersession evidence views ([d48b255](https://github.com/agregory999/oci-policy-analysis/commit/d48b25528dd155749b4d8d9f2a9f1b3d5d9b506b))
+
 ## [7.0.0-7-0-0-policy-corpus-cross-tenancy.4](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.3...v7.0.0-7-0-0-policy-corpus-cross-tenancy.4) (2026-10-17)
 
 
