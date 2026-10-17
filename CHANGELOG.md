@@ -1,3 +1,10 @@
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.6](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.5...v7.0.0-7-0-0-policy-corpus-cross-tenancy.6) (2026-10-17)
+
+
+### Features
+
+* add advanced historical comparison with JSON inspection ([c057314](https://github.com/agregory999/oci-policy-analysis/commit/c05731439551e18dabfcc3b8a8a0ec702616369d))
+
 ## [7.0.0-7-0-0-policy-corpus-cross-tenancy.5](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.4...v7.0.0-7-0-0-policy-corpus-cross-tenancy.5) (2026-10-17)
 
 
