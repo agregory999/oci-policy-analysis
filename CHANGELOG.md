@@ -1,3 +1,10 @@
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.4](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.3...v7.0.0-7-0-0-policy-corpus-cross-tenancy.4) (2026-10-17)
+
+
+### Features
+
+* add Qt reports and harden native release publishing ([06b1fcb](https://github.com/agregory999/oci-policy-analysis/commit/06b1fcbce30e376fd4044f9543192d7734d13635))
+
 ## [7.0.0-7-0-0-policy-corpus-cross-tenancy.3](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.2...v7.0.0-7-0-0-policy-corpus-cross-tenancy.3) (2026-10-16)
 
 
