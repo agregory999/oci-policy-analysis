@@ -1,3 +1,10 @@
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.9](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.8...v7.0.0-7-0-0-policy-corpus-cross-tenancy.9) (2026-10-17)
+
+
+### Features
+
+* restore Qt usage publication and add portable analytics viewer ([90894ac](https://github.com/agregory999/oci-policy-analysis/commit/90894acd94cdcee1763045bc18aa23b6ed780b03))
+
 ## [7.0.0-7-0-0-policy-corpus-cross-tenancy.8](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.7...v7.0.0-7-0-0-policy-corpus-cross-tenancy.8) (2026-10-17)
 
 
