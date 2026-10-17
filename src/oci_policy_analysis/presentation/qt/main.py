@@ -23,8 +23,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from oci_policy_analysis._version import get_app_version
 from oci_policy_analysis.application.core.support.logger import get_logger
 from oci_policy_analysis.application.services.logging_service import LoggingService
+from oci_policy_analysis.application.services.usage_service import UsageSession
 from oci_policy_analysis.presentation.qt.controller import WorkbenchController
 from oci_policy_analysis.presentation.qt.details import DetailsDrawer
 from oci_policy_analysis.presentation.qt.experience import ExperienceMode
@@ -43,7 +45,7 @@ from oci_policy_analysis.presentation.qt.pages.resource_principals import Resour
 from oci_policy_analysis.presentation.qt.pages.simulation import SimulationPage
 from oci_policy_analysis.presentation.qt.pages.users_groups import UsersGroupsPage
 from oci_policy_analysis.presentation.qt.pages.workflows import PlannedWorkflowPage, ToolsPage
-from oci_policy_analysis.presentation.qt.preferences import load_preferences
+from oci_policy_analysis.presentation.qt.preferences import load_preferences, save_preferences
 from oci_policy_analysis.presentation.qt.themes import apply_theme, fixed_width_family
 from oci_policy_analysis.presentation.qt.widgets import label
 
@@ -71,11 +73,12 @@ class WorkbenchWindow(QMainWindow):
         during loading and waits for MCP/Codex shutdown.
     """
 
-    def __init__(self, *, verbose: bool = False) -> None:
+    def __init__(self, *, verbose: bool = False, record_usage: bool = False) -> None:
         """Build the shell and connect page requests to the loading controller.
 
         Args:
             verbose: Lock shell/file DEBUG for this session; the UI remains INFO+.
+            record_usage: Activate usage lifecycle; the launcher enables this, embedding defaults off.
         """
         super().__init__()
         self.setWindowTitle('OCI Policy Analysis · Qt')
@@ -91,6 +94,7 @@ class WorkbenchWindow(QMainWindow):
         LoggingService(settings).update_log_settings(settings)
         for name, runtime_level in settings.get('qt_runtime_log_levels', {}).items():
             logging.getLogger(name).setLevel(runtime_level)
+        self.usage = UsageSession(settings, get_app_version()) if record_usage else None
         self.controller = WorkbenchController(settings, self)
         self.experience = ExperienceMode(settings, self)
         self.settings_page = OverviewSettingsPage(
@@ -213,6 +217,7 @@ class WorkbenchWindow(QMainWindow):
         self.log_dock.hide()
         self.menuBar().addMenu('View').addAction(self.log_dock.toggleViewAction())
         self.settings_page.show_log_requested.connect(self._show_logs)
+        self.settings_page.usage_changed.connect(self._usage_changed)
         self.settings_page.appearance_panel.changed.connect(self._apply_appearance)
         self.tools_page.show_logs.connect(self._show_logs)
         self.tools_page.show_logging_settings.connect(self._show_logging_settings)
@@ -238,6 +243,17 @@ class WorkbenchWindow(QMainWindow):
         ):
             table.test_condition_requested.connect(self._open_condition_tester)
         self.experience.changed.connect(self._experience_changed)
+        if self.usage:
+            for name, tabs in [
+                ('tools', self.tools_page),
+                ('recommendations', self.recommendations_page.tabs),
+                ('users_groups', self.users_groups_page.tabs),
+                ('simulation', self.simulation_page),
+            ]:
+                tabs.currentChanged.connect(
+                    lambda index, name=name, tabs=tabs: self.usage.view(name, tabs.tabText(index))
+                )
+            self.simulation_page.controller.executed.connect(lambda *_: self.usage.operation('simulation_run'))
         self._apply_appearance(settings)
         self._set_data_available(False)
         self.navigation.setCurrentRow(0)
@@ -336,6 +352,8 @@ class WorkbenchWindow(QMainWindow):
         self.drawer.clear()
         self.pages.setCurrentIndex(index)
         self.heading.setText(self.page_specs[index][1])
+        if self.usage:
+            self.usage.view(self.page_specs[index][0])
         logger.debug('Navigated to page=%s', self.page_specs[index][0])
 
     @Slot(dict)
@@ -350,6 +368,11 @@ class WorkbenchWindow(QMainWindow):
 
     @Slot(object, object, str)
     def _publish(self, context, result, description: str) -> None:
+        if self.usage:
+            self.usage.set_tenancy(context.policy_repo.tenancy_ocid)
+            source = getattr(self.controller.worker, 'source', '')
+            source = {'oci': 'tenancy', 'file': 'json'}.get(source, source)
+            self.usage.operation('data_load', source=source, counts=result.summary)
         self.drawer.clear()
         self.settings_page.set_snapshot(context, result, description)
         self.prospective_page.set_context(context)
@@ -381,6 +404,8 @@ class WorkbenchWindow(QMainWindow):
 
     @Slot(str)
     def _failed(self, message: str) -> None:
+        if self.usage:
+            self.usage.operation('data_load', success=False)
         self.statusBar().showMessage(f'Load failed · {message}')
         self.settings_page.load_status.setText(f'Load failed: {message}')
 
@@ -423,6 +448,8 @@ class WorkbenchWindow(QMainWindow):
 
     @Slot(bool)
     def _reports_busy(self, busy: bool) -> None:
+        if busy:
+            self._track_worker(self.tools_page.reports.worker, 'report_generate')
         self.tools_page.maintenance.set_block_reason(
             'Wait for the active task or embedded MCP to stop.' if busy else ''
         )
@@ -443,6 +470,8 @@ class WorkbenchWindow(QMainWindow):
 
     @Slot(bool)
     def _recommendations_busy(self, busy: bool) -> None:
+        if busy:
+            self._track_worker(self.recommendations_page.worker, 'recommendations_refresh')
         self.tools_page.maintenance.set_block_reason(
             'Wait for the active task or embedded MCP to stop.' if busy else ''
         )
@@ -466,6 +495,8 @@ class WorkbenchWindow(QMainWindow):
 
     @Slot(bool)
     def _historical_busy(self, busy: bool) -> None:
+        if busy:
+            self._track_worker(self.historical_page.worker, 'historical_compare')
         self.tools_page.maintenance.set_block_reason(
             'Wait for the active task or embedded MCP to stop.' if busy else ''
         )
@@ -553,6 +584,31 @@ class WorkbenchWindow(QMainWindow):
                     if table.columnWidth(column) < minimum:
                         table.setColumnWidth(column, minimum)
 
+    def _track_worker(self, worker, category):
+        if self.usage and worker is not None:
+            worker.completed.connect(lambda *_: self.usage.operation(category))
+            worker.failed.connect(lambda *_: self.usage.operation(category, success=False))
+
+    @Slot(bool)
+    def _usage_changed(self, enabled):
+        settings = self.controller.settings
+        previous = settings.get('usage_tracking_enabled', True)
+        settings['usage_tracking_enabled'] = enabled
+        try:
+            save_preferences(settings, ('usage_tracking_enabled',))
+        except OSError:
+            settings['usage_tracking_enabled'] = previous
+            self.settings_page.usage_tracking.blockSignals(True)
+            self.settings_page.usage_tracking.setChecked(previous)
+            self.settings_page.usage_tracking.blockSignals(False)
+            self.statusBar().showMessage('Could not save usage preference; previous setting retained.')
+            return
+        if self.usage:
+            self.usage.set_enabled(enabled)
+        self.statusBar().showMessage(
+            'Usage publishing enabled.' if enabled else 'Usage publishing disabled; pending data discarded.'
+        )
+
     def closeEvent(self, event: QCloseEvent) -> None:
         """Keep an active worker alive and detach the UI log handler on close."""
         if (
@@ -573,6 +629,8 @@ class WorkbenchWindow(QMainWindow):
             event.ignore()
             self.mcp_page.stop_all()
         else:
+            if self.usage:
+                self.usage.close(wait=False)
             logger.info('Closing Qt workbench')
             self.log_bridge.close()
             event.accept()
@@ -592,17 +650,27 @@ def main(argv: list[str] | None = None) -> int:
         occurs only after the user requests a live load on Overview & settings.
     """
     parser = argparse.ArgumentParser(description='OCI Policy Analysis Qt desktop preview')
+    parser.add_argument('--analytics', action='store_true', help='Open the standalone usage analytics viewer')
+    parser.add_argument('--days', type=int, default=30, help='Analytics initial date window; 0 means all history')
     parser.add_argument('--sample', action='store_true', help='Load fictional data without contacting OCI')
     parser.add_argument(
         '--verbose', '--debug', action='store_true', help='DEBUG to shell/app.log; in-app logs remain INFO+'
     )
     args = parser.parse_args(argv)
+    if args.analytics:
+        from oci_policy_analysis.analytics.qt import main as analytics_main
+
+        return analytics_main(['--days', str(args.days)])
     application = QApplication.instance() or QApplication([sys.argv[0]])
     application.setStyle('Fusion')
     application.setApplicationName('OCI Policy Analysis')
     application.setWindowIcon(application_icon())
-    window = WorkbenchWindow(verbose=args.verbose)
+    window = WorkbenchWindow(verbose=args.verbose, record_usage=True)
     window.show()
     if args.sample:
         window.settings_page.load_sample()
-    return application.exec()
+    try:
+        return application.exec()
+    finally:
+        if window.usage:
+            window.usage.close(wait=True)

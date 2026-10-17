@@ -14,6 +14,7 @@ def load_preferences() -> dict:
     if settings.get('global_log_level') not in {'INFO', 'WARNING', 'ERROR', 'CRITICAL'}:
         settings['global_log_level'] = 'INFO'
     settings.setdefault('log_levels', {})
+    settings.setdefault('usage_tracking_enabled', True)
     if settings.get('qt_theme') not in {'Light', 'Dark'}:
         settings['qt_theme'] = 'Light'
     if settings.get('qt_color_theme') not in COLOR_THEMES:

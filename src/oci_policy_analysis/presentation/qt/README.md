@@ -588,3 +588,23 @@ confirmation. Cache selectors refresh after changes; the loaded snapshot stays i
 memory. Mutations are blocked during loads, analysis, reports, simulation, historical
 comparison and embedded MCP. Combined-cache version 2/schema 3 and index field
 names are unchanged; no migration is required and old snapshots remain readable.
+
+
+## Usage publication and companion analytics
+
+Overview & settings includes a Usage tracking section. Publication defaults on
+while preserving an existing shared opt-out; disabling immediately discards
+pending data. The launcher creates a UsageSession; embedding WorkbenchWindow
+keeps publication off unless `record_usage=True` is explicit. Events use fixed
+page/subview identifiers and aggregate counts; no user input or policy contents
+are recorded by the Qt adapter. Background uploads occur on exit and tenancy
+changes; there is no disk spool or retry.
+
+Run `python -m oci_policy_analysis.analytics.qt` or `oci-policy-analysis-analytics`
+for the companion Qt viewer. The native executable supports `--analytics` and
+`--days 0` for all history. It requires a separate runtime read/list PAR via
+`OCI_POLICY_ANALYSIS_ANALYTICS_PAR_URL` or its masked input, or local JSON exports.
+It uses shared models and aggregations, keeps old documents readable, reports
+partial reads, follows listing pagination, and never publishes tracking. The
+frozen smoke check covers both windows offline. Full review and setup details
+are in `docs/source/usage_tracking.md`.

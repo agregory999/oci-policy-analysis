@@ -42,7 +42,7 @@ def compute_overview_metrics(docs: Iterable[UsageDoc]) -> dict:
 
     docs_list = list(docs)
     total_runs = len(docs_list)
-    tenancies = {doc.tenancy_suffix for doc in docs_list if doc.tenancy_suffix}
+    tenancies = {doc.tenancy_suffix for doc in docs_list if doc.tenancy_suffix not in {None, '', 'unknown'}}
 
     started_dates = [d for d in (_safe_date(doc.started_at) for doc in docs_list) if d is not None]
     ended_dates = [d for d in (_safe_date(doc.ended_at) for doc in docs_list) if d is not None]

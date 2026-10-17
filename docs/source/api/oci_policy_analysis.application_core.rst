@@ -165,3 +165,11 @@ Support
 .. automodule:: oci_policy_analysis.application.services.cache_service
    :members:
    :show-inheritance:
+
+
+.. automodule:: oci_policy_analysis.application.services.usage_service
+   :members:
+   :show-inheritance:
+
+.. automodule:: oci_policy_analysis.application.core.support.usage_tracking
+   :members:

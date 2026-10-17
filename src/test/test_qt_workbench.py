@@ -973,7 +973,7 @@ def test_settings_start_collapsed_and_widgets_apply_session_values(workbench):
     assert page.results.isHidden()
     assert window.log_dock.isHidden()
     assert not window.windowIcon().isNull()
-    assert list(page.sections) == ['Logging', 'Intelligence', 'Look and Feel']
+    assert list(page.sections) == ['Logging', 'Intelligence', 'Look and Feel', 'Usage tracking']
     assert all(not section.button.isChecked() and section.content.isHidden() for section in page.sections.values())
     page.appearance_panel.font_size.setCurrentText('Large')
     page.appearance_panel.compact.setChecked(True)
@@ -2958,3 +2958,185 @@ def test_maintenance_rename_lock_delete_refreshes_other_cache_selectors(workbenc
     page.delete_button.click()
     assert not renamed.exists() and not page.table.model.records
     assert window.settings_page.cache_list.findData('tenant_baseline') < 0
+
+
+def test_usage_setting_defaults_on_preserves_opt_out_and_applies_immediately(workbench):
+    from oci_policy_analysis.application.services.settings_service import SettingsService
+    from oci_policy_analysis.presentation.qt.preferences import load_preferences
+
+    application, window = workbench
+    checkbox = window.settings_page.usage_tracking
+    assert checkbox.isChecked()
+    calls = []
+
+    class Session:
+        def set_enabled(self, enabled):
+            calls.append(enabled)
+
+        def close(self, **kwargs):
+            pass
+
+    window.usage = Session()
+    checkbox.setChecked(False)
+    assert calls == [False]
+    assert SettingsService.load().get()['usage_tracking_enabled'] is False
+    assert load_preferences()['usage_tracking_enabled'] is False
+    checkbox.setChecked(True)
+    assert calls == [False, True]
+
+
+def test_qt_analytics_reads_legacy_and_current_exports_filters_and_reexports(qt_application, monkeypatch, tmp_path):
+    from oci_policy_analysis.analytics.model import UsageDoc
+    from oci_policy_analysis.analytics.qt import AnalyticsWindow
+
+    application = qt_application
+    viewer = AnalyticsWindow(days=0)
+    raw = {
+        'run_id': 'legacy',
+        'app_version': '4.4',
+        'started_at': '2025-01-01T00:00:00Z',
+        'events': [
+            {'event_type': 'tab_change', 'ts': '2025-01-01T00:00:01Z', 'payload': {'tab_name': 'PolicyBrowserTab'}}
+        ],
+    }
+    path = tmp_path / 'usage.json'
+    current = {
+        **raw,
+        'run_id': 'qt-run',
+        'app_version': '7.0',
+        'interface': 'qt',
+        'schema_version': 1,
+        'tenancy_suffix': 'ABC123',
+    }
+    path.write_text(json.dumps([raw, current, current, {'broken': True}]))
+    viewer._start((None, None), [str(path)])
+    deadline = time.monotonic() + 10
+    while viewer.worker is not None and time.monotonic() < deadline:
+        application.processEvents()
+        time.sleep(0.01)
+    assert viewer.worker is None
+    assert len(viewer.docs) == 2
+    assert '1 malformed' in viewer.status.text()
+    assert viewer.tables['Features'].model.records[0]['count'] == 2
+    viewer.interface.setCurrentText('qt')
+    assert viewer.tables['Runs'].model.rowCount() == 1
+    viewer.tables['Runs'].selectRow(0)
+    application.processEvents()
+    assert json.loads(viewer.details.toPlainText())['interface'] == 'qt'
+    exported = tmp_path / 'export.json'
+    monkeypatch.setattr(
+        'oci_policy_analysis.analytics.qt.QFileDialog.getSaveFileName', lambda *args: (str(exported), '')
+    )
+    viewer.export_button.click()
+    parsed = json.loads(exported.read_text())
+    assert len(parsed) == 1 and UsageDoc.from_dict(parsed[0], tenancy_suffix=None).tenancy_suffix == 'ABC123'
+    viewer.search.setText('no matching version')
+    assert viewer.tables['Runs'].model.rowCount() == 0
+    viewer.search.clear()
+    viewer.interface.setCurrentIndex(0)
+    viewer.unknown.setChecked(False)
+    assert len(viewer.filtered_docs()) == 1
+    viewer.close()
+    viewer.deleteLater()
+
+
+def test_qt_analytics_network_failure_retains_results_and_close_cancels(qt_application, monkeypatch):
+    from oci_policy_analysis.analytics.model import UsageDoc
+    from oci_policy_analysis.analytics.qt import AnalyticsWindow
+
+    viewer = AnalyticsWindow(days=0)
+    viewer._loaded(
+        [
+            UsageDoc.from_dict(
+                {'run_id': 'old', 'app_version': '4', 'started_at': '2025-01-01T00:00:00Z'}, tenancy_suffix=None
+            )
+        ],
+        'Old results',
+    )
+    ready, release = threading.Event(), threading.Event()
+
+    def read(*args, cancelled, **kwargs):
+        ready.set()
+        release.wait(5)
+        assert cancelled.is_set()
+        raise ValueError('Bearer URL must not leak')
+
+    monkeypatch.setattr('oci_policy_analysis.analytics.qt.load_usage_report', read)
+    viewer.endpoint.setText('https://example.invalid/p/SECRET/')
+    viewer.load_button.click()
+    assert ready.wait(2)
+    viewer.close()
+    assert viewer.worker is not None and viewer.worker.cancelled.is_set()
+    release.set()
+    deadline = time.monotonic() + 10
+    while viewer.worker is not None and time.monotonic() < deadline:
+        qt_application.processEvents()
+        time.sleep(0.01)
+    assert viewer.worker is None and len(viewer.docs) == 1
+    assert 'SECRET' not in viewer.status.text()
+    viewer.deleteLater()
+
+
+def test_launched_usage_lifecycle_records_load_and_flushes_after_close(workbench, monkeypatch):
+    from oci_policy_analysis.application.core.support import usage_tracking as tracking
+
+    application, _ = workbench
+    sent = []
+
+    class Response:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+    def upload(request, **kwargs):
+        sent.append(json.loads(request.data))
+        return Response()
+
+    monkeypatch.setattr(tracking, '_tracker', None)
+    monkeypatch.setattr(tracking, '_get_par_base_url', lambda: 'https://example.invalid/')
+    monkeypatch.setattr(tracking.request, 'urlopen', upload)
+    window = WorkbenchWindow(record_usage=True)
+    window.settings_page.load_sample()
+    _wait_for_load(application, window)
+    window.navigation.setCurrentRow(window.page_index('browser'))
+    window.close()
+    window.usage.close(wait=True)
+    assert len(sent) == 1 and sent[0]['interface'] == 'qt'
+    operation = next(op for op in sent[0]['operations'] if op['op_type'] == 'data_load')
+    assert operation['payload']['source'] == 'sample'
+    assert operation['payload']['counts']['policies'] > 0
+    assert any(event['payload'].get('tab_name') == 'browser' for event in sent[0]['events'])
+    window.deleteLater()
+
+
+def test_analytics_overnight_run_matches_upload_day_and_utc_date_filter(qt_application):
+    from PySide6.QtCore import QDate
+
+    from oci_policy_analysis.analytics.model import UsageDoc
+    from oci_policy_analysis.analytics.qt import AnalyticsWindow
+
+    viewer = AnalyticsWindow(days=0)
+    doc = UsageDoc.from_dict(
+        {
+            'run_id': 'overnight',
+            'app_version': '7',
+            'started_at': '2026-10-16T23:59:00Z',
+            'ended_at': '2026-10-17T00:01:00Z',
+        },
+        tenancy_suffix='ABC123',
+    )
+    viewer._loaded([doc], 'Loaded')
+    viewer.start.setDate(QDate(2026, 10, 17))
+    viewer.end.setDate(QDate(2026, 10, 17))
+    viewer.all_history.setChecked(False)
+    assert len(viewer.filtered_docs()) == 1
+    assert viewer.tables['Daily activity'].model.records == [{'key': '2026-10-17', 'count': 1}]
+    viewer.start.setDate(QDate(2026, 10, 16))
+    viewer.end.setDate(QDate(2026, 10, 16))
+    assert not viewer.filtered_docs()
+    viewer.close()
+    viewer.deleteLater()

@@ -38,6 +38,7 @@ class OverviewSettingsPage(QScrollArea):
     browse_requested = Signal()
 
     show_log_requested = Signal()
+    usage_changed = Signal(bool)
 
     def __init__(self, logging_panel: QWidget, settings: dict, experience=None) -> None:
         """Start with tenancy controls expanded and each settings section collapsed."""
@@ -95,6 +96,22 @@ class OverviewSettingsPage(QScrollArea):
             self.sections[name] = section
             layout.addWidget(section)
         logging_panel.show_log_requested.connect(self.show_log_requested.emit)
+        privacy = QWidget()
+        privacy_layout = QVBoxLayout(privacy)
+        self.usage_tracking = QCheckBox('Publish anonymous usage data')
+        self.usage_tracking.setChecked(settings.get('usage_tracking_enabled', True))
+        privacy_layout.addWidget(self.usage_tracking)
+        self.usage_notice = _label(
+            'Enabled by default. Publishes app version, OS/Python version, timestamps, feature usage, '
+            'inventory counts and the last six tenancy OCID characters to the project usage bucket. '
+            'No policy text, names, full OCIDs, search text, prompts or credentials are included. '
+            'Best-effort uploads occur on exit or tenancy change. Turn off to discard pending usage data.',
+            wrap=True,
+        )
+        privacy_layout.addWidget(self.usage_notice)
+        self.usage_tracking.toggled.connect(self.usage_changed.emit)
+        self.sections['Usage tracking'] = CollapsibleSection('Usage tracking', privacy)
+        layout.addWidget(self.sections['Usage tracking'])
         layout.addStretch()
         self.setWidget(content)
 

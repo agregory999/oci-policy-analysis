@@ -21,6 +21,8 @@ def main() -> int:
     from PySide6.QtCore import QCoreApplication, QEvent
     from PySide6.QtWidgets import QApplication
 
+    from oci_policy_analysis.analytics.model import UsageDoc
+    from oci_policy_analysis.analytics.qt import AnalyticsWindow
     from oci_policy_analysis.application.context import AppContext
     from oci_policy_analysis.application.core.support import caching, config
     from oci_policy_analysis.application.services.load_service import LoadService
@@ -157,6 +159,27 @@ def main() -> int:
             assert maintenance.table.model.records == [{'name': 'smoke_renamed', 'locked': True}]
             assert maintenance.service.set_locked('smoke_renamed', False)
             assert maintenance.service.remove_cache('smoke_renamed')
+            analytics = AnalyticsWindow(days=0)
+            doc = UsageDoc.from_dict(
+                {
+                    'run_id': 'smoke',
+                    'app_version': 'legacy',
+                    'started_at': '2025-01-01T00:00:00Z',
+                    'events': [
+                        {
+                            'event_type': 'tab_change',
+                            'ts': '2025-01-01T00:00:01Z',
+                            'payload': {'tab_name': 'PolicyBrowserTab'},
+                        }
+                    ],
+                },
+                tenancy_suffix=None,
+            )
+            analytics._loaded([doc], 'Offline smoke data')
+            assert analytics.tables['Runs'].model.rowCount() == 1
+            assert analytics.tables['Features'].model.rowCount() == 1
+            analytics.close()
+            analytics.deleteLater()
             assert not window.windowIcon().isNull()
             assert window.users_groups_page.user_view.inventory.model.rowCount() == len(context.policy_repo.users)
             application.processEvents()

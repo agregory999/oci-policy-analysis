@@ -23,6 +23,16 @@ The main entry points are :func:`oci_policy_analysis.analytics.main.main` and
 the :class:`oci_policy_analysis.analytics.main.AnalyticsApp` class.
 """
 
-from .main import AnalyticsApp, main
+
+def __getattr__(name):
+    """Import legacy Tk entry points lazily so read models and Qt stay Tk-free."""
+    if name in {'AnalyticsApp', 'main'}:
+        from importlib import import_module
+
+        module = import_module('.main', __name__)
+        globals().update(AnalyticsApp=module.AnalyticsApp, main=module.main)
+        return globals()[name]
+    raise AttributeError(name)
+
 
 __all__ = ['AnalyticsApp', 'main']

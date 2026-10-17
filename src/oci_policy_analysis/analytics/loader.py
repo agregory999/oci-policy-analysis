@@ -38,7 +38,6 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import date
-from urllib import error as urlerror
 from urllib import request
 
 from oci_policy_analysis.application.core.support.logger import get_logger
@@ -83,7 +82,7 @@ def _parse_object_key(key: str) -> UsageObjectRef | None:
 
     parts = key.split('/')
     # events, YYYY, MM, DD, tenancy_suffix, filename
-    if len(parts) < 6:
+    if len(parts) != 6 or not parts[-1].endswith('.json') or any(part in {'.', '..'} for part in parts):
         return None
 
     try:
@@ -103,183 +102,182 @@ def list_usage_objects_for_dates(
     base_url: str,
     start_date: date | None,
     end_date: date | None,
+    *,
+    strict: bool = False,
+    cancelled: threading.Event | None = None,
 ) -> list[tuple[str, str | None]]:
-    """List usage object keys for the given date range.
+    """List all pages of usage JSON objects, including legacy listing shapes.
 
-    The analytics PAR currently returns a JSON listing rather than XML. The
-    expected shape is a list of objects with at least a ``name`` field, e.g.:
+    Args:
+        base_url: Read/list PAR base URL, never logged.
+        start_date: Inclusive lower object-date bound.
+        end_date: Inclusive upper object-date bound.
+        strict: Raise a sanitized error instead of returning an empty list on failure.
+        cancelled: Stop pagination after the current request completes.
 
-    .. code-block:: json
+    Returns:
+        list[tuple[str, str | None]]: Unique object keys and tenancy suffixes.
 
-        [
-            {"name": "events/2024/01/01/abc123/run.json", ...},
-            ...
-        ]
-
-    Returns a list of ``(object_key, tenancy_suffix)`` tuples.
+    Raises:
+        ValueError: Invalid dates, listing shape or endpoint failure in strict mode.
     """
+    from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+    from xml.etree import ElementTree
 
-    logger.info('Listing analytics usage objects from PAR')
-
+    if start_date and end_date and start_date > end_date:
+        raise ValueError('Start date must precede end date.')
+    objects, seen_pages = {}, set()
+    next_start = None
     try:
-        req = request.Request(base_url, method='GET')
-        with request.urlopen(req, timeout=5) as resp:  # noqa: S310
-            body = resp.read()
-            logger.debug(
-                'Analytics listing response: status=%s, content_type=%s',
-                getattr(resp, 'status', '?'),
-                resp.headers.get('Content-Type'),
+        while True:
+            if cancelled is not None and cancelled.is_set():
+                return []
+            parts = urlsplit(base_url)
+            query = dict(parse_qsl(parts.query))
+            if next_start is not None:
+                query['start'] = next_start
+            url = urlunsplit(parts._replace(query=urlencode(query)))
+            with request.urlopen(request.Request(url, method='GET'), timeout=5) as response:  # noqa: S310
+                body = response.read()
+            try:
+                data = json.loads(body)
+            except (ValueError, UnicodeDecodeError):
+                root = ElementTree.fromstring(body)
+
+                def local(tag):
+                    return tag.rsplit('}', 1)[-1]
+
+                if local(root.tag) not in {'ListBucketResult', 'ListObjects', 'ListObjectsResult'}:
+                    raise ValueError('Unexpected XML listing') from None
+                if any(
+                    (local(child.tag) == 'IsTruncated' and (child.text or '').lower() == 'true')
+                    or (local(child.tag) in {'NextMarker', 'NextContinuationToken', 'NextStartWith'} and child.text)
+                    for child in root.iter()
+                ):
+                    raise ValueError('Truncated XML listing requires a native JSON endpoint') from None
+                data = {
+                    'objects': [{'name': child.text} for child in root.iter() if local(child.tag) in {'Key', 'Name'}],
+                    'nextStartWith': next(
+                        (child.text for child in root.iter() if local(child.tag) in {'NextMarker', 'NextStartWith'}),
+                        None,
+                    ),
+                }
+            if isinstance(data, dict) and not any(key in data for key in ('objects', 'items')):
+                raise ValueError('Unexpected listing format')
+            entries = (
+                data
+                if isinstance(data, list)
+                else data.get('objects', data.get('items', []))
+                if isinstance(data, dict)
+                else None
             )
-    except (urlerror.URLError, OSError) as exc:
-        logger.info('Failed to list analytics objects from PAR: %s', exc)
+            if not isinstance(entries, list):
+                raise ValueError('Unexpected listing format')
+            for item in entries:
+                if not isinstance(item, dict):
+                    continue
+                key = item.get('name') or item.get('Name')
+                ref = _parse_object_key(key) if isinstance(key, str) else None
+                if (
+                    ref
+                    and not (start_date and ref.object_date < start_date)
+                    and not (end_date and ref.object_date > end_date)
+                ):
+                    objects[ref.key] = ref.tenancy_suffix
+            next_start = data.get('nextStartWith') if isinstance(data, dict) else None
+            if not next_start:
+                break
+            if not isinstance(next_start, str) or next_start in seen_pages:
+                raise ValueError('Invalid/repeated pagination marker')
+            seen_pages.add(next_start)
+        return list(objects.items())
+    except Exception as exc:
+        # PAR URLs are bearer credentials: never expose URL-bearing exception text.
+        logger.info('Analytics listing failed: %s', type(exc).__name__)
+        if strict:
+            raise ValueError(
+                'Unable to list usage data. Check the read/list PAR, expiry, listing permission and connection.'
+            ) from None
         return []
-
-    try:
-        data = json.loads(body.decode('utf-8'))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        logger.info('Failed to decode analytics bucket listing JSON: %s', exc)
-        logger.debug('Listing response body (truncated): %r', body[:400])
-        return []
-
-    objects: list[UsageObjectRef] = []
-    # Support both list-of-dicts and dict-with-"objects" container shapes.
-    entries = data
-    if isinstance(data, dict):
-        entries = data.get('objects') or data.get('items') or []
-
-    if not isinstance(entries, list):
-        logger.info('Unexpected analytics listing JSON shape: %r', type(entries))
-        return []
-
-    for item in entries:
-        if not isinstance(item, dict):
-            continue
-        name = item.get('name') or item.get('Name')
-        if not isinstance(name, str):
-            continue
-        ref = _parse_object_key(name)
-        if ref is None:
-            continue
-        objects.append(ref)
-
-    if not objects:
-        logger.info('No analytics usage objects found in listing.')
-        return []
-
-    logger.info('Found %d candidate analytics objects', len(objects))
-
-    # Apply date filters if provided.
-    def _in_range(obj_date: date | None) -> bool:
-        if obj_date is None:
-            return True
-        if start_date and obj_date < start_date:
-            return False
-        if end_date and obj_date > end_date:
-            return False
-        return True
-
-    filtered: list[tuple[str, str | None]] = []
-    for ref in objects:
-        if not _in_range(ref.object_date):
-            continue
-        filtered.append((ref.key, ref.tenancy_suffix))
-
-    logger.info('After date filtering, %d analytics objects remain', len(filtered))
-    return filtered
 
 
 def _load_single_usage_doc(base_url: str, key: str, tenancy_suffix: str | None) -> UsageDoc | None:
-    """Download and parse a single usage document.
+    """Download one document, tolerating malformed historical records."""
+    from urllib.parse import quote, urlsplit, urlunsplit
 
-    Returns ``None`` on any failure.
-    """
-
-    url = base_url + key
-    logger.debug('Loading analytics usage document: %s', url)
+    parts = urlsplit(base_url)
+    url = urlunsplit(parts._replace(path=parts.path.rstrip('/') + '/' + quote(key, safe='/'), query=''))
     try:
-        req = request.Request(url, method='GET')
-        with request.urlopen(req, timeout=5) as resp:  # noqa: S310
-            body = resp.read()
-    except (urlerror.URLError, OSError) as exc:
-        logger.debug('Failed to download analytics document %s: %s', key, exc)
+        with request.urlopen(request.Request(url, method='GET'), timeout=5) as response:  # noqa: S310
+            raw = json.loads(response.read())
+        return UsageDoc.from_dict(raw, tenancy_suffix=tenancy_suffix)
+    except Exception as exc:
+        logger.debug('Analytics document skipped: %s', type(exc).__name__)
         return None
 
-    try:
-        raw = json.loads(body.decode('utf-8'))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        logger.debug('Failed to decode analytics document %s: %s', key, exc)
-        return None
 
-    doc = UsageDoc.from_dict(raw, tenancy_suffix=tenancy_suffix)
-    if doc is None:
-        logger.debug('Failed to parse analytics document %s', key)
-    return doc
+@dataclass
+class UsageLoadResult:
+    """Loaded documents plus visible coverage counts for incomplete reads."""
+
+    docs: list[UsageDoc]
+    listed: int
+    skipped: int
 
 
-def load_usage_docs_from_par(
+def load_usage_report(
     start_date: date | None,
     end_date: date | None,
-) -> list[UsageDoc]:
-    """Load usage documents from the configured analytics PAR.
+    *,
+    base_url: str | None = None,
+    cancelled: threading.Event | None = None,
+) -> UsageLoadResult:
+    """Read usage documents concurrently without writing bucket objects.
 
-    Returns a list of successfully parsed :class:`UsageDoc` instances.
+    Args:
+        start_date: Inclusive lower object-date bound, or all history.
+        end_date: Inclusive upper object-date bound.
+        base_url: Explicit read/list URL; otherwise resolve the environment variable.
+        cancelled: Optional cooperative cancellation flag.
+
+    Returns:
+        UsageLoadResult: Successful documents and skipped-object counts.
+
+    Raises:
+        ValueError: Missing endpoint or failed bucket listing.
     """
-
-    base_url = get_analytics_par_base_url()
+    base_url = base_url or get_analytics_par_base_url()
     if not base_url:
-        logger.info('Analytics PAR URL is not configured; skipping load.')
-        return []
+        raise ValueError('Configure OCI_POLICY_ANALYSIS_ANALYTICS_PAR_URL or enter a read/list PAR URL.')
+    refs = list_usage_objects_for_dates(base_url, start_date, end_date, strict=True, cancelled=cancelled)
+    docs = []
 
-    # Step 1: list all candidate objects in the requested date range.
-    object_refs = list_usage_objects_for_dates(base_url, start_date, end_date)
-    if not object_refs:
-        return []
+    def load(ref):
+        if cancelled is not None and cancelled.is_set():
+            return None
+        return _load_single_usage_doc(base_url, *ref)
 
-    # NOTE: We deliberately keep unknown-tenancy filtering out of this loader.
-    # The UI (AnalyticsApp) already applies "Include 'unknown' tenancy" at the
-    # aggregation layer by selecting which docs to pass into the aggregators.
-    # Keeping the loader agnostic preserves the raw dataset for debugging and
-    # alternate analysis flows.
-
-    # Step 3: load usage documents concurrently with a small thread pool. The
-    # PAR is an HTTP endpoint, so downloads are I/O bound; a handful of
-    # threads is usually enough to hide latency without overwhelming the
-    # service.
-
-    docs: list[UsageDoc] = []
-
-    def _load_pair(args: tuple[str, str | None]) -> UsageDoc | None:
-        key, tenancy_suffix = args
-        thread = threading.current_thread()
-        logger.debug(
-            '[thread %s/%s] Loading analytics document key=%s tenancy_suffix=%s',
-            getattr(thread, 'name', '?'),
-            getattr(thread, 'ident', '?'),
-            key,
-            tenancy_suffix,
-        )
-        return _load_single_usage_doc(base_url, key, tenancy_suffix)
-
-    # Use a small thread pool to parallelize I/O-bound downloads from PAR.
-    # Bump the worker count slightly to improve throughput without being noisy.
     with ThreadPoolExecutor(max_workers=7, thread_name_prefix='AnalyticsLoader') as executor:
-        future_to_ref = {executor.submit(_load_pair, ref): ref for ref in object_refs}
-        for future in as_completed(future_to_ref):
-            ref = future_to_ref[future]
-            try:
-                doc = future.result()
-            except Exception as exc:  # defensive: never let one failure break all
-                logger.debug('Exception while loading analytics document %s: %s', ref[0], exc)
-                continue
+        futures = [executor.submit(load, ref) for ref in refs]
+        for future in as_completed(futures):
+            doc = future.result()
             if doc is not None:
                 docs.append(doc)
+    return UsageLoadResult(docs, len(refs), len(refs) - len(docs))
 
-    logger.info('Loaded %d valid analytics usage documents', len(docs))
-    return docs
+
+def load_usage_docs_from_par(start_date: date | None, end_date: date | None) -> list[UsageDoc]:
+    """Retain the legacy Tk loader's best-effort list-returning API."""
+    try:
+        return load_usage_report(start_date, end_date).docs
+    except ValueError:
+        return []
 
 
 __all__ = [
     'get_analytics_par_base_url',
     'list_usage_objects_for_dates',
     'load_usage_docs_from_par',
+    'load_usage_report',
+    'UsageLoadResult',
 ]

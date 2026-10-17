@@ -452,3 +452,12 @@ boundary. The Qt adapter explicitly enables observed differences for incomplete
 collections, with per-section warnings in the result, inspector and exports. This
 does not override missing-section, inherited-IAM or scope checks. An all-skipped
 comparison is presented as unperformed rather than a zero-change finding.
+
+The Qt launcher owns a `UsageSession` over the shared usage tracker. It records
+fixed UI identifiers and aggregate counts, rotates on tenancy changes and queues
+best-effort uploads outside the GUI thread. Direct `WorkbenchWindow` embedding
+does not activate publishing unless requested. The independent Qt analytics
+window reuses the existing read models and aggregators over a read/list PAR or
+local JSON; it never initializes usage publication. Writer schema additions are
+optional and require no historical-object migration. See [Usage tracking and
+analytics](usage_tracking.md) for the compatibility assessment and lifecycle.
