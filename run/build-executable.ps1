@@ -11,7 +11,7 @@ if ($Interface -eq "qt") {
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     uv pip check
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    & .venv\Scripts\python.exe scripts/build_qt_executable.py @BuildArgs
+    & .venv\Scripts\python.exe run-build/build_qt_executable.py @BuildArgs
     exit $LASTEXITCODE
 }
 
@@ -19,7 +19,7 @@ Write-Host "==============================================="
 Write-Host "     LOCAL BUILD + PYINSTALLER (SOURCE ONLY)   "
 Write-Host "==============================================="
 
-uv sync --extra web --extra mcp
+uv sync --inexact --extra web --extra mcp
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 uv pip install pyinstaller
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -45,7 +45,8 @@ $PY_DLL = python -c "import sys, os; major=sys.version_info[0]; minor=sys.versio
 Write-Host "   Python DLL: $PY_DLL"
 
 pyinstaller `
-  --name "OCI Policy Analysis" `
+  --distpath dist/tk --workpath build/tk --specpath run-build `
+  --name "oci-policy-analysis-tk" `
   --onefile `
   --clean --noconfirm --noconsole `
   --icon "icons\oci-policy-dg-viewer.ico" `
@@ -58,9 +59,9 @@ pyinstaller `
   --add-binary "$PY_DLL;." `
   src\oci_policy_analysis\main.py
 
-Write-Host "Packaging dist oci-policy-analysis-windows-$VERSION.zip"
-Push-Location dist
-Compress-Archive -Path "OCI Policy Analysis.exe" -DestinationPath "oci-policy-analysis-windows-$VERSION.zip" -Force
+Write-Host "Packaging dist oci-policy-analysis-tk-windows-$VERSION.zip"
+Push-Location dist/tk
+Compress-Archive -Path "oci-policy-analysis-tk.exe" -DestinationPath "oci-policy-analysis-tk-windows-$VERSION.zip" -Force
 Pop-Location
 
 Write-Host "Build Complete"

@@ -181,3 +181,7 @@ For the ASGI application and server launcher, see :doc:`oci_policy_analysis`.
 
 .. automodule:: oci_policy_analysis.presentation.qt.frozen_smoke
    :members:
+
+
+.. automodule:: oci_policy_analysis.presentation.qt.pages.reports
+   :members:

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from html import escape
 from typing import Any
 
 import markdown2
@@ -26,6 +28,59 @@ class ReportsService:
         """
         self.context = context
         self.logger = get_logger(component='reports_service')
+
+    @staticmethod
+    def catalog() -> list[dict[str, str]]:
+        """Return the report choices and coverage guidance shared by adapters.
+
+        Returns:
+            list[dict[str, str]]: Fresh report IDs, labels and prerequisite notes.
+        """
+        return [
+            {
+                'id': 'policy-inventory',
+                'label': 'Policy Inventory',
+                'description': 'Loaded compartments, policies, tags and original statements.',
+            },
+            {
+                'id': 'permissions',
+                'label': 'Effective Permissions',
+                'description': 'Uses the permissions report built by Full intelligence enrichment. Conditions and exclusions remain relevant.',
+            },
+            {
+                'id': 'supersession',
+                'label': 'Policy Supersession',
+                'description': 'Uses existing supersession findings. Enable the supersession strategy and reload with Full intelligence to populate it; an empty result does not establish absence of redundancy.',
+            },
+            {
+                'id': 'full-overlaps',
+                'label': 'Full Policy Overlaps',
+                'description': 'Runs the expensive all-statement overlap analysis only when requested.',
+            },
+        ]
+
+    def export_formats(self, report: dict[str, Any]) -> dict[str, str]:
+        """Serialize one generated report as JSON, Markdown and portable HTML.
+
+        Args:
+            report: Native, snapshot-bound report evidence; never modified.
+
+        Returns:
+            dict[str, str]: UTF-8-ready json, markdown and html document strings.
+        """
+        rendered = self.with_rendered_formats(report)
+        title = escape(str(report.get('title') or 'OCI Policy Analysis Report'))
+        html = f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>{title}</title>
+<style>body {{ font-family: Arial, sans-serif; line-height: 1.45; margin: 24px; color: #1f2937; background: #ffffff; }}
+code, pre {{ white-space: pre-wrap; overflow-wrap: anywhere; }}
+table {{ border-collapse: collapse; }} th, td {{ border: 1px solid #d1d5db; padding: 6px; text-align: left; }}</style>
+</head><body>{rendered['markdown_html']}</body></html>"""
+        return {
+            'json': json.dumps(report, indent=2, default=str, ensure_ascii=False),
+            'markdown': rendered['markdown'],
+            'html': html,
+        }
 
     def get_overlap_report(self) -> dict[str, Any]:
         """Run the expensive overlap analysis and return its full JSON report.
@@ -470,11 +525,5 @@ class ReportsService:
         rendered = dict(report)
         markdown = self.to_markdown(report)
         rendered['markdown'] = markdown
-        html = markdown2.markdown(markdown, safe_mode='escape')
-        # tkhtmlview recognizes pre/code but its default fixed-font discovery is unreliable
-        # on some macOS Tk installations. An explicit lowercase family is recognized by
-        # the renderer's CSS parser and preserves portable HTML semantics elsewhere.
-        rendered['markdown_html'] = html.replace(
-            '<pre><code>', '<pre style="font-family: courier"><code style="font-family: courier">'
-        )
+        rendered['markdown_html'] = markdown2.markdown(markdown, safe_mode='escape')
         return rendered

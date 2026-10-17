@@ -8,7 +8,7 @@ if [[ "${1:-desktop}" == "qt" ]]; then
     shift
     uv sync --inexact --extra qt --extra qt-build --extra web --extra mcp --python "$PYTHON_BIN"
     uv pip check
-    exec "$root_dir/.venv/bin/python" scripts/build_qt_executable.py "$@"
+    exec "$root_dir/.venv/bin/python" run-build/build_qt_executable.py "$@"
 elif [[ "${1:-desktop}" != "desktop" ]]; then
     echo "Usage: run/build-executable.sh [desktop|qt] [Qt build options]" >&2
     exit 2
@@ -20,7 +20,7 @@ echo "     LOCAL BUILD + PYINSTALLER (SOURCE ONLY)   "
 echo "==============================================="
 
 command -v uv >/dev/null || { echo "Install uv first." >&2; exit 2; }
-uv sync --extra web --extra mcp --python "$PYTHON_BIN"
+uv sync --inexact --extra web --extra mcp --python "$PYTHON_BIN"
 uv pip install pyinstaller
 source "$root_dir/.venv/bin/activate"
 uv pip check
@@ -52,7 +52,8 @@ print(matches[0] if matches else '')")
     echo "   Python dylib: $PY_LIB"
 
     pyinstaller \
-      --name="OCI Policy Analysis" \
+      --distpath dist/tk --workpath build/tk --specpath run-build \
+      --name="oci-policy-analysis-tk" \
       --windowed \
       --clean --noconfirm --noconsole \
       --icon=icons/oci-policy-dg-viewer.icns \
@@ -65,10 +66,10 @@ print(matches[0] if matches else '')")
       --add-binary="$PY_LIB:Frameworks/Python" \
       src/oci_policy_analysis/main.py
 
-    echo "🍎 Packaging .app → dist/oci-policy-analysis-macos-${VERSION}.app.tar.gz"
-    cd dist
-    tar -czf "oci-policy-analysis-macos-${VERSION}.app.tar.gz" "OCI Policy Analysis.app"
-    cd ..
+    echo "🍎 Packaging .app → dist/tk/oci-policy-analysis-tk-macos-${VERSION}.app.tar.gz"
+    cd dist/tk
+    tar -czf "oci-policy-analysis-tk-macos-${VERSION}.app.tar.gz" "oci-policy-analysis-tk.app"
+    cd ../..
 
 elif [[ "$OS" == "Linux" ]]; then
     echo "🐧 Linux detected — building onefile binary"
@@ -81,7 +82,8 @@ print(matches[0] if matches else '')")
     echo "   Python .so: $PY_SO"
 
     pyinstaller \
-      --name="oci-policy-analysis" \
+      --distpath dist/tk --workpath build/tk --specpath run-build \
+      --name="oci-policy-analysis-tk" \
       --onefile \
       --clean --noconfirm --noconsole \
       --icon=icons/oci-policy-dg-viewer.png \
@@ -94,10 +96,10 @@ print(matches[0] if matches else '')")
       --add-binary="$PY_SO:." \
       src/oci_policy_analysis/main.py
 
-    echo "🐧 Packaging → dist/oci-policy-analysis-linux-${VERSION}.tar.gz"
-    cd dist
-    tar -czf "oci-policy-analysis-linux-${VERSION}.tar.gz" "oci-policy-analysis"
-    cd ..
+    echo "🐧 Packaging → dist/tk/oci-policy-analysis-tk-linux-${VERSION}.tar.gz"
+    cd dist/tk
+    tar -czf "oci-policy-analysis-tk-linux-${VERSION}.tar.gz" "oci-policy-analysis-tk"
+    cd ../..
 
 elif [[ "$OS" == MINGW* || "$OS" == MSYS* || "$OS" == CYGWIN* ]]; then
     echo "🪟 Windows detected — building onefile .exe"
@@ -113,7 +115,8 @@ EOF
     echo "   Python DLL: $PY_DLL"
 
     pyinstaller \
-      --name "OCI Policy Analysis" \
+      --distpath dist/tk --workpath build/tk --specpath run-build \
+      --name "oci-policy-analysis-tk" \
       --onefile \
       --clean --noconfirm --noconsole \
       --icon "icons/oci-policy-dg-viewer.ico" \
@@ -126,10 +129,10 @@ EOF
       --add-binary "$PY_DLL;." \
       src/oci_policy_analysis/main.py
 
-    echo "🪟 Packaging → dist/oci-policy-analysis-windows-${VERSION}.zip"
-    cd dist
-    zip -r "oci-policy-analysis-windows-${VERSION}.zip" "OCI Policy Analysis.exe"
-    cd ..
+    echo "🪟 Packaging → dist/tk/oci-policy-analysis-tk-windows-${VERSION}.zip"
+    cd dist/tk
+    zip -r "oci-policy-analysis-tk-windows-${VERSION}.zip" "oci-policy-analysis-tk.exe"
+    cd ../..
 
 else
     echo "❌ Unsupported OS: $OS"

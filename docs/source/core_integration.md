@@ -297,7 +297,7 @@ matching statements, not distinct resources or authorization decisions.
 | Statement details | Shared animated drawer, full source/parsed/validity fields, raw JSON and copy |
 | Policy graph | Direct source grants, exclusions, filters, paging, and native evidence selection |
 | Intelligence | Minimal/full loading and strategy/risk settings; dedicated results pages remain to be explored |
-| Simulation, consolidation, report UI | Native simulation, recommendations and consolidation pages; report data remains available through shared services |
+| Simulation, consolidation, report UI | Native simulation and on-demand Reports under Tools; recommendations and consolidation remain planned destinations |
 | Logging | All declared/registered loggers, saved global/component controls, INFO+ live view |
 | Appearance | Saved Light/Dark appearance, color palette, text sizes through Extra Large, optional fixed-width tables/Overview, and table density |
 | Embedded MCP and assistant | Managed query-only snapshot host; optional native Codex chat; loading locked during serving |

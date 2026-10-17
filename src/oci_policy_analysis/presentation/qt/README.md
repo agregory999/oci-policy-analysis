@@ -58,6 +58,7 @@ framework merely to reduce a few repeated widget layouts.
 | Dynamic groups | Known inventory, All/In Use/Not Used, exact domain/ID matching, multi-selection and related statements. |
 | Resource principals | any-user/any-group modes, resource type and principal-compartment selectors, exact DG multi-selection, OKE selectors, confidence and full evidence details. |
 | MCP & assistant (Advanced) | Explicit loopback snapshot server, query-only tools, readiness check, stop/restart; optional model selection and streaming Codex conversation. |
+| Reports (Tools) | Explicit background generation, JSON/Markdown/rendered HTML previews, portable exports and snapshot/task locking. |
 | Logging | Global reset and component controls, saved levels, bounded INFO+ live view. Startup DEBUG and component DEBUG remain in shell/file output. |
 | Appearance | Light/Dark, four accent palettes, Small through Extra Large text sizes, optional fixed-width table/Overview font, responsive Overview rows and row density; shared widget and graph theming. |
 
@@ -142,7 +143,7 @@ owned by the page so future draft editors need not lose unsaved work.
 - Tools is one left-nav destination with native `QTabWidget` tabs for Condition
   Tester, Reports, Maintenance and Logging. Logging opens the existing dock and
   Overview settings rather than creating another handler or settings copy.
-- Recommendations, Consolidation, Reports and Maintenance are **planned destinations**, not implemented
+- Recommendations, Consolidation and Maintenance are **planned destinations**, not implemented
   analysis workflows. Their pages say so explicitly; opening them runs nothing.
 
 For future controls, call `experience.bind_advanced(widget)` or
@@ -500,14 +501,14 @@ not a stored snapshot field, and requires no cache migration.
 
 Use `run/build-executable.sh qt` or `run/build-executable.ps1 qt` to build the
 checked-out source with Nuitka and its PySide6 plugin. `--mode onefile` selects a
-single executable on Windows/Linux; macOS produces a native app bundle.
+single executable on the native platform; macOS standalone builds produce an app bundle.
 `--dry-run` prints the exact command. The shared Python builder runs source
 startup checks, compiles, exercises the resulting executable with an offline
 `--self-test`, then archives it under `dist/qt/`. See `run/README.md` for compiler
 prerequisites, output paths and platform limits. The existing `build.yml` also
 uses the official Nuitka action with persistent compiler caches and attaches
 verified macOS arm64 and Windows x64 archives to the branch release. Extract the
-entire Windows ZIP before running `qt_entry.dist/oci-policy-analysis-qt.exe`.
+entire Windows ZIP before running `oci-policy-analysis-qt/oci-policy-analysis-qt.exe`.
 Signing and notarization remain separate.
 
 The browser's Subject types menu selects an exact union of loaded parsed types;
@@ -519,3 +520,14 @@ remains in source records and details while its table column is hidden.
 Simulation's Request JSON tab shows the read-only local simulation input,
 including the principal, operation, target, condition context and statement
 selections. Opening/copying it does not send an OCI request.
+
+
+## Reports
+
+Tools → Reports offers Policy Inventory, Effective Permissions, Policy Supersession
+and Full Policy Overlaps through the same service as Tk/web. Press Run report to
+generate in the background, preview JSON/Markdown/rendered HTML, and explicitly
+export. Snapshot replacement clears previews; simultaneous loads, simulation,
+prospective editing and embedded MCP are blocked during report work. Full
+permissions require Full enrichment; supersession depends on existing strategy
+findings. Report counts and empty findings do not establish authoritative access.

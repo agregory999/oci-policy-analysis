@@ -33,12 +33,7 @@ class ReportsTab(BaseUITab):
         controls.pack(fill='x', padx=10, pady=10)
         ttk.Label(controls, text='Report:').grid(row=0, column=0, padx=(8, 4), pady=8, sticky='w')
         self.report_var = tk.StringVar(value='Policy Inventory')
-        self.report_choices = {
-            'Policy Inventory': 'policy-inventory',
-            'Effective Permissions': 'permissions',
-            'Policy Supersession': 'supersession',
-            'Full Policy Overlaps': 'full-overlaps',
-        }
+        self.report_choices = {item['label']: item['id'] for item in ReportsService.catalog()}
         ttk.Combobox(
             controls, textvariable=self.report_var, values=list(self.report_choices), state='readonly', width=28
         ).grid(row=0, column=1, padx=4, pady=8, sticky='w')
@@ -117,7 +112,13 @@ class ReportsTab(BaseUITab):
             self.text_preview_frame.pack_forget()
             self.html_preview.pack(fill='both', expand=True, padx=6, pady=6)
             self.html_preview.configure(state=tk.NORMAL)
-            self.html_preview.set_html(self._rendered_html())
+            # tkhtmlview needs an explicit lowercase fixed-width font on some Macs.
+            # Keep this renderer workaround out of portable HTML exports/services.
+            self.html_preview.set_html(
+                self._rendered_html().replace(
+                    '<pre><code>', '<pre style="font-family: courier"><code style="font-family: courier">'
+                )
+            )
             self.html_preview.configure(state=tk.DISABLED)
             return
         self.html_preview.pack_forget()
@@ -165,11 +166,7 @@ class ReportsTab(BaseUITab):
 
     def _html_document(self) -> str:
         """Wrap safe report HTML in a portable, readable document."""
-        body = self._rendered_html()
-        return f"""<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>OCI Policy Analysis Report</title>
-<style>body {{ font-family: Arial, sans-serif; line-height: 1.45; margin: 24px; color: #1f2937; }} h1, h2, h3 {{ color: #0f3d63; }} code {{ white-space: pre-wrap; overflow-wrap: anywhere; background: #f3f4f6; padding: 2px 4px; }} table {{ border-collapse: collapse; }} th, td {{ border: 1px solid #d1d5db; padding: 6px; }}</style>
-</head><body>{body}</body></html>"""
+        return self._service().export_formats(self._report or {})['html']
 
     def _rendered_html(self) -> str:
         """Return safe HTML generated from the report Markdown."""

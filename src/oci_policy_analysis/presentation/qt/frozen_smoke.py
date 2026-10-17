@@ -3,6 +3,7 @@
 import asyncio
 import json
 import tempfile
+import time
 from pathlib import Path
 
 
@@ -65,6 +66,22 @@ def main() -> int:
             window = WorkbenchWindow()
             window.controller.context = context
             window._publish(context, result, 'Packaged sample smoke test')
+            from oci_policy_analysis.application.services.reports_service import ReportsService
+
+            inventory_report = ReportsService(context).get_report('policy-inventory')
+            assert inventory_report['counts']['statements'] == len(context.policy_repo.regular_statements)
+            assert '<!doctype html>' in ReportsService(context).export_formats(inventory_report)['html']
+            assert len(window.tools_page.reports.catalog) == 4
+            reports = window.tools_page.reports
+            reports.run_report()
+            deadline = time.monotonic() + 30
+            while reports.worker is not None and time.monotonic() < deadline:
+                application.processEvents()
+                time.sleep(0.01)
+            assert reports.worker is None, 'Packaged report worker did not finish'
+            assert reports.report and reports.report['report_id'] == 'policy-inventory'
+            reports.format_choice.setCurrentIndex(reports.format_choice.findData('html'))
+            assert 'Policy Inventory' in reports.html_preview.toPlainText()
             assert not window.windowIcon().isNull()
             assert window.users_groups_page.user_view.inventory.model.rowCount() == len(context.policy_repo.users)
             application.processEvents()

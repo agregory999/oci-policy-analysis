@@ -4,6 +4,7 @@ from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QPushButton, QTabWidget, QVBoxLayout, QWidget
 
 from oci_policy_analysis.presentation.qt.pages.condition_tester import ConditionTesterPage
+from oci_policy_analysis.presentation.qt.pages.reports import ReportsPage
 from oci_policy_analysis.presentation.qt.widgets import label
 
 
@@ -45,9 +46,8 @@ class ToolsPage(QTabWidget):
         super().__init__()
         self.condition_tester = ConditionTesterPage()
         self.addTab(self.condition_tester, 'Condition Tester')
-        self.addTab(
-            PlannedWorkflowPage('Reports', 'Review and export results using the existing reports service.'), 'Reports'
-        )
+        self.reports = ReportsPage()
+        self.addTab(self.reports, 'Reports')
         self.addTab(
             PlannedWorkflowPage(
                 'Maintenance', 'Advanced cache and workbench maintenance. Explicit actions will be added here.'

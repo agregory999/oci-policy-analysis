@@ -41,6 +41,7 @@ def workbench(qt_application, monkeypatch, tmp_path, request):
     yield application, window
     _wait_for_load(application, window)
     _wait_for_simulation(application, window)
+    _wait_for_reports(application, window)
     window.mcp_page.stop_all()
     deadline = time.monotonic() + 20
     while window.mcp_page.active and time.monotonic() < deadline:
@@ -2348,3 +2349,128 @@ def test_navigation_access_headers_and_extra_large_fixed_font(workbench):
         application.processEvents()
     window.drawer.show_record({'statement_text': 'Allow group Builders to read buckets in tenancy'})
     assert 580 < window.drawer.width() <= 720
+
+
+def _wait_for_reports(application, window):
+    _wait_until(application, lambda: window.tools_page.reports.worker is None)
+
+
+def test_reports_generate_only_on_request_preview_and_export(workbench, monkeypatch, tmp_path):
+    from PySide6.QtWidgets import QFileDialog
+
+    from oci_policy_analysis.application.services.reports_service import ReportsService
+
+    application, window = workbench
+    page = window.tools_page.reports
+    assert not page.run_button.isEnabled()
+    original = ReportsService.get_report
+    calls = []
+
+    def generate(service, report_id):
+        calls.append((report_id, QThread.currentThread() is application.thread()))
+        return original(service, report_id)
+
+    monkeypatch.setattr(ReportsService, 'get_report', generate)
+    window.settings_page.load_sample()
+    _wait_for_load(application, window)
+    assert page.report is None and calls == []
+    page.run_button.click()
+    _wait_for_reports(application, window)
+    assert calls == [('policy-inventory', False)]
+    assert page.report['counts']['statements'] == len(window.controller.context.policy_repo.regular_statements)
+    assert json.loads(page.text_preview.toPlainText()) == page.report
+    assert page.export_button.isEnabled()
+    for key, extension in [('json', 'json'), ('markdown', 'md'), ('html', 'html')]:
+        index = page.format_choice.findData(key)
+        page.format_choice.setCurrentIndex(index)
+        destination = tmp_path / f'report.{extension}'
+        monkeypatch.setattr(QFileDialog, 'getSaveFileName', lambda *a, path=destination, **k: (str(path), ''))
+        page.export_button.click()
+        assert destination.read_text() == page.formats[key]
+    assert calls == [('policy-inventory', False)]
+    assert page.previews.currentWidget() is page.html_preview
+    assert 'Policy Inventory' in page.html_preview.toPlainText()
+    assert not page.html_preview.openLinks() and not page.html_preview.openExternalLinks()
+    window.settings_page.load_sample()
+    _wait_for_load(application, window)
+    assert page.report is None and not page.export_button.isEnabled()
+    assert not page.text_preview.toPlainText() and not page.html_preview.toPlainText()
+
+
+def test_report_worker_locks_snapshot_and_ignores_replaced_context(workbench, monkeypatch):
+    from PySide6.QtGui import QCloseEvent
+
+    from oci_policy_analysis.application.services.reports_service import ReportsService
+
+    application, window = workbench
+    window.settings_page.load_sample()
+    _wait_for_load(application, window)
+    page = window.tools_page.reports
+    release = threading.Event()
+    original = ReportsService.get_report
+
+    def blocked(service, report_id):
+        assert release.wait(10)
+        return original(service, report_id)
+
+    monkeypatch.setattr(ReportsService, 'get_report', blocked)
+    page.run_button.click()
+    try:
+        assert 'report' in window.controller.load_block_reason
+        assert not window.settings_page.sample_button.isEnabled()
+        assert not window.simulation_page.isEnabled()
+        event = QCloseEvent()
+        window.closeEvent(event)
+        assert not event.isAccepted()
+        window.settings_page.load_sample()
+        assert window.controller.worker is None
+        page.set_context(None)
+    finally:
+        release.set()
+        _wait_for_reports(application, window)
+    assert page.report is None and not page.export_button.isEnabled()
+    assert not window.controller.load_block_reason
+    assert window.settings_page.sample_button.isEnabled()
+
+
+def test_reports_show_full_profile_requirement_and_recover_from_errors(workbench, monkeypatch):
+    from oci_policy_analysis.application.services.reports_service import ReportsService
+
+    application, window = workbench
+    window.settings_page.load_sample()
+    _wait_for_load(application, window)
+    page = window.tools_page.reports
+    page.report_choice.setCurrentIndex(page.report_choice.findData('permissions'))
+    assert not page.run_button.isEnabled()
+    assert 'Full intelligence' in page.description.text()
+    context = window.controller.context
+    context.intelligence.build_permissions_report(context.corpus)
+    page.set_context(context)
+    assert page.run_button.isEnabled()
+    page.run_button.click()
+    _wait_for_reports(application, window)
+    assert page.report['report_id'] == 'permissions'
+    for report_id in ['supersession', 'full-overlaps']:
+        page.report_choice.setCurrentIndex(page.report_choice.findData(report_id))
+        assert page.report is None
+        page.run_button.click()
+        _wait_for_reports(application, window)
+        assert page.report['report_id'] == report_id
+    monkeypatch.setattr(
+        ReportsService, 'get_report', lambda *a: (_ for _ in ()).throw(RuntimeError('report unavailable'))
+    )
+    page.run_button.click()
+    _wait_for_reports(application, window)
+    assert 'report unavailable' in page.status.text()
+    assert page.report is None and not page.export_button.isEnabled()
+    assert page.run_button.isEnabled() and not window.controller.load_block_reason
+
+
+def test_report_html_cannot_fetch_local_or_remote_resources(workbench):
+    from PySide6.QtCore import QUrl
+    from PySide6.QtGui import QTextDocument
+
+    _, window = workbench
+    preview = window.tools_page.reports.html_preview
+    for url in ['file:///etc/passwd', 'https://example.invalid/private.png']:
+        assert preview.loadResource(QTextDocument.ResourceType.ImageResource, QUrl(url)).isEmpty()

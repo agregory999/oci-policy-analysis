@@ -1,6 +1,7 @@
 """Standalone Qt entry point for Nuitka; keeps package-relative imports intact."""
 
 # Shared Nuitka project options are consumed by both the local builder and CI action.
+# nuitka-project: --output-folder-name=oci-policy-analysis-qt
 # nuitka-project: --enable-plugin=pyside6
 # nuitka-project: --user-package-configuration-file={MAIN_DIRECTORY}/qt.nuitka-package.config.yml
 # nuitka-project: --include-qt-plugins=platforms,styles,imageformats,iconengines

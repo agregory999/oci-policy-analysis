@@ -402,3 +402,15 @@ review/save uses the existing prospective persistence service. Repreparation
 preserves the original selection plus newly eligible what-if rows. Snapshot
 replacement clears runtime history and its identity token; no reports, suggestion
 state or tokens enter combined-cache serialization. No cache migration is needed.
+
+
+### Qt report execution
+
+Tools → Reports delegates to `ReportsService` through a retained `ReportWorker`.
+The shell serializes report analysis with loads, simulation, prospective edits
+and embedded MCP, and waits for worker completion before closing. Worker results
+are detached from the snapshot and discarded if their context was replaced.
+The shared service owns report choices and JSON/Markdown/portable HTML export;
+Qt owns file dialogs and palette-aware, resource-blocked rich-text previews.
+The permissions report is a Full-profile prerequisite; supersession consumes
+existing findings, while Full Overlaps explicitly refreshes derived overlap data.

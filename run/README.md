@@ -58,14 +58,16 @@ For the Qt workbench, use the local source Nuitka build path:
 
 ```bash
 run/build-executable.sh qt                       # native .app on macOS, standalone directory elsewhere
-run/build-executable.sh qt --mode onefile        # single executable on Windows/Linux; native .app on macOS
+run/build-executable.sh qt --mode onefile        # single executable on the native platform
 run/build-executable.sh qt --dry-run             # inspect compiler arguments
+run/build-executable.sh qt --mode onefile --lean-data
+run/build-executable.sh qt --mode onefile --lean-data --lto yes
 ```
 
 On Windows: `run/build-executable.ps1 qt` (optionally `--mode onefile`).
 The wrapper installs the `qt`, `qt-build`, `web` and `mcp` extras with uv,
 validates dependencies and Qt/MCP startup, then invokes
-`scripts/build_qt_executable.py`. Build on each target OS with its native C
+`run-build/build_qt_executable.py`. Build on each target OS with its native C
 compiler (Xcode Command Line Tools on macOS, MSVC on Windows, GCC/Clang on
 Linux). Nuitka is pinned to 4.2.2 because 4.3 regressed compiled PySide6 signal
 connections. Upgrading the compiler requires passing the packaged smoke test.
@@ -79,22 +81,23 @@ After compilation, the executable runs `--self-test` offline with temporary
 settings/cache storage, exercising Qt startup, packaged resources, sample
 loading, shared principal queries, typed MCP metadata and in-memory snapshot MCP
 queries. Only a passing bundle
-is archived. Compiler intermediates and native bundles stay under `build/qt/native/`,
-so `dist/qt/` contains release archives and their manifest. `dist/qt/build-result.json` identifies the executable and archive (ZIP on Windows, tar.gz on macOS/Linux to
+is archived. Compiler intermediates stay under `build/qt/<mode>/native/`.
+`dist/qt/` contains cleanly named runnable applications, release archives and
+`build-result-<mode>.json`, which identifies the executable and archive (ZIP on Windows, tar.gz on macOS/Linux to
 preserve symlinks and executable permissions);
 `build/qt/nuitka-report.xml` records module and data inclusion. Artifacts are
 ignored. These builds are unsigned and not notarized; external Codex CLI/login
 remain separate. Existing `run/build-executable.sh`/`.ps1` without `qt` retain
 the Tkinter/PyInstaller path.
 
-Both local and CI builds use the Nuitka project options in `scripts/qt_entry.py`.
+Both local and CI builds use the Nuitka project options in `run-build/qt_entry.py`.
 Nuitka may download compiler helpers without prompting. ccache is used when
 available on macOS/Linux; MSVC uses clcache on Windows. Install ccache locally
 with `brew install ccache` on macOS. Removing `dist/` does not clear compiler caches.
 The GitHub `build_qt` matrix uses the pinned official Nuitka action, persists its
 cache, and smoke-tests macOS arm64 and Windows x64 bundles before attaching their
 archives to the same semantic-release prerelease as the Tkinter installers.
-On Windows, extract the entire Qt ZIP and run `qt_entry.dist/oci-policy-analysis-qt.exe`;
+On Windows, extract the entire Qt ZIP and run `oci-policy-analysis-qt/oci-policy-analysis-qt.exe`;
 keep its adjacent DLLs and resource folders together.
 
 `run/clean.sh` deliberately removes `.venv`, `dist`, `build`, `wheels`, generated dependency lists and source Python caches. It preserves configuration, signing keys and application data. Build again afterward. Root `local-run.sh`, `local-build.sh`, `local-clean.sh`, `local-build-with-pyinstaller.sh`, and MCP build/deploy shell/PowerShell names are compatibility adapters into `run/`; they use the same configuration. Native Windows commands are `run/local.ps1`, `run/build.ps1`, `run/clean.ps1`, and `run/build-executable.ps1`; they read the same literal assignments in the shared file. PowerShell container adapters require Bash. PowerShell configuration supports literal quoted values, not shell expansion/command substitution. The ignored old `env.sh` is no longer sourced by these commands.
@@ -187,3 +190,21 @@ These are supported when needed but intentionally absent from the short example.
 - Advanced OAuth: `MCP_OAUTH_UPDATE_SCOPE`, `MCP_OAUTH_AUTHORIZATION_SCOPES`, `MCP_OAUTH_AUTHORIZATION_SERVER_METADATA_ISSUER`, `MCP_OAUTH_AUTHORIZATION_ENDPOINT`, `MCP_OAUTH_TOKEN_ENDPOINT`, and `MCP_OAUTH_ALGORITHM` (default RS256). These are forwarded only with OAuth enabled. See [OAuth configuration](../docs/source/mcp_oauth.md).
 
 Diagnostics and UI preferences are not part of deployment configuration. Use the existing application controls and [troubleshooting guide](../docs/source/logging_and_troubleshooting.md) for those.
+
+
+## Local packaging comparisons
+
+Qt's helper, entry point and Nuitka configuration live under `run-build/`; the
+shell and PowerShell launchers remain under `run/`. Tk builds use `dist/tk/`
+and the `oci-policy-analysis-tk` application name. Qt builds use `dist/qt/`
+and `oci-policy-analysis-qt`; onefile applications add `-onefile`. Archives include
+their mode and version, so standalone and onefile outputs can be compared safely.
+Compiler work stays under `build/`, and neither output cleanup clears Nuitka caches.
+
+The per-mode Qt manifests record uncompressed bundle size, archive size, build
+time and smoke-test time. Keep Python, dependencies and compiler settings fixed
+for a fair comparison. Onefile changes distribution and extraction behavior;
+it still needs the same Qt/Python runtime contents. `--lean-data` omits Qt
+translations and build-time parser jars. `--lto yes` is a separate, slower compiler
+experiment. Retain MCP metadata/descriptions and validate every candidate with
+the packaged smoke test before using or distributing it.

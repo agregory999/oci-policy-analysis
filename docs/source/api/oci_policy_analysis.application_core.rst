@@ -152,3 +152,7 @@ Support
 
 .. automodule:: oci_policy_analysis.application.services.simulation_workbench_service
    :members:
+
+
+.. automodule:: oci_policy_analysis.application.services.reports_service
+   :members:
