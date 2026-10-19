@@ -1,3 +1,10 @@
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.11](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.10...v7.0.0-7-0-0-policy-corpus-cross-tenancy.11) (2026-10-19)
+
+
+### Features
+
+* persist Qt overview settings and improve policy evidence display ([5de97bf](https://github.com/agregory999/oci-policy-analysis/commit/5de97bf58ba2c4f4bb754d4dea5491de0149e48d))
+
 ## [7.0.0-7-0-0-policy-corpus-cross-tenancy.10](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.9...v7.0.0-7-0-0-policy-corpus-cross-tenancy.10) (2026-10-19)
 
 
