@@ -86,11 +86,13 @@ class AppContext:
         }
 
     @classmethod
-    def from_settings(cls, settings: dict[str, Any]) -> AppContext:
+    def from_settings(cls, settings: dict[str, Any], *, verbose_override: bool | None = None) -> AppContext:
         """Construct standard repositories, engines, and service wiring.
 
         Args:
             settings: Active configuration; retained by reference rather than copied.
+            verbose_override: Explicit runtime logging lock. False applies saved
+                levels exactly; None retains legacy root-DEBUG inference.
 
         Returns:
             AppContext: An unloaded runtime with bundled reference data and no corpus.
@@ -102,13 +104,14 @@ class AppContext:
 
         # Apply persisted logging settings at startup for web/non-Tk flows.
         # Without this, root logger remains at default INFO from logger setup.
-        set_log_level(str(settings.get('global_log_level', 'WARNING')))
+        runtime_options = {} if verbose_override is None else {'verbose_override': verbose_override}
+        set_log_level(str(settings.get('global_log_level', 'WARNING')), **runtime_options)
         component_levels = settings.get('log_levels', {})
         if isinstance(component_levels, dict):
             for component, level in component_levels.items():
                 if not component:
                     continue
-                set_component_level(str(component), str(level))
+                set_component_level(str(component), str(level), **runtime_options)
 
         reference_data = ReferenceDataRepo()
         reference_data.load_data()

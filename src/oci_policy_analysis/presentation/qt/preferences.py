@@ -8,10 +8,10 @@ def load_preferences() -> dict:
     """Read existing settings and supply safe Qt defaults without loading OCI.
 
     Returns:
-        dict: Shared settings with Qt defaults; root DEBUG requires --verbose.
+        dict: Shared settings with Qt defaults; saved log levels apply unless --verbose overrides them.
     """
     settings = SettingsService.load().get()
-    if settings.get('global_log_level') not in {'INFO', 'WARNING', 'ERROR', 'CRITICAL'}:
+    if settings.get('global_log_level') not in {'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'}:
         settings['global_log_level'] = 'INFO'
     settings.setdefault('log_levels', {})
     settings.setdefault('usage_tracking_enabled', True)

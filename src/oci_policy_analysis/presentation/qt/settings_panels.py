@@ -2,10 +2,12 @@
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
+    QBoxLayout,
     QCheckBox,
     QComboBox,
     QFormLayout,
     QGridLayout,
+    QHBoxLayout,
     QPushButton,
     QVBoxLayout,
     QWidget,
@@ -40,9 +42,16 @@ class IntelligencePanel(QWidget):
         ]:
             combo.addItems(['0%', '25%', '50%', '75%', '90%'])
             combo.setCurrentText(f'{settings.get(key, 50)}%')
-        form.addRow('WHERE risk reduction', self.where_reduction)
-        form.addRow('Service principal risk reduction', self.service_reduction)
         layout.addLayout(form)
+        layout.addWidget(label('Risk score reductions', 'eyebrow'))
+        self.risk_row = QHBoxLayout()
+        for title, combo in [('WHERE', self.where_reduction), ('Service principal', self.service_reduction)]:
+            pair = QFormLayout()
+            pair.addRow(title, combo)
+            self.risk_row.addLayout(pair)
+        self.risk_row.addStretch()
+        layout.addLayout(self.risk_row)
+        layout.addWidget(label('Enabled intelligence checks', 'eyebrow'))
         grid = QGridLayout()
         self.strategy_grid = grid
         self.strategy_columns = 2
@@ -66,6 +75,10 @@ class IntelligencePanel(QWidget):
         Args:
             available: Width of the containing Overview viewport in pixels.
         """
+        risk_width = sum(self.risk_row.itemAt(i).sizeHint().width() for i in range(self.risk_row.count())) + 30
+        self.risk_row.setDirection(
+            QBoxLayout.Direction.TopToBottom if risk_width > available else QBoxLayout.Direction.LeftToRight
+        )
         required = 2 * max(check.sizeHint().width() for check in self.strategies.values()) + 30
         columns = 1 if required > available else 2
         if columns == self.strategy_columns:
@@ -89,7 +102,19 @@ class IntelligencePanel(QWidget):
                 'risk_service_principal_reduction_pct': int(self.service_reduction.currentText().rstrip('%')),
             }
         )
-        self.status.setText('Applied to the next load. Current results are unchanged.')
+        try:
+            save_preferences(
+                self.settings,
+                (
+                    'qt_post_load_profile',
+                    'enabled_intelligence_checks',
+                    'risk_where_clause_reduction_pct',
+                    'risk_service_principal_reduction_pct',
+                ),
+            )
+            self.status.setText('Saved for future loads and app restarts. Current results are unchanged.')
+        except OSError:
+            self.status.setText('Applied for this session; could not save intelligence preferences.')
 
 
 class AppearancePanel(QWidget):

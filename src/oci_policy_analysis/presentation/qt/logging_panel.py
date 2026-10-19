@@ -191,7 +191,7 @@ class LoggingPanel(QFrame):
         row = QHBoxLayout()
         row.addWidget(label('Global'))
         combo = QComboBox()
-        combo.addItems(LEVELS if verbose else LEVELS[1:])
+        combo.addItems(LEVELS if verbose or settings.get('global_log_level') == 'DEBUG' else LEVELS[1:])
         combo.setCurrentText(settings.get('global_log_level', 'INFO'))
         combo.setEnabled(not verbose)
         self.levels['global'] = combo
@@ -297,7 +297,8 @@ class LoggingPanel(QFrame):
             if name != 'global' and name not in self.runtime
         }
         self.service.update_log_settings(
-            {'global_log_level': self.levels['global'].currentText(), 'clear_log_levels': True, 'log_levels': levels}
+            {'global_log_level': self.levels['global'].currentText(), 'clear_log_levels': True, 'log_levels': levels},
+            verbose_override=False,
         )
         runtime = {name: self.levels[name].currentText() for name in self.runtime}
         for name, level in runtime.items():

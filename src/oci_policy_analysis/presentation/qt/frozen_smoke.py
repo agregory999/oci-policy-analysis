@@ -180,12 +180,37 @@ def main() -> int:
             assert analytics.tables['Features'].model.rowCount() == 1
             analytics.close()
             analytics.deleteLater()
+            assert window.browser_page.model.headers == ('Policy', 'Effective path', 'Original statement')
+            window.drawer.show_record(
+                {
+                    'statement_text': 'invalid smoke evidence',
+                    'valid': False,
+                    'invalid_reasons': ['Offline smoke invalid reason'],
+                }
+            )
+            assert 'Offline smoke invalid reason' in window.drawer.invalid_notice.toPlainText()
+            assert not window.drawer.invalid_notice.isHidden()
+            window.settings_page.profile.setCurrentText('SMOKE_PROFILE')
+            window.settings_page.depth.setValue(3)
+            intelligence = window.settings_page.intelligence_panel
+            intelligence.profile.setCurrentIndex(intelligence.profile.findData('full'))
+            intelligence.apply_settings()
+            appearance = window.settings_page.appearance_panel
+            appearance.fixed_width.setChecked(True)
+            appearance.apply_settings()
             assert not window.windowIcon().isNull()
             assert window.users_groups_page.user_view.inventory.model.rowCount() == len(context.policy_repo.users)
             application.processEvents()
             window.close()
             application.processEvents()
             window.deleteLater()
+            reopened = WorkbenchWindow()
+            assert reopened.settings_page.profile.currentText() == 'SMOKE_PROFILE'
+            assert reopened.settings_page.depth.value() == 3
+            assert reopened.settings_page.intelligence_panel.profile.currentData() == 'full'
+            assert reopened.settings_page.appearance_panel.fixed_width.isChecked()
+            reopened.close()
+            reopened.deleteLater()
             QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
             print('Qt executable smoke test passed: resources, sample, services, in-memory MCP queries')
     finally:

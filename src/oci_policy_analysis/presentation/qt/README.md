@@ -608,3 +608,32 @@ It uses shared models and aggregations, keeps old documents readable, reports
 partial reads, follows listing pagination, and never publishes tracking. The
 frozen smoke check covers both windows offline. Full review and setup details
 are in `docs/source/usage_tracking.md`.
+
+
+## Startup preferences and policy browser presentation
+
+Overview restores the shared `named_profile`, `instance_principal`, `recursive`,
+`load_all_users` and `domain_compartment_depth` preferences at startup. Qt retains
+resource-principal selection in `qt_auth_mode`. Changes save after a short debounce;
+an explicit OCI load or orderly close flushes pending edits. Unchanged controls do
+not overwrite newer settings written by another interface. All saves merge only
+the affected keys. No authentication or collection happens while restoring them.
+
+Intelligence's Apply button persists the full/minimal post-load profile, enabled
+checks and both risk reductions. The reductions share a row, with a narrow-layout
+fallback, and the checkbox grid is labeled Enabled intelligence checks. Applying
+changes configures future loads without modifying the active analysis. Appearance
+Apply continues to save theme, color palette, text size, compact rows and fixed-width
+fonts. Restart coverage verifies these alongside canonical and runtime log levels.
+Saved DEBUG is distinct from the explicit `--verbose` session lock; component
+overrides survive startup and subsequent loads. The live GUI log remains INFO+.
+
+The Policy Browser uses the shared compartment/policy formatter for a single Policy
+column, followed by Effective path and Original statement. It no longer displays
+Valid or Subject type columns; existing validity and subject filters remain. Rows
+with explicit `valid=False` are italic and use a theme-aware red foreground. Missing
+validity retains normal styling. A legend beside the counts explains the highlighting
+and right-click inspection. Invalid reasons appear in a bounded, scrollable plain-
+text summary above the fly-in tabs, with Validity expanded before Source. Records,
+conditions, invalid evidence and raw JSON are retained unchanged. No cache migration
+is needed.

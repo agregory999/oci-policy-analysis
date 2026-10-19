@@ -2288,7 +2288,7 @@ def test_browser_subject_union_detail_filter_order_and_hidden_column(workbench):
     application.processEvents()
     assert page.filter_toggle.text() == 'Detailed Filters'
     assert page.search.mapTo(page, page.search.rect().topLeft()).y() < page.filter_toggle.y()
-    assert page.table.isColumnHidden(2)
+    assert page.model.headers == ('Policy', 'Effective path', 'Original statement')
     assert {row['subject_type'] for row in page.model.records} == {'group', 'dynamic-group'}
     page.subject_types.checks['group'].setChecked(True)
     assert page.model.rowCount() == 4
@@ -3140,3 +3140,179 @@ def test_analytics_overnight_run_matches_upload_day_and_utc_date_filter(qt_appli
     assert not viewer.filtered_docs()
     viewer.close()
     viewer.deleteLater()
+
+
+def test_overview_restores_legacy_load_and_logging_preferences_and_saves_edits(workbench, monkeypatch):
+    application, original = workbench
+    original.close()
+    seed = {
+        'named_profile': 'SAVED_PROFILE',
+        'instance_principal': True,
+        'recursive': False,
+        'load_all_users': False,
+        'domain_compartment_depth': 4,
+        'global_log_level': 'DEBUG',
+        'log_levels': {'qt.main': 'ERROR'},
+        'qt_runtime_log_levels': {'saved_runtime_logger': 'WARNING'},
+        'unrelated_preference': 'retain-me',
+    }
+    Path(config.SETTINGS_PATH).write_text(json.dumps(seed))
+    monkeypatch.setattr('oci_policy_analysis.presentation.qt.pages.overview.profile_names', lambda: ['DEFAULT'])
+    restored = WorkbenchWindow()
+    try:
+        page = restored.settings_page
+        assert page.profile.currentText() == 'SAVED_PROFILE'
+        assert page.auth.currentData() == 'instance_principal'
+        assert not page.profile.isEnabled()
+        assert not page.recursive.isChecked() and not page.load_all_users.isChecked()
+        assert not page.cis_users.isChecked() and page.depth.value() == 4
+        assert logging.getLogger().level == logging.DEBUG
+        assert logging.getLogger('oci-policy-analysis.qt.main').level == logging.ERROR
+        assert logging.getLogger('saved_runtime_logger').level == logging.WARNING
+        assert not restored.verbose and page.logging_panel.apply_button.isEnabled()
+        page.load_sample()
+        _wait_for_load(application, restored)
+        assert logging.getLogger('oci-policy-analysis.qt.main').level == logging.ERROR
+        assert logging.getLogger('saved_runtime_logger').level == logging.WARNING
+        page.profile.setCurrentText('NEW_PROFILE')
+        page.auth.setCurrentIndex(page.auth.findData('resource_principal'))
+        page.depth.setValue(2)
+        page.recursive.setChecked(True)
+        page.cis_users.setChecked(True)
+        # Immediate close must flush a pending debounced save.
+        restored.close()
+        saved = json.loads(Path(config.SETTINGS_PATH).read_text())
+        assert saved['unrelated_preference'] == 'retain-me'
+        assert saved['named_profile'] == 'NEW_PROFILE'
+        assert saved['domain_compartment_depth'] == 2
+        assert saved['qt_auth_mode'] == 'resource_principal' and not saved['instance_principal']
+        assert saved['load_all_users'] and saved['recursive']
+        reopened = WorkbenchWindow()
+        try:
+            assert reopened.settings_page.profile.currentText() == 'NEW_PROFILE'
+            assert reopened.settings_page.auth.currentData() == 'resource_principal'
+            assert reopened.settings_page.depth.value() == 2
+            assert reopened.settings_page.load_all_users.isChecked()
+        finally:
+            reopened.close()
+            reopened.deleteLater()
+    finally:
+        restored.close()
+        restored.deleteLater()
+
+
+def test_intelligence_full_profile_checks_risks_and_appearance_survive_restart(workbench):
+    from PySide6.QtWidgets import QLabel
+
+    application, window = workbench
+    intelligence = window.settings_page.intelligence_panel
+    intelligence.profile.setCurrentIndex(intelligence.profile.findData('full'))
+    intelligence.where_reduction.setCurrentText('0%')
+    intelligence.service_reduction.setCurrentText('75%')
+    disabled = next(iter(intelligence.strategies))
+    intelligence.strategies[disabled].setChecked(False)
+    intelligence.apply_settings()
+    assert 'Saved' in intelligence.status.text()
+    assert any(widget.text() == 'Enabled intelligence checks' for widget in intelligence.findChildren(QLabel))
+    appearance = window.settings_page.appearance_panel
+    appearance.theme.setCurrentText('Dark')
+    appearance.color_theme.setCurrentText('Forest')
+    appearance.font_size.setCurrentText('Extra Large')
+    appearance.fixed_width.setChecked(True)
+    appearance.compact.setChecked(True)
+    appearance.apply_settings()
+    window.close()
+    reopened = WorkbenchWindow()
+    try:
+        panel = reopened.settings_page.intelligence_panel
+        assert panel.profile.currentData() == 'full'
+        assert panel.where_reduction.currentText() == '0%'
+        assert panel.service_reduction.currentText() == '75%'
+        assert not panel.strategies[disabled].isChecked()
+        assert len([check for check in panel.strategies.values() if check.isChecked()]) == len(panel.strategies) - 1
+        panel.reflow_columns(1600)
+        from PySide6.QtWidgets import QBoxLayout
+
+        assert panel.risk_row.direction() == QBoxLayout.Direction.LeftToRight
+        look = reopened.settings_page.appearance_panel
+        assert look.theme.currentText() == 'Dark'
+        assert look.font_size.currentText() == 'Extra Large'
+        assert look.fixed_width.isChecked() and look.compact.isChecked()
+        assert 'font-size: 20px' in reopened.styleSheet()
+    finally:
+        reopened.close()
+        reopened.deleteLater()
+
+
+def test_browser_combined_policy_effective_path_invalid_style_and_prominent_reason(workbench):
+    from copy import deepcopy
+
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QPalette
+
+    from oci_policy_analysis.presentation import format_compartment_policy_name
+
+    application, window = workbench
+    window.settings_page.load_sample()
+    _wait_for_load(application, window)
+    context = window.controller.context
+    record = {
+        **context.policy_repo.regular_statements[0],
+        'internal_id': 'invalid-browser-row',
+        'policy_name': '<literal-policy>',
+        'compartment_path': 'ROOT / Policies',
+        'effective_path': 'ROOT / Applications',
+        'valid': False,
+        'invalid_reasons': ['Unknown resource type <literal>'],
+    }
+    unknown = {**record, 'internal_id': 'unknown-validity', 'valid': None}
+    page = window.browser_page
+    source_before = deepcopy(record)
+    page.model.replace([record, unknown])
+    page._row_count()
+    model = page.model
+    assert model.headers == ('Policy', 'Effective path', 'Original statement')
+    assert model.data(model.index(0, 0)) == format_compartment_policy_name(
+        record['compartment_path'], record['policy_name']
+    )
+    assert model.data(model.index(0, 1)) == record['effective_path']
+    assert model.data(model.index(0, 0), Qt.ItemDataRole.FontRole).italic()
+    assert model.data(model.index(1, 0), Qt.ItemDataRole.FontRole) is None
+    assert 'Right-click' in model.data(model.index(0, 2), Qt.ItemDataRole.ToolTipRole)
+    page.search.setText('Applications')
+    assert page.proxy.rowCount() == 2
+    for theme in ('Light', 'Dark'):
+        window._apply_appearance({'qt_theme': theme, 'font_size': 'Extra Large', 'qt_fixed_width_font': True})
+        page.table.ensurePolished()
+        foreground = model.data(model.index(0, 0), Qt.ItemDataRole.ForegroundRole)
+        dark = page.table.palette().color(QPalette.ColorRole.Base).lightness() < 128
+        assert foreground.name() == ('#ff9a9a' if dark else '#a12632')
+    menu = page.table.context_menu(record)
+    menu.actions()[0].trigger()
+    application.processEvents()
+    assert not window.drawer.invalid_notice.isHidden()
+    assert 'Unknown resource type <literal>' in window.drawer.invalid_notice.toPlainText()
+    assert window.drawer.record is record
+    assert record == source_before
+    window.drawer.show_record(unknown)
+    assert window.drawer.invalid_notice.isHidden()
+    assert window.drawer.invalid_notice.toPlainText() == ''
+    menu.deleteLater()
+
+
+def test_load_preferences_autosave_and_clean_close_preserve_external_updates(workbench):
+    application, window = workbench
+    page = window.settings_page
+    page.profile.setCurrentText('AUTOSAVED')
+    page.depth.setValue(5)
+    deadline = time.monotonic() + 3
+    while page.preference_timer.isActive() and time.monotonic() < deadline:
+        application.processEvents()
+        time.sleep(0.01)
+    saved = json.loads(Path(config.SETTINGS_PATH).read_text())
+    assert saved['named_profile'] == 'AUTOSAVED' and saved['domain_compartment_depth'] == 5
+    # An unchanged window must not overwrite a newer edit from another interface.
+    saved['named_profile'] = 'EXTERNAL_UPDATE'
+    Path(config.SETTINGS_PATH).write_text(json.dumps(saved))
+    window.close()
+    assert json.loads(Path(config.SETTINGS_PATH).read_text())['named_profile'] == 'EXTERNAL_UPDATE'

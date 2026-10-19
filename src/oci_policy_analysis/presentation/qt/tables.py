@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QAbstractTableModel, QItemSelectionModel, QModelIndex, QSortFilterProxyModel, Qt, Signal
+from PySide6.QtGui import QColor, QFont, QPalette
 from PySide6.QtWidgets import QAbstractItemView, QApplication, QHeaderView, QMenu, QTableView, QWidget
 
 from oci_policy_analysis.application.services.condition_tester_service import extract_condition_clause
+from oci_policy_analysis.presentation import format_compartment_policy_name
 
 _ROOT_INDEX = QModelIndex()
 
@@ -51,6 +53,44 @@ class RecordModel(QAbstractTableModel):
         self.beginResetModel()
         self.records = records
         self.endResetModel()
+
+
+class BrowserStatementModel(RecordModel):
+    """Format browser policy paths and mark explicitly invalid source evidence.
+
+    Args:
+        columns: Display headings and source-field names.
+        parent: Owning table, which supplies the current theme and font.
+
+    Notes:
+        Formatting and styles never modify the original statement dictionary.
+        Unknown validity retains normal styling. Red plus italics distinguishes
+        invalid statements in both themes and without relying only on color.
+    """
+
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole):
+        """Return combined policy labels or invalid-state roles for browser cells."""
+        if not index.isValid():
+            return None
+        record = self.records[index.row()]
+        invalid = record.get('valid') is False
+        if role == Qt.ItemDataRole.FontRole and invalid:
+            font = QFont(self.parent().font())
+            font.setItalic(True)
+            return font
+        if role == Qt.ItemDataRole.ForegroundRole and invalid:
+            dark = self.parent().palette().color(QPalette.ColorRole.Base).lightness() < 128
+            return QColor('#ff9a9a' if dark else '#a12632')
+        if self.columns[index.column()][1] == 'policy_display' and role in (
+            Qt.ItemDataRole.DisplayRole,
+            Qt.ItemDataRole.ToolTipRole,
+        ):
+            value = format_compartment_policy_name(record.get('compartment_path'), record.get('policy_name'))
+        else:
+            value = super().data(index, role)
+        if invalid and role == Qt.ItemDataRole.ToolTipRole:
+            return f'Invalid statement. Right-click for details.\n{value or ""}'
+        return value
 
 
 STATEMENT_COLUMNS = (
@@ -158,13 +198,14 @@ class StatementTable(RecordTable):
 
     focus_dynamic_group = Signal(dict)
 
-    def __init__(self, columns: tuple = STATEMENT_COLUMNS) -> None:
+    def __init__(self, columns: tuple = STATEMENT_COLUMNS, *, source_model: RecordModel | None = None) -> None:
         """Expose context actions on rows while retaining the original statement text."""
-        super().__init__(columns)
-        self.setColumnWidth(0, 165)
-        self.setColumnWidth(1, 150)
-        self.setColumnWidth(2, 115)
-        self.setColumnWidth(3, 55)
+        super().__init__(columns, source_model=source_model)
+        if columns == STATEMENT_COLUMNS:
+            self.setColumnWidth(0, 165)
+            self.setColumnWidth(1, 150)
+            self.setColumnWidth(2, 115)
+            self.setColumnWidth(3, 55)
 
     def context_menu(self, record: dict) -> QMenu:
         """Build actions for one source record; identity resolution belongs to its page."""

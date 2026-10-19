@@ -86,14 +86,15 @@ class WorkbenchWindow(QMainWindow):
         self.resize(1440, 900)
         self.setMinimumSize(1100, 760)
         self.log_bridge = LogBridge(self)
-        self.verbose = verbose or logging.getLogger().level == logging.DEBUG
+        self.verbose = bool(verbose)
         level = 'DEBUG' if self.verbose else 'INFO'
         settings = load_preferences()
         if self.verbose:
             settings.update({'global_log_level': level, 'log_levels': dict.fromkeys(QT_COMPONENTS, level)})
-        LoggingService(settings).update_log_settings(settings)
+            settings['qt_runtime_log_levels'] = dict.fromkeys(settings.get('qt_runtime_log_levels', {}), 'DEBUG')
+        LoggingService(settings).update_log_settings(settings, verbose_override=self.verbose)
         for name, runtime_level in settings.get('qt_runtime_log_levels', {}).items():
-            logging.getLogger(name).setLevel(runtime_level)
+            logging.getLogger(name).setLevel('DEBUG' if self.verbose else runtime_level)
         self.usage = UsageSession(settings, get_app_version()) if record_usage else None
         self.controller = WorkbenchController(settings, self)
         self.experience = ExperienceMode(settings, self)
@@ -629,6 +630,7 @@ class WorkbenchWindow(QMainWindow):
             event.ignore()
             self.mcp_page.stop_all()
         else:
+            self.settings_page.save_load_preferences()
             if self.usage:
                 self.usage.close(wait=False)
             logger.info('Closing Qt workbench')

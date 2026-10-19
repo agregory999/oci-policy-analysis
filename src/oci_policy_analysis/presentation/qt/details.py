@@ -123,6 +123,14 @@ class DetailsDrawer(QFrame):
         layout.addLayout(row)
         self.status = label('', wrap=True)
         layout.addWidget(self.status)
+        self.invalid_notice = QPlainTextEdit()
+        self.invalid_notice.setReadOnly(True)
+        self.invalid_notice.setAccessibleName('Invalid statement reason')
+        self.invalid_notice.setMaximumHeight(120)
+        self.invalid_notice.setMinimumHeight(80)
+        self.invalid_notice.setStyleSheet('border-left: 3px solid #c3424b;')
+        self.invalid_notice.hide()
+        layout.addWidget(self.invalid_notice)
         tabs = QTabWidget()
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
@@ -167,6 +175,24 @@ class DetailsDrawer(QFrame):
         parsed = record.get('parsed')
         parsed_status = 'Yes' if parsed is True else 'No' if parsed is False else 'Not recorded'
         self.status.setText(f'{validity} · Parsed: {parsed_status}' if 'statement_text' in record else validity)
+        self.invalid_notice.setVisible(valid is False)
+        if valid is False:
+            reasons = [record[key] for key in ('invalid_reasons', 'invalid_reason', 'parse_errors') if record.get(key)]
+            if not reasons and record.get('parsing_notes'):
+                reasons = [record['parsing_notes']]
+            summary = (
+                '\n'.join(
+                    json.dumps(reason, indent=2, ensure_ascii=False, default=str)
+                    if isinstance(reason, (list, dict, tuple))
+                    else str(reason)
+                    for value in reasons
+                    for reason in (value if isinstance(value, (list, tuple)) else [value])
+                )
+                or 'No invalid reason was recorded. Review Validity and Raw record.'
+            )
+            self.invalid_notice.setPlainText('Invalid statement\n' + summary)
+        else:
+            self.invalid_notice.clear()
         self.raw.setPlainText(json.dumps(record, indent=2, ensure_ascii=False, default=str))
         self.copy_statement.setVisible('statement_text' in record)
         content = QWidget()
@@ -203,6 +229,10 @@ class DetailsDrawer(QFrame):
                 ),
             ]
         )
+        if valid is False and 'statement_text' in record:
+            groups = [group for group in groups if group[0] == 'Validity'] + [
+                group for group in groups if group[0] != 'Validity'
+            ]
         for name, keys in [
             *groups,
             (

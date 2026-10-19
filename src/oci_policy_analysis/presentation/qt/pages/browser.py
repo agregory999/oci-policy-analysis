@@ -15,7 +15,7 @@ from oci_policy_analysis.application.core.support.logger import get_logger
 from oci_policy_analysis.application.services.analysis_service import AnalysisService
 from oci_policy_analysis.application.services.prospective_workbench_service import ProspectiveWorkbenchService
 from oci_policy_analysis.application.services.search_builders import build_policy_search_from_dict
-from oci_policy_analysis.presentation.qt.tables import StatementTable
+from oci_policy_analysis.presentation.qt.tables import BrowserStatementModel, StatementTable
 from oci_policy_analysis.presentation.qt.widgets import MultiSelectFilter
 from oci_policy_analysis.presentation.qt.widgets import label as _label
 
@@ -41,7 +41,7 @@ class PolicyBrowserPage(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         self.search = QLineEdit()
-        self.search.setPlaceholderText('Filter by policy, compartment, or statement text…')
+        self.search.setPlaceholderText('Filter by policy, compartment, effective path, or statement text…')
         self.search.setClearButtonEnabled(True)
         self.subject_types = MultiSelectFilter('Subject types')
         self.subject_types.changed.connect(self._apply_dropdown)
@@ -178,10 +178,23 @@ class PolicyBrowserPage(QWidget):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
-        self.row_label = _label('No statements loaded', 'muted')
-        layout.addWidget(self.row_label)
-        self.table = StatementTable()
-        self.table.setColumnHidden(2, True)
+        counts = QHBoxLayout()
+        self.row_label = _label('No statements loaded', 'muted', wrap=True)
+        counts.addWidget(self.row_label)
+        counts.addStretch()
+        self.invalid_legend = _label(
+            'Highlighted italic rows are invalid. Right-click for details.', 'muted', wrap=True
+        )
+        counts.addWidget(self.invalid_legend)
+        layout.addLayout(counts)
+        columns = (
+            ('Policy', 'policy_display'),
+            ('Effective path', 'effective_path'),
+            ('Original statement', 'statement_text'),
+        )
+        self.table = StatementTable(columns, source_model=BrowserStatementModel(columns, None))
+        self.table.setColumnWidth(0, 300)
+        self.table.setColumnWidth(1, 230)
         self.model = self.table.model
         self.proxy = self.table.proxy
         self.table.details_requested.connect(self.details_requested.emit)

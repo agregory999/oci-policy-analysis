@@ -25,6 +25,7 @@ from oci_policy_analysis.application.context import AppContext
 from oci_policy_analysis.application.core.support.caching import CacheManager
 from oci_policy_analysis.application.services.cache_service import CacheService
 from oci_policy_analysis.application.services.load_service import LoadResult
+from oci_policy_analysis.presentation.qt.preferences import save_preferences
 from oci_policy_analysis.presentation.qt.profiles import profile_names
 from oci_policy_analysis.presentation.qt.settings_panels import AppearancePanel, IntelligencePanel
 from oci_policy_analysis.presentation.qt.widgets import CollapsibleSection
@@ -47,6 +48,11 @@ class OverviewSettingsPage(QScrollArea):
         self._responsive_rows = []
         self._busy = False
         self._load_locked = False
+        self._load_preferences_dirty = False
+        self.preference_timer = QTimer(self)
+        self.preference_timer.setSingleShot(True)
+        self.preference_timer.setInterval(300)
+        self.preference_timer.timeout.connect(self.save_load_preferences)
         self.cache_service = CacheService(CacheManager())
         self.setWidgetResizable(True)
         self.setFrameShape(QFrame.Shape.NoFrame)
@@ -80,6 +86,16 @@ class OverviewSettingsPage(QScrollArea):
             controls.addWidget(self.mode_status)
             layout.addWidget(mode)
         layout.addWidget(self._load_controls())
+        self.load_settings_status = _label('Connection and scope preferences are saved locally.', 'muted', wrap=True)
+        layout.addWidget(self.load_settings_status)
+        for signal in (
+            self.profile.currentTextChanged,
+            self.auth.currentIndexChanged,
+            self.recursive.toggled,
+            self.load_all_users.toggled,
+            self.depth.valueChanged,
+        ):
+            signal.connect(self._load_preferences_changed)
         self.results = self._overview_page()
         self.results.hide()
         layout.addWidget(self.results)
@@ -139,6 +155,14 @@ class OverviewSettingsPage(QScrollArea):
         except (OSError, configparser.Error) as exc:
             self.profile.addItem('DEFAULT')
             self.profile.setToolTip(f'Could not read OCI profiles: {exc}. Enter a profile name manually.')
+        self.profile.setCurrentText(str(self.settings.get('named_profile') or 'DEFAULT'))
+        mode = self.settings.get('qt_auth_mode')
+        if self.settings.get('instance_principal', False):
+            mode = 'instance_principal'
+        elif mode != 'resource_principal':
+            mode = 'profile'
+        self.auth.setCurrentIndex(self.auth.findData(mode))
+        self.profile.setEnabled(mode == 'profile')
         self.auth.currentIndexChanged.connect(lambda index: self.profile.setEnabled(index == 0))
         self.profile.setMaximumWidth(230)
         self.profile.setMinimumWidth(160)
@@ -152,14 +176,19 @@ class OverviewSettingsPage(QScrollArea):
         scope = QHBoxLayout()
         self._responsive_rows.append(scope)
         self.recursive = QCheckBox('Include child compartments')
-        self.recursive.setChecked(True)
+        self.recursive.setChecked(bool(self.settings.get('recursive', True)))
         scope.addWidget(self.recursive)
         self.load_all_users = QCheckBox('Load all users')
-        self.load_all_users.setChecked(True)
+        self.load_all_users.setChecked(bool(self.settings.get('load_all_users', True)))
         scope.addWidget(self.load_all_users)
         scope.addWidget(_label('Identity domain depth'))
         self.depth = QSpinBox()
         self.depth.setRange(1, 6)
+        try:
+            depth = int(self.settings.get('domain_compartment_depth', 1))
+        except (TypeError, ValueError):
+            depth = 1
+        self.depth.setValue(max(1, min(6, depth)))
         self.depth.setFixedWidth(85)
         self.depth.setToolTip('1 = root; 2 = root and immediate children. Independent of policy recursion.')
         scope.addWidget(self.depth)
@@ -189,7 +218,9 @@ class OverviewSettingsPage(QScrollArea):
         self._responsive_rows.append(cis_row)
         cis_row.addWidget(_label('Choose the output directory from a CIS run with --raw.', 'muted', wrap=True), 1)
         self.cis_users = QCheckBox('Load all users')
-        self.cis_users.setChecked(True)
+        self.cis_users.setChecked(self.load_all_users.isChecked())
+        self.cis_users.toggled.connect(self.load_all_users.setChecked)
+        self.load_all_users.toggled.connect(self.cis_users.setChecked)
         cis_row.addWidget(self.cis_users)
         self.cis_button = QPushButton('Load CIS output…')
         self.cis_button.clicked.connect(self._load_compliance)
@@ -315,6 +346,52 @@ class OverviewSettingsPage(QScrollArea):
         super().resizeEvent(event)
         QTimer.singleShot(0, self.reflow_rows)
 
+    def _load_preferences_changed(self, *_args):
+        self._load_preferences_dirty = True
+        self.preference_timer.start()
+
+    def save_load_preferences(self, *, force: bool = False) -> None:
+        """Persist authentication selection and scope, including edits before close.
+
+        Args:
+            force: Save an explicit load request even when controls are unchanged.
+
+        Notes:
+            Uses existing Tk/web setting keys and merges only these preferences.
+            Saving does not authenticate or collect tenancy data.
+        """
+        self.preference_timer.stop()
+        if not force and not self._load_preferences_dirty:
+            return
+        self.settings.update(
+            {
+                'named_profile': self.profile.currentText().strip() or 'DEFAULT',
+                'qt_auth_mode': self.auth.currentData(),
+                'instance_principal': self.auth.currentData() == 'instance_principal',
+                'recursive': self.recursive.isChecked(),
+                'load_all_users': self.load_all_users.isChecked(),
+                'domain_compartment_depth': self.depth.value(),
+            }
+        )
+        try:
+            save_preferences(
+                self.settings,
+                (
+                    'named_profile',
+                    'qt_auth_mode',
+                    'instance_principal',
+                    'recursive',
+                    'load_all_users',
+                    'domain_compartment_depth',
+                ),
+            )
+            self._load_preferences_dirty = False
+            self.load_settings_status.setText('Connection and scope preferences saved locally.')
+        except OSError:
+            self.load_settings_status.setText(
+                'Could not save connection preferences; current selections remain usable.'
+            )
+
     def load_options(self) -> dict:
         """Return explicit authentication and scope inputs without connecting to OCI."""
         return {
@@ -330,6 +407,7 @@ class OverviewSettingsPage(QScrollArea):
         self.load_requested.emit('sample', {}, 'Synthetic sample · no OCI connection')
 
     def _load_oci(self) -> None:
+        self.save_load_preferences(force=True)
         options = self.load_options()
         description = (
             f'OCI profile: {options["profile"]}'

@@ -32,7 +32,7 @@ class LoadWorker(QThread):
     def run(self) -> None:
         """Load a fresh context and emit either a successful snapshot or an error."""
         try:
-            context = AppContext.from_settings(self.settings)
+            context = AppContext.from_settings(self.settings, verbose_override=False)
             for name, level in self.settings.get('qt_runtime_log_levels', {}).items():
                 logging.getLogger(name).setLevel(level)
             profile = self.settings.get('qt_post_load_profile', 'minimal')

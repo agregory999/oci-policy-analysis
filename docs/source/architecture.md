@@ -461,3 +461,14 @@ window reuses the existing read models and aggregators over a read/list PAR or
 local JSON; it never initializes usage publication. Writer schema additions are
 optional and require no historical-object migration. See [Usage tracking and
 analytics](usage_tracking.md) for the compatibility assessment and lifecycle.
+
+Qt restores load controls from the existing settings keys and merges only changed
+preferences on save. Debounced load-control edits are flushed before a live load
+or orderly close; unchanged controls do not overwrite external preference updates.
+Intelligence and appearance Apply actions persist their own keys. Logging helpers,
+`LoggingService.update_log_settings` and `AppContext.from_settings` accept an
+optional `verbose_override` to distinguish a saved DEBUG level from an explicit
+CLI verbosity lock; omitted arguments retain legacy behavior. Qt passes this
+choice explicitly so component overrides remain stable through context creation.
+The Policy Browser formats policy identity and invalid-row roles in its view model
+without adding display fields to repository statements or changing cached evidence.
