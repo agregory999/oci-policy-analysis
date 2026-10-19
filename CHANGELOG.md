@@ -1,3 +1,10 @@
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.10](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.9...v7.0.0-7-0-0-policy-corpus-cross-tenancy.10) (2026-10-19)
+
+
+### Bug Fixes
+
+* identify Tk and web usage tracking interfaces ([2891614](https://github.com/agregory999/oci-policy-analysis/commit/2891614c7132187bc1b003c53c230dec83d8f035))
+
 ## [7.0.0-7-0-0-policy-corpus-cross-tenancy.9](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.8...v7.0.0-7-0-0-policy-corpus-cross-tenancy.9) (2026-10-17)
 
 
