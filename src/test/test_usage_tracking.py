@@ -160,3 +160,27 @@ def test_unknown_bucket_prefix_is_not_counted_as_a_known_tenancy():
     known = UsageDoc.from_dict({**raw, 'run_id': 'known'}, tenancy_suffix='ABC123')
     assert compute_overview_metrics([unknown])['distinct_tenancies'] == 0
     assert compute_overview_metrics([unknown, known])['distinct_tenancies'] == 1
+
+
+def test_web_startup_and_operation_rotation_keep_explicit_interface(uploads, monkeypatch):
+    from types import SimpleNamespace
+
+    from oci_policy_analysis.presentation.web import dependencies
+    from oci_policy_analysis.presentation.web.api import routes_core
+
+    settings = {'usage_tracking_enabled': True}
+    monkeypatch.setattr(dependencies, 'get_settings', lambda: settings)
+    monkeypatch.setattr(dependencies, 'AppContext', SimpleNamespace(from_settings=lambda _: object()))
+    monkeypatch.setattr(routes_core, 'get_settings', lambda: settings)
+    dependencies.get_context.cache_clear()
+    try:
+        dependencies.get_context()
+        assert tracking.get_usage_tracker().interface == 'web'
+        context = SimpleNamespace(policy_repo=SimpleNamespace(tenancy_ocid='ocid1.tenancy.ABC123'))
+        for _ in range(2):
+            routes_core._track_web_operation('/policies', ctx=context, status='success')
+            assert tracking.get_usage_tracker().interface == 'web'
+        assert len(uploads) == 2
+        assert all(document['interface'] == 'web' for _, document in uploads)
+    finally:
+        dependencies.get_context.cache_clear()

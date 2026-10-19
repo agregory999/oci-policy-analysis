@@ -151,7 +151,7 @@ class App(tk.Tk):
         self._configure_window_icon()
 
         # Initialize usage tracker (may be None if disabled in settings)
-        self.usage_tracker = init_usage_tracker(self.settings, __version__)
+        self.usage_tracker = init_usage_tracker(self.settings, __version__, interface='tk')
 
         # === CENTRALIZED LOGGER CONFIGURATION (run before any tab is constructed) ===
         log_levels = self.settings.get('log_levels', {})

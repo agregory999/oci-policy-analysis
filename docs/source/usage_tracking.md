@@ -106,8 +106,9 @@ current maintained code requires a runtime read/list URL.
 This change preserves the existing document fields, event/operation arrays,
 object-key layout, aggregators, Tk command and loader list-returning API. New
 `schema_version: 1`, `interface` and document-level `tenancy_suffix` fields are
-additive. Older readers ignore them. New readers accept documents without those
-fields or without operations, label the interface `unknown`, and ignore unknown
+additive. New writers explicitly identify Qt (`qt`), Tk (`tk`) and web (`web`). Older
+readers ignore the added fields. New readers accept documents without those
+fields or without operations, label the missing interface `unknown`, and ignore unknown
 future fields and malformed individual records. No bucket migration or rewrite
 of old objects is required. Previously captured tenancy suffixes are still read
 from object keys; old local JSON without a suffix is shown as unknown.

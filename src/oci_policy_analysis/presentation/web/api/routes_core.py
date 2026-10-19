@@ -647,7 +647,7 @@ def _track_web_operation(
         # Flush web operations promptly so analytics PAR refresh can see them
         # without waiting for process exit, then rotate tracker for next op.
         tracker.flush()
-        init_usage_tracker(get_settings(), get_app_version())
+        init_usage_tracker(get_settings(), get_app_version(), interface='web')
     except Exception:
         logger.debug('Usage tracking failed for web route %s', route, exc_info=True)
 
