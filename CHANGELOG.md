@@ -1,3 +1,10 @@
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.12](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.11...v7.0.0-7-0-0-policy-corpus-cross-tenancy.12) (2026-10-21)
+
+
+### Features
+
+* expand Qt analysis workflows and Windows onefile releases ([1fe051a](https://github.com/agregory999/oci-policy-analysis/commit/1fe051acc3331f86bbc7bdc7ff25109581eb4ad4))
+
 ## [7.0.0-7-0-0-policy-corpus-cross-tenancy.11](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.10...v7.0.0-7-0-0-policy-corpus-cross-tenancy.11) (2026-10-19)
 
 
