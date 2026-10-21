@@ -19,6 +19,7 @@ from tkinter import ttk
 from typing import Any
 
 from oci_policy_analysis.application.core.support.logger import get_logger
+from oci_policy_analysis.application.services.policy_limits_service import PolicyLimitsService
 from oci_policy_analysis.presentation.desktop.base_tab import BaseUITab
 
 logger = get_logger('policy_browser_tab')
@@ -138,16 +139,6 @@ class PolicyBrowserTab(BaseUITab):
         ttk.Button(self.policy_limit_input_frame, text='Apply limits', command=self._apply_user_supplied_limits).pack(
             side='left', padx=(4, 0)
         )
-
-        # OCI GenAI controls are an opt-in desktop preview.
-        if self.is_genai_feature_enabled():
-            self.ai_assist_btn = ttk.Button(self.button_row, text='AI Assist', command=self._on_ai_assist_clicked)
-            self.add_context_help(
-                self.ai_assist_btn,
-                'Show or hide the AI Assistant pane below to analyze policies.\nNOTE: AI must be enabled in Settings Tab and only policy statements are supported.',
-            )
-            self.ai_assist_btn.pack(side='left', padx=(14, 2), pady=2)
-            self.ai_assist_btn.config(state=tk.DISABLED)
 
         # --- Reload Compartment / Policy Data Button ---
         self.btn_reload_policies = ttk.Button(
@@ -290,8 +281,6 @@ class PolicyBrowserTab(BaseUITab):
         self.tree.bind('<Button-3>', self._on_right_click)  # Right-click (Win/Linux)
         self.tree.bind('<Button-2>', self._on_right_click)  # Middle-click (Control+Click on Mac, some setups)
         self.tree.bind('<Control-Button-1>', self._on_right_click)  # Ctrl+Click (Mac legacy)
-        # Bind item selection in tree to propagate selected statement for AI
-        self.tree.bind('<<TreeviewSelect>>', self._on_tree_select)
 
     def _update_reload_policy_button_state(self):
         """Enable or disable the reload button depending on whether reload is allowed."""
@@ -361,16 +350,6 @@ class PolicyBrowserTab(BaseUITab):
             self.configure(cursor='')
             self._update_reload_policy_button_state()
             tkmessagebox.showerror('Reload Failed', f'Reload failed due to error: {str(e)}')
-
-    def _ai_btn_is_packed(self):
-        # Helper: return True if the AI Assist button is packed in the button row
-        return bool(getattr(self, 'ai_assist_btn', None) and self.ai_assist_btn.winfo_ismapped())
-
-    def _on_ai_assist_clicked(self):
-        """Callback for AI Assist button. Toggles the AI (bottom) pane."""
-        if self.is_genai_feature_enabled() and hasattr(self.app, 'toggle_bottom'):
-            self.app.toggle_bottom()
-            logger.info('Policy Browser Tab: AI Assist button clicked, toggled bottom pane.')
 
     def on_search(self):  # noqa: C901
         """Perform case-insensitive search with highlighting and rebuild tree."""
@@ -442,7 +421,9 @@ class PolicyBrowserTab(BaseUITab):
                     highlight_policy_name = highlight(pol_name) if match_policy else pol_name
 
                     # Filter statements with the correct compartment/policy pair
-                    filter_dict = {'policy_name': [pol_name]}
+                    filter_dict = (
+                        {'policy_ocid': [p['policy_ocid']]} if p.get('policy_ocid') else {'policy_name': [pol_name]}
+                    )
                     if comp_id_val:
                         filter_dict['compartment_ocid'] = [comp_id_val]
                     stmts = self.policy_repo.filter_policy_statements(filter_dict)
@@ -457,6 +438,7 @@ class PolicyBrowserTab(BaseUITab):
                                 highlight_policy_name,  # Policy (possibly highlighted)
                                 policy_tag_matches,  # Matching policy tags only
                                 highlight_stmts,  # Only matching stmts
+                                p.get('policy_ocid') or '',
                             )
                         )
                 # Descendant compartments
@@ -524,8 +506,10 @@ class PolicyBrowserTab(BaseUITab):
                 policies = c.get('policies', [])
                 if policies:
                     policies_parent = self.tree.insert(comp_node, 'end', text='Policies', open=True)
-                    for pol_name, tag_matches, stmts in policies:
-                        pol_node = self.tree.insert(policies_parent, 'end', text=f'Policy: {pol_name}', open=True)
+                    for pol_name, tag_matches, stmts, policy_ocid in policies:
+                        pol_node = self.tree.insert(
+                            policies_parent, 'end', text=f'Policy: {pol_name}', open=True, values=(policy_ocid,)
+                        )
                         if tag_matches:
                             tags_node = self.tree.insert(pol_node, 'end', text='Tags:', open=True)
                             for tag_text in tag_matches:
@@ -567,20 +551,11 @@ class PolicyBrowserTab(BaseUITab):
 
     def _is_offline_snapshot(self) -> bool:
         """Manual limits are valid only for a named cache or CIS import."""
-        return bool(
-            getattr(self.policy_repo, 'current_cache_name', '')
-            or getattr(self.policy_repo, 'loaded_from_compliance_output', False)
-        )
+        return not PolicyLimitsService(self.app.app_context).is_live_loaded
 
     def _toggle_policy_data(self) -> None:
         if self.show_limit_data_var.get():
             offline_snapshot = self._is_offline_snapshot()
-            if not offline_snapshot:
-                # Never let an earlier cache/CIS override appear as a live
-                # tenancy value, even if a live limits request later fails.
-                self.policy_repo.tenancy_policy_limits = {}
-            if not offline_snapshot and getattr(self.policy_repo, 'limits_client', None):
-                self.policy_repo.fetch_tenancy_policy_statement_limits()
             limits = getattr(self.policy_repo, 'tenancy_policy_limits', {}) or {}
             self.user_policy_limit_var.set(str(limits.get('policies_count') or ''))
             self.user_chain_limit_var.set(str(limits.get('policy_statements_per_compartment_chain_count') or ''))
@@ -594,19 +569,47 @@ class PolicyBrowserTab(BaseUITab):
             self.policy_data_frame.pack_forget()
         self.refresh_tree()
 
+    def manage_policy_limits(self):
+        """Open snapshot-scoped entry or explain why live limits cannot be overridden."""
+        service = PolicyLimitsService(self.app.app_context)
+        if service.is_live_loaded:
+            tkmessagebox.showinfo(
+                'Live OCI limits',
+                'Limits are collected during live loading. Verify limits access and reload the tenancy to retry; live limits cannot be overridden.',
+            )
+            return
+        popup = tk.Toplevel(self)
+        popup.title('Tenancy Policy Limits')
+        popup.transient(self.winfo_toplevel())
+        ttk.Label(
+            popup,
+            text='OCI Console: Governance & Administration → Limits, Quotas and Usage.\nSelect Identity in the tenancy home region.\nCLI: oci limits value list --service-name identity --compartment-id <tenancy-ocid> --all --region <home-region>',
+            wraplength=650,
+            justify='left',
+        ).pack(padx=16, pady=12)
+        values = getattr(self.policy_repo, 'tenancy_policy_limits', {}) or {}
+        for title, key, var in [
+            ('Policy object limit', 'policies_count', self.user_policy_limit_var),
+            ('Hierarchy statement limit', 'policy_statements_per_compartment_chain_count', self.user_chain_limit_var),
+        ]:
+            var.set(str(values.get(key) or ''))
+            row = ttk.Frame(popup)
+            row.pack(fill='x', padx=16, pady=4)
+            ttk.Label(row, text=title, width=28).pack(side='left')
+            ttk.Entry(row, textvariable=var, width=16).pack(side='left')
+        ttk.Button(popup, text='Apply snapshot limits', command=self._apply_user_supplied_limits).pack(
+            side='left', padx=16, pady=12
+        )
+        ttk.Button(popup, text='Close', command=popup.destroy).pack(side='right', padx=16, pady=12)
+
     def _apply_user_supplied_limits(self) -> None:
         try:
-            self.policy_repo.set_user_supplied_tenancy_policy_limits(
+            PolicyLimitsService(self.app.app_context).apply_manual(
                 self.user_policy_limit_var.get(), self.user_chain_limit_var.get()
             )
-        except ValueError as exc:
-            tkmessagebox.showerror('Invalid limits', str(exc))
+        except (ValueError, OSError) as exc:
+            tkmessagebox.showerror('Policy limits', str(exc))
             return
-        cache_name = getattr(self.policy_repo, 'current_cache_name', '')
-        if cache_name:
-            self.app.cache_service.cache.update_tenancy_policy_limits(
-                cache_name, self.policy_repo.tenancy_policy_limits
-            )
         self.policy_data_summary_var.set(self._policy_data_summary())
         recommendations_tab = getattr(self.app, 'policy_recommendations_tab', None)
         if recommendations_tab is not None:
@@ -953,7 +956,9 @@ class PolicyBrowserTab(BaseUITab):
                         pol_name = p.get('policy_name', '(Unnamed Policy)')
                         policy_ocid = p.get('policy_ocid', 'unknown_ocid')
                         compartment_ocid = p.get('compartment_ocid', None)
-                        pol_node = self.tree.insert(policies_parent, 'end', text=f'Policy: {pol_name}', open=False)
+                        pol_node = self.tree.insert(
+                            policies_parent, 'end', text=f'Policy: {pol_name}', open=False, values=(policy_ocid,)
+                        )
                         logger.debug(f'Inserted policy: {pol_name} (ocid={policy_ocid}) under compartment {comp_name}')
 
                         # If policy contains tags, show them as expandable child node
@@ -964,7 +969,9 @@ class PolicyBrowserTab(BaseUITab):
                                 self.tree.insert(tags_node, 'end', text=f'{k}: {v}', open=False)
 
                         # Fetch and display only the correct statements for this policy/compartment pair
-                        filter_dict = {'policy_name': [pol_name]}
+                        filter_dict = (
+                            {'policy_ocid': [p['policy_ocid']]} if p.get('policy_ocid') else {'policy_name': [pol_name]}
+                        )
                         if compartment_ocid:
                             filter_dict['compartment_ocid'] = [compartment_ocid]
                         stmts = self.policy_repo.filter_policy_statements(filter_dict)
@@ -1155,26 +1162,6 @@ class PolicyBrowserTab(BaseUITab):
         for child in self.tree.get_children(node):
             self._expand_collapse_recursive(child, expand)
 
-    def _on_tree_select(self, event):
-        # When a Statement node is selected, populate statement for AI context
-        selected_id = self.tree.focus()
-        if not selected_id:
-            return
-        node_text = self.tree.item(selected_id, 'text')
-        if node_text.startswith('Statement: '):
-            statement = node_text.replace('Statement:', '', 1).strip()
-            # Populate for AI
-            if hasattr(self.app, 'policy_query_var'):
-                self.app.policy_query_label_text.set('Policy Statement\nInsights:')
-                self.app.policy_query_var.set(statement)
-            if hasattr(self.app, 'ai_additional_instructions'):
-                self.app.ai_additional_instructions = (
-                    'Analyze the selected OCI policy statement. Show how the statement breaks down '
-                    'into its components such as action, subject, verb, resource, conditions, and effective path. '
-                    'Explain its implications on permissions within the OCI environment.'
-                )
-            logger.info(f'Selected statement for AI: {statement}')
-
     def _focus_in_next_tab(self, item_id, node_text):
         # This function determines what the user clicked on and applies filter logic to the Policies Tab.
         poltab = getattr(self.app, 'policies_tab', None)
@@ -1194,6 +1181,7 @@ class PolicyBrowserTab(BaseUITab):
         poltab.text_filter_var.set('')
         poltab.effective_path_var.set('')
         poltab.policy_filter_var.set('')
+        poltab.policy_ocid_filter_var.set('')
 
         if node_text.startswith('Compartment:'):
             # Example: "Compartment: ROOT" or similar
@@ -1202,7 +1190,11 @@ class PolicyBrowserTab(BaseUITab):
         elif node_text.startswith('Policy:'):
             # Example: "Policy: MyPolicyName"
             policy_name = node_text.replace('Policy:', '').strip()
-            poltab.policy_filter_var.set(policy_name)
+            values = self.tree.item(item_id, 'values')
+            if values and values[0] and values[0] != 'unknown_ocid':
+                poltab.policy_ocid_filter_var.set(values[0])
+            else:
+                poltab.policy_filter_var.set(policy_name)
         elif node_text.startswith('Statement:'):
             # Statement line: just apply an exact match to statement text
             # Could use a more unique key if available

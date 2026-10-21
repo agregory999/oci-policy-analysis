@@ -1,7 +1,6 @@
 """Managed snapshot MCP controls and an optional native Codex conversation."""
 
 from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QTextCursor
 from PySide6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
@@ -15,6 +14,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from oci_policy_analysis.presentation.qt.assistant_transcript import AssistantTranscript
 from oci_policy_analysis.presentation.qt.codex_client import CodexClient
 from oci_policy_analysis.presentation.qt.mcp_host import SnapshotMcpHost
 from oci_policy_analysis.presentation.qt.tables import RecordTable
@@ -73,10 +73,10 @@ class McpAssistantPage(QWidget):
         self.endpoint.setReadOnly(True)
         self.endpoint.setPlaceholderText('Verified endpoint after startup')
         self.endpoint.setMinimumWidth(160)
+        self.endpoint.setMaximumWidth(300)
         controls.addWidget(self.endpoint, 1)
         self.server_status = label('Stopped', 'muted', wrap=True)
-        self.server_status.setMaximumWidth(190)
-        controls.addWidget(self.server_status)
+        controls.addWidget(self.server_status, 1)
         layout.addLayout(controls)
         split = QSplitter(Qt.Orientation.Vertical)
         self.tabs = QTabWidget()
@@ -116,9 +116,8 @@ class McpAssistantPage(QWidget):
                 wrap=True,
             )
         )
-        self.conversation = QPlainTextEdit()
+        self.conversation = AssistantTranscript()
         self.conversation.setReadOnly(True)
-        self.conversation.document().setMaximumBlockCount(3000)
         self.conversation.setPlaceholderText('Connect Codex, choose a model, and ask about the served snapshot.')
         body.addWidget(self.conversation, 1)
         row = QHBoxLayout()
@@ -241,7 +240,8 @@ class McpAssistantPage(QWidget):
     def _connect_codex(self) -> None:
         if self._running:
             self.model.clear()
-            self.conversation.appendPlainText('\nNew Codex session\n')
+            self.conversation.finish_answer()
+            self.conversation.append_literal('New Codex session')
             self.client.start(self.url, self.executable.text().strip() or 'codex')
             self._update_controls()
 
@@ -268,7 +268,7 @@ class McpAssistantPage(QWidget):
             self.assistant_status.setText('Question is too long; use at most 50,000 characters.')
             return
         self._flush_text()
-        self.conversation.appendPlainText(f'\nYou\n{text}\n\nCodex\n')
+        self.conversation.begin_answer(text)
         self.question.clear()
         self.client.send(text, self.model.currentData())
         self._update_controls()
@@ -287,25 +287,17 @@ class McpAssistantPage(QWidget):
         text = ''.join(self._pending_text)
         self._pending_text.clear()
         self._pending_chars = 0
-        cursor = self.conversation.textCursor()
-        cursor.movePosition(QTextCursor.MoveOperation.End)
-        cursor.insertText(text)
-        excess = self.conversation.document().characterCount() - 1000000
-        if excess > 0:
-            trim = QTextCursor(self.conversation.document())
-            trim.setPosition(0)
-            trim.setPosition(excess, QTextCursor.MoveMode.KeepAnchor)
-            trim.removeSelectedText()
-        self.conversation.setTextCursor(cursor)
-        self.conversation.ensureCursorVisible()
+        self.conversation.append_stream(text)
 
     def _turn_finished(self, status: str) -> None:
         self._flush_text()
-        self.conversation.appendPlainText(f'\n[{status}]\n')
+        self.conversation.finish_answer()
+        self.conversation.append_literal(f'[{status}]')
         self._update_controls()
 
     def _client_stopped(self) -> None:
         self._flush_text()
+        self.conversation.finish_answer()
         self._update_controls()
         self._emit_idle()
 

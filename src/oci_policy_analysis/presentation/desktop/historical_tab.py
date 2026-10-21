@@ -106,6 +106,17 @@ class HistoricalTab(BaseUITab):
             'Compute the difference between the two selected tenancy state caches. Results are grouped below by Policy and by Identity top-level item.',
         )
 
+        comparison_options = ttk.Frame(self)
+        comparison_options.pack(fill='x', padx=6)
+        self.meaningful_var = tk.BooleanVar(value=True)
+        self.incomplete_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(comparison_options, text='Ignore ephemeral internal IDs', variable=self.meaningful_var).pack(
+            side='left'
+        )
+        ttk.Checkbutton(
+            comparison_options, text='Compare incomplete snapshots with warnings', variable=self.incomplete_var
+        ).pack(side='left', padx=10)
+
         self.status_var = tk.StringVar(value='')
         self.status_lbl = ttk.Label(self, textvariable=self.status_var)
         self.status_lbl.pack(fill='x', padx=6, pady=(0, 4))
@@ -121,6 +132,8 @@ class HistoricalTab(BaseUITab):
         self.identity_tree.heading('#0', text='Users / Groups / Dynamic Groups / Compartments', anchor='w')
         self.identity_tree.pack(fill='both', expand=True, padx=6, pady=(0, 6))
 
+        for option in (self.meaningful_var, self.incomplete_var):
+            option.trace_add('write', lambda *_: self._invalidate_comparison())
         self.populate_cache_dropdowns()
         # Show initial tenancy info for the default dropdown values
         self._update_cache_info('left')
@@ -132,6 +145,12 @@ class HistoricalTab(BaseUITab):
         # self.add_context_help(self.identity_tree, "Tree showing changes: first by compartment, then group/dynamic group/user.")
 
     # ------------------------------------------------------------------
+
+    def _invalidate_comparison(self):
+        self._comparison_generation = getattr(self, '_comparison_generation', 0) + 1
+        for tree in (self.policy_tree, self.identity_tree):
+            tree.delete(*tree.get_children())
+        self._set_status('Inputs changed. Compare again.')
 
     def _update_cache_info(self, side):
         """
@@ -188,6 +207,8 @@ class HistoricalTab(BaseUITab):
             logger.warning('Both left and right caches must be selected before comparing.')
             return
 
+        meaningful_only = self.meaningful_var.get()
+        include_incomplete = self.incomplete_var.get()
         self._comparison_generation = getattr(self, '_comparison_generation', 0) + 1
         generation = self._comparison_generation
         self._set_status('Comparing snapshots…', 'blue')
@@ -216,6 +237,8 @@ class HistoricalTab(BaseUITab):
             self._set_status(f'Cache load failed: {exc}\nCheck that both cache files exist and are readable.', 'red')
             return
 
+        baseline, target = self._left_data, self._right_data
+
         def worker():
             """
             Background thread for per-section comparison—prevents UI blocking.
@@ -231,7 +254,14 @@ class HistoricalTab(BaseUITab):
             """
             start = time.time()
             try:
-                result = self.historical_service.compare_caches(left_cache=left, right_cache=right)
+                result = self.historical_service.compare_snapshots(
+                    baseline,
+                    target,
+                    left_name=left,
+                    right_name=right,
+                    meaningful_only=meaningful_only,
+                    include_incomplete=include_incomplete,
+                )
 
                 elapsed = time.time() - start
 
@@ -243,13 +273,18 @@ class HistoricalTab(BaseUITab):
                         result.identity_sections,
                         result.identity_comparable,
                         result.skipped_sections,
+                        result.section_warnings,
                     )
                     suffix = (
                         f' {len(result.skipped_sections)} sections skipped; see reasons below.'
                         if result.skipped_sections
                         else ''
                     )
-                    self._set_status(f'Done in {elapsed:.2f}s.{suffix}', 'green')
+                    if result.section_warnings:
+                        suffix += ' Observed differences only: incomplete collection; missing records are unverified.'
+                    self._set_status(
+                        f'Done in {elapsed:.2f}s.{suffix}', 'orange' if result.section_warnings else 'green'
+                    )
 
                 self.after(0, display)
 
@@ -277,7 +312,9 @@ class HistoricalTab(BaseUITab):
     #     return filtered
 
     # ------------------------------------------------------------------
-    def _display_grouped(self, policy_sections, identity_sections, identity_comparable=True, skipped_sections=None):
+    def _display_grouped(
+        self, policy_sections, identity_sections, identity_comparable=True, skipped_sections=None, section_warnings=None
+    ):
         """
         Populate the policy and identity trees with grouped differences.
 
@@ -304,6 +341,10 @@ class HistoricalTab(BaseUITab):
 
         for section_result in identity_sections:
             self._populate_group_section(self.identity_tree, section_result)
+        for label, reason in (section_warnings or {}).items():
+            tree = self.policy_tree if label in dict(HistoricalAnalysisService.POLICY_SECTIONS) else self.identity_tree
+            parent = tree.insert('', 'end', text=f'{label}: coverage warning', open=True)
+            tree.insert(parent, 'end', text=reason)
         for label, reason in (skipped_sections or {}).items():
             tree = self.policy_tree if label in dict(HistoricalAnalysisService.POLICY_SECTIONS) else self.identity_tree
             parent = tree.insert('', 'end', text=f'{label}: comparison unavailable', open=True)

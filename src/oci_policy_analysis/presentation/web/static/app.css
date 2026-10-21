@@ -2281,3 +2281,6 @@ html {
   }
 
 }
+
+/* Preserve invalid source evidence while making validity visible across analysis tables. */
+.invalid-statement-row { color: #b42318; font-style: italic; }

@@ -17,6 +17,10 @@ def main() -> int:
         Uses temporary settings/cache storage and never connects to OCI or starts
         an MCP listener. The external Codex executable is not part of the bundle.
     """
+    from oci_policy_analysis.application.core.support.mcp_warnings import configure_mcp_dependency_warnings
+
+    configure_mcp_dependency_warnings()
+
     from mcp.server.fastmcp.utilities.func_metadata import func_metadata
     from PySide6.QtCore import QCoreApplication, QEvent
     from PySide6.QtWidgets import QApplication
@@ -180,7 +184,7 @@ def main() -> int:
             assert analytics.tables['Features'].model.rowCount() == 1
             analytics.close()
             analytics.deleteLater()
-            assert window.browser_page.model.headers == ('Policy', 'Effective path', 'Original statement')
+            assert window.browser_page.model.headers == ('Policy Path', 'Effective path', 'Original statement')
             window.drawer.show_record(
                 {
                     'statement_text': 'invalid smoke evidence',

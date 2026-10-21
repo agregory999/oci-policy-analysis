@@ -15,11 +15,9 @@
 
 # Standard library imports
 import argparse
-import asyncio
 import json
 import logging
 import platform
-import queue
 import threading
 import time
 import tkinter as tk
@@ -123,7 +121,6 @@ class App(tk.Tk):
     Args:
         force_debug: Enable verbose logging for this session.
         experimental_features: Enable hidden desktop preview features.
-        enable_genai: Enable the optional desktop AI-assist preview.
 
     Notes:
         Creates widgets and loads saved settings. This is a presentation adapter,
@@ -133,15 +130,11 @@ class App(tk.Tk):
 
     # docstring google style napoleon comments for the class with public methods and relevant private methods marked with (Internal)
 
-    def __init__(self, force_debug: bool = False, experimental_features: bool = False, enable_genai: bool = False):  # noqa: C901
+    def __init__(self, force_debug: bool = False, experimental_features: bool = False):  # noqa: C901
         super().__init__()
 
         # Hidden/undocumented experimental features toggle (e.g., Consolidation tab)
         self.experimental_features = experimental_features
-        # OCI GenAI remains available in the application context, but its
-        # desktop UI is an opt-in preview until this flag is removed.
-        self.genai_feature_enabled = enable_genai
-
         # Shared config & logger - load settings and quietly return if nothing is loaded
         self.settings = config.load_settings()
 
@@ -213,14 +206,13 @@ class App(tk.Tk):
 
         self.reference_data_repo = self.app_context.reference_data
         self.policy_compartment_analysis = self.app_context.policy_repo
-        self.ai = self.app_context.ai
         self.simulation_engine = self.app_context.simulation
         self.policy_intelligence = self.app_context.intelligence
         # The desktop and web workbenches use this same application-service
         # boundary for consolidation state, planning, and progress tracking.
         self.consolidation_workbench_service = ConsolidationWorkbenchService(self.app_context)
 
-        # Caching Manager (policy caching only, no AI result caching)
+        # Caching Manager (policy caching)
         self.caching = self.app_context.cache
         self.app_context.on_data_reset = self._on_data_reset
 
@@ -234,7 +226,7 @@ class App(tk.Tk):
         self._policy_reload_message_var = tk.StringVar(value='')
 
         # Tab References
-        self.settings_tab = SettingsTab(self.notebook, self, self.caching, self.ai, self.settings)
+        self.settings_tab = SettingsTab(self.notebook, self, self.caching, self.settings)
         self.policy_browser_tab = PolicyBrowserTab(self.notebook, self, self.settings)
         self.policies_tab = PoliciesTab(self.notebook, self, self.settings)
         self.policy_graph_tab = PolicyGraphTab(self.notebook, self)
@@ -265,11 +257,11 @@ class App(tk.Tk):
         # Add tabs to notebook
         self.notebook.add(self.settings_tab, text='Settings\n(Start Here)')
         self.notebook.add(self.policy_browser_tab, text='Policy\nInventory')
-        self.notebook.add(self.policies_tab, text='Policy\nAnalysis')
+        self.notebook.add(self.policies_tab, text='Policy\nBrowser')
         self.notebook.add(self.policy_graph_tab, text='Policy\nGraph')
-        self.notebook.add(self.users_tab, text='Groups\nUsers')
+        self.notebook.add(self.users_tab, text='Users /\nGroups')
         self.notebook.add(self.dynamic_groups_tab, text='Dynamic\nGroups')
-        self.notebook.add(self.resource_principals_tab, text='Workload\nPrincipals')
+        self.notebook.add(self.resource_principals_tab, text='Resource\nPrincipals')
         self.notebook.add(self.cross_tenancy_tab, text='Cross-Tenancy\nPolicies')
         self.notebook.add(self.historical_tab, text='Historical\nComparison')
         if McpTab is not None:
@@ -284,71 +276,11 @@ class App(tk.Tk):
         self.notebook.add(self.debugger_tab, text='JSON Debugger\n(Internal)')
         self.notebook.add(self.console_tab, text='Console Logging\n(Internal)')
         self.notebook.add(self.maintenance_tab, text='Maintenance\n(Internal)')
-        # --- AI Pane/Tab Support: Bind to tab change for auto-hide logic ---
+        # Track selected tabs for anonymous usage statistics.
         self.notebook.bind('<<NotebookTabChanged>>', self._on_tab_changed)
 
         # Propagate context help and font size settings to all tabs at startup
         self.refresh_all_tabs_settings()
-
-        # Bottom frame (Entry + output text area)
-        self.bottom_frame = ttk.Frame(self.pw, height=200)
-        # Directly build a minimal output UI: Text widget only (no HTML/Markdown modes)
-        cmdrow = ttk.Frame(self.bottom_frame)
-        cmdrow.pack(fill='x', padx=8, pady=(8, 4))
-        cmdrow.grid_columnconfigure(0, weight=8)
-        cmdrow.grid_columnconfigure(1, weight=75)
-        cmdrow.grid_columnconfigure(2, weight=7)
-        cmdrow.grid_columnconfigure(3, weight=10)
-
-        self.policy_query_var = tk.StringVar()
-        self.policy_query_label_text = tk.StringVar(value='Policy Statement\nfor analysis:')
-        ttk.Label(cmdrow, textvariable=self.policy_query_label_text).grid(row=0, column=0, padx=5, pady=5, sticky='w')
-
-        self.bottom_entry = ttk.Entry(cmdrow, textvariable=self.policy_query_var, width=90)
-        self.bottom_entry.grid(row=0, column=1, padx=5, pady=5, sticky='ew')
-
-        # Hidden variable for additional instructions (not exposed in UI)
-        self.ai_additional_instructions: str = ''
-        if self.genai_feature_enabled:
-            ttk.Button(
-                cmdrow,
-                text='Query GenAI',
-                command=lambda: self.ask_genai_async(
-                    prompt=self.policy_query_var.get(), additional_instruction=self.ai_additional_instructions
-                ),
-            ).grid(row=0, column=2, padx=5, pady=5, sticky='w')
-
-        self.copy_txt_btn = ttk.Button(cmdrow, text='Copy Text', command=self.copy_output_text, state='disabled')
-        self.copy_txt_btn.grid(row=0, column=4, padx=(10, 0), pady=5, sticky='w')
-        self.last_output_text = ''
-
-        self.ai_progress_var = tk.StringVar(value='')
-        ttk.Label(cmdrow, textvariable=self.ai_progress_var, foreground='blue', width=22).grid(
-            row=0, column=3, padx=5, pady=5, sticky='w'
-        )
-
-        # Output area with vertical scrollbar
-        output_container = ttk.Frame(self.bottom_frame)
-        output_container.pack(fill='both', expand=True, padx=8, pady=8)
-
-        self.output_text = tk.Text(
-            output_container,
-            wrap=tk.WORD,
-            height=15,
-            bg='white',
-            fg='black',
-            state='disabled',
-            font=('Courier New', 11),
-        )
-        self.output_text.pack(side='left', fill='both', expand=True)
-
-        self.output_scrollbar = ttk.Scrollbar(
-            output_container,
-            orient='vertical',
-            command=self.output_text.yview,
-        )
-        self.output_scrollbar.pack(side='right', fill='y')
-        self.output_text.configure(yscrollcommand=self.output_scrollbar.set)
 
         # Console / Maintenance / Advanced tab Visibility
         self.console_visible = False
@@ -653,39 +585,6 @@ class App(tk.Tk):
 
         # Refresh all tab settings (context help & font) after applying font size
         self.refresh_all_tabs_settings()
-
-    # All output is now plain text only.
-
-    def toggle_bottom(self):
-        """
-        Toggle the visibility of the bottom output frame. Only available after AI is set up.
-        """
-        if not self.genai_feature_enabled:
-            logger.debug('Ignoring AI pane toggle because the OCI GenAI feature is disabled.')
-            return
-        if self.bottom_frame.winfo_ismapped():
-            try:
-                self.settings['sashpos'] = self.pw.sashpos(0)
-            except Exception:
-                pass
-            self.pw.forget(self.bottom_frame)
-            self.settings_service.save()
-        else:
-            self.pw.add(self.bottom_frame, weight=1)
-            self.settings_service.save()
-            self.after(120, self._restore_sash)
-
-    def _restore_sash(self):
-        """
-        Restore the sash position of the PanedWindow from saved settings.
-        """
-        pos = self.settings.get('sashpos')
-        if pos is not None:
-            try:
-                max_y = max(120, self.winfo_height() - 120)
-                self.pw.sashpos(0, min(pos, max_y))
-            except Exception:
-                pass
 
     def _apply_log_level(self, *args):
         self.settings_service.set('log_level', self.log_level_var.get())
@@ -1658,146 +1557,6 @@ class App(tk.Tk):
         else:
             logger.info('Export cancelled by user')
 
-    def ask_genai_async(self, prompt: str, additional_instruction: str = '', callback=None, test_call: bool = False):
-        """
-        Asynchronously queries the GenAI model with the given prompt and additional instructions.
-
-        Args:
-            prompt (str): The main prompt to send to the GenAI model.
-            additional_instruction (str, optional): Any additional instructions to include in the query.
-            callback (dict, optional): A dictionary of callback functions for different stages of the query.
-        """
-        if not self.genai_feature_enabled:
-            message = 'OCI GenAI is disabled. Launch with --enable-genai to use this preview feature.'
-            logger.warning(message)
-            if callable(callback):
-                self.after(0, lambda: callback(success=False, message=message))
-            return
-        logger.info(f'Submitting GenAI prompt: {prompt} with additional instructions: {additional_instruction}')
-        self.set_bottom_output(content=f'Querying GenAI for:\n\n{prompt}', test_call=test_call)
-
-        def worker():
-            try:
-                start_time = time.perf_counter()
-                self.after(0, lambda: self.ai_progress_var.set('[...] Running AI Query'))
-                logger.debug('Starting ai.analyze_policy_statement asyncio.run in thread')
-                q = queue.Queue()
-                # Always ask for plain text output now, no more toggles
-                asyncio.run(
-                    self.ai.analyze_policy_statement(
-                        policy_text=prompt, format='Text', additional_instruction=additional_instruction, queue=q
-                    )
-                )
-                logger.debug(
-                    'Finished ai.analyze_policy_statement asyncio.run in thread, waiting for result from queue'
-                )
-                ai_text_response = q.get()  # Get the result from the queue
-                logger.debug(f'Received AI result from queue, posting update to UI: {ai_text_response}')
-
-                # Track AI Assist usage once per call, including timing, model, tab, and setup/normal flag.
-                try:
-                    tracker = get_usage_tracker()
-                    if tracker is not None:
-                        current_tab_name: str | None = None
-                        try:
-                            selected_tab_id = self.notebook.select()
-                            selected_widget = self.nametowidget(selected_tab_id) if selected_tab_id else None
-                            if selected_widget is not None:
-                                current_tab_name = type(selected_widget).__name__
-                        except Exception:
-                            current_tab_name = None
-
-                        is_error = isinstance(ai_text_response, str) and ai_text_response.startswith('Error:')
-                        elapsed_ms = (time.perf_counter() - start_time) * 1000.0
-                        tracker.track_operation(
-                            'ai_assist',
-                            success=not is_error,
-                            model=getattr(self.ai, 'model_ocid', None) or getattr(self.ai, 'model_id', None),
-                            tab=current_tab_name,
-                            duration_ms=round(elapsed_ms, 2),
-                            is_setup_call=bool(test_call),
-                        )
-                except Exception:
-                    logger.debug('AI usage tracking (ai_assist) failed', exc_info=True)
-                self.after(0, lambda: self.set_bottom_output(content=str(ai_text_response), test_call=test_call))
-
-                if callable(callback):
-                    if ai_text_response.startswith('Error:'):
-                        self.after(
-                            0,
-                            lambda cb=callback: cb(
-                                success=False,
-                                message=f'GenAI query failed: {ai_text_response.lstrip("**Error:** ")}',  # noqa: B005
-                            ),  # type: ignore
-                        )
-                    else:
-                        self.after(0, lambda cb=callback: cb(success=True, message='Set up AI successfully'))
-
-                self.after(
-                    0,
-                    lambda: self.ai_progress_var.set(
-                        f'[OK] Finished AI Call ({time.perf_counter() - start_time:.2f}ms)'
-                    ),
-                )
-            except Exception as e:
-                logger.error(f'GenAI request failed: {e}')
-                self.after(0, lambda e=e: self.set_bottom_output(f'**Error:** {str(e)}', test_call=test_call))
-                if callable(callback):
-                    self.after(0, lambda e=e, cb=callback: cb(success=False, message=f'Failed AI: {e}'))
-
-        threading.Thread(target=worker, daemon=True).start()
-
-    def set_bottom_output(self, content: str, test_call: bool = False):
-        """
-        Display the given string content as plain text in the output_text widget.
-
-        Args:
-            content (str): The text content to display in the output area.
-            test_call (bool): Indicates if this is a test call to set output.
-        """
-
-        output_string = content
-        if content and not content.startswith('<'):
-            try:
-                maybe_json = json.loads(content)
-                if (
-                    isinstance(maybe_json, list)
-                    and len(maybe_json) > 0
-                    and isinstance(maybe_json[0], dict)
-                    and 'text' in maybe_json[0]
-                ):
-                    output_string = maybe_json[0]['text']
-            except Exception:
-                output_string = content
-
-        # If test call, don't add the response to the widget, just print it to the console and save it to last_output_text for potential copying.
-        if test_call:
-            logger.info(f'Test call - output: {output_string}')
-            return
-        # Actually put it in the display
-        self.last_output_text = output_string or ''
-        self.output_text.configure(state='normal')
-        self.output_text.delete('1.0', tk.END)
-        self.output_text.insert(
-            tk.END, self.last_output_text if self.last_output_text else 'Policy AI will appear here.'
-        )
-        self.output_text.configure(state='disabled')
-
-        # Enable or disable the copy button
-        if self.last_output_text and self.last_output_text.strip():
-            self.copy_txt_btn.configure(state='normal')
-        else:
-            self.copy_txt_btn.configure(state='disabled')
-
-    def copy_output_text(self):
-        """
-        Copies the current output text to the clipboard if it is non-empty.
-        """
-        if self.last_output_text and self.last_output_text.strip():
-            self.clipboard_clear()
-            self.clipboard_append(self.last_output_text)
-            self.update()
-
     def open_link(self, link):
         """
         Opens the given web link in the default browser.
@@ -1822,31 +1581,9 @@ class App(tk.Tk):
         self.condition_tester_tab._generate_inputs()
 
     def _on_tab_changed(self, event):
-        """
-        Auto-disable AI pane if navigating to a tab that does not support it.
-        Update AI Assist button on supported tab.
-        """
-        # Only these tabs support AI currently (can expand this in the future)
-        supported_tabs = {
-            str(self.policy_browser_tab),
-            str(self.policies_tab),
-            str(self.users_tab),
-            str(self.dynamic_groups_tab),
-            str(self.resource_principals_tab),
-            # str(self.cross_tenancy_tab),
-        }
-        # Which tab is now selected?
+        """Record navigation without changing the active analysis snapshot."""
         selected_tab_id = self.notebook.select()
-        # All tabs: list of tab IDs -> widget names
-        # e.g. tuple(self.notebook.tabs())
-        # e.g. self.notebook.nametowidget(selected_tab_id)
         selected_widget = self.nametowidget(selected_tab_id) if selected_tab_id else None
-
-        # # When switching to Settings tab, refresh Additional Identity Domain Compartment OCIDs from persisted settings
-        # if selected_widget is self.settings_tab:
-        #     refresh_fn = getattr(self.settings_tab, '_refresh_domain_compartment_ocids_from_settings', None)
-        #     if callable(refresh_fn):
-        #         refresh_fn()
 
         # Anonymous usage tracking: record tab changes (if enabled)
         try:
@@ -1857,15 +1594,6 @@ class App(tk.Tk):
                 tracker.track('tab_change', tab_name=tab_name)
         except Exception:
             pass
-
-        # If the new tab is NOT in supported, and AI (bottom_frame) is shown, hide it.
-        if self.genai_feature_enabled and selected_widget is not None and str(selected_widget) not in supported_tabs:
-            if self.bottom_frame.winfo_ismapped():
-                logger.info('AI pane will be hidden due to tab switch to unsupported tab.')
-                self.toggle_bottom()
-        # # Update AI Assist button (Policy Browser Tab only for now)
-        # if hasattr(self, "policy_browser_tab") and hasattr(self.policy_browser_tab, "update_ai_assist_button"):
-        #     self.policy_browser_tab.update_ai_assist_button()
 
 
 def main() -> None:
@@ -1884,11 +1612,6 @@ def main() -> None:
         '--experimental-features',
         action='store_true',
         help=argparse.SUPPRESS,  # Hidden/undocumented flag to enable preview features
-    )
-    parser.add_argument(
-        '--enable-genai',
-        action='store_true',
-        help=argparse.SUPPRESS,  # Hidden preview flag for the desktop OCI GenAI UI.
     )
     # parser.add_argument('--console-log', action='store_true', help='Log to console instead of file', default=False)
 
@@ -1916,7 +1639,6 @@ def main() -> None:
     app = App(
         force_debug=args.verbose,
         experimental_features=args.experimental_features,
-        enable_genai=args.enable_genai,
     )
     app.mainloop()
 

@@ -19,6 +19,30 @@ This guide explains how to use the interactive desktop and web applications afte
 
 The application analyzes the selected data; it does not change IAM policies or other OCI resources.
 
+### Inspect collection errors in Qt
+
+Open **View → Logs → API Calls** for a structured view of OCI calls. Capture is
+automatic and independent of logging levels and the legacy **Always log API calls**
+setting. Each completed SDK request attempt includes its UTC start time, duration,
+HTTP status when available, service code, reason, and request ID. Select a row for
+its target, endpoint, tenancy, and interpretation. Filter by text or **Errors only**.
+Pagination and retry attempts appear individually, so a failed attempt can be
+followed by success within one collection operation.
+
+The bounded journal retains up to 5,000 calls in process memory, across loads,
+including failed loads. It evicts successes before errors so an early collection
+failure remains inspectable after a large load. It records no request/response bodies, credentials, or raw
+headers. **Clear API history** or restarting the application discards it. API
+metadata is not added to caches, settings, usage analytics, or automatic exports;
+existing log output and explicitly enabled IAM diagnostic CSV output are separate.
+
+A policy returned by Resource Search can fail the subsequent Identity `get_policy`
+call. A `404 NotAuthorizedOrNotFound` may indicate a deleted policy or insufficient
+authorization; the error does not prove deletion. The call remains an error and
+collection coverage remains incomplete. The API Calls detail explains the possible
+stale-search case, including deletion during consolidation, without treating it as
+a verified deletion. See [OCI API errors](https://docs.oracle.com/en-us/iaas/Content/API/References/apierrors.htm).
+
 ## Starting the interactive application
 
 Use the startup command for the interface you installed:
@@ -318,12 +342,13 @@ The **Cross Tenancy Tab** highlights **trust relationships between tenancies**.
 3. Narrow further with the statement-text search or defined-entity selector. Use **Clear** to remove filters.
 4. Select a statement or finding to inspect its full source and parsed details in the right-side pane.
 5. Use **Refresh view** after a load to redraw the in-memory snapshot. Live OCI reload is a separate action.
+6. Use **Generate single Cross-Tenancy Policy** to combine valid, resolved Define, Admit, and Endorse statements in that order. The generated text includes source-policy comments and reports invalid, unresolved, and unclassified statements that were omitted; review it before using it in OCI.
 
 The **JSON Debugger** exposes a versioned **Cross-Tenancy Corpus** with summary, definition, statement, relationship, finding, and diagnostic sections. Definitions with no provable owner show `<not associated>`; any inferred association is labeled as deduced. A local statement does not establish that a reciprocal policy exists in another tenancy.
 
 Use this tab when you’re asking **“Where do we trust or get trusted by other tenancies?”**
 
-In the **web Cross-Tenancy Analysis** page, the loaded tenancy appears in the center of a relationship graph. Admit references appear on the left, Endorse references on the right, and dotted lines show Associate participants on both sides. Clicking a tenancy filters the single statement table below. Defined tenancy, group, dynamic-group, and compartment aliases appear as graph nodes or defined-entity chips; clicking a chip or using the compact defined-entity selector filters the table. The text filter searches statement text only. Select a statement or finding to open its source details in the right-side inspector. These links describe local policy statements and do not prove that a reciprocal policy exists in the remote tenancy.
+In the **web Cross-Tenancy Analysis** page, the loaded tenancy appears in the center of a relationship graph. Admit references appear on the left, Endorse references on the right, and dotted lines show Associate participants on both sides. Clicking a tenancy filters the single statement table below. Defined tenancy, group, dynamic-group, and compartment aliases appear as graph nodes or defined-entity chips; clicking a chip or using the compact defined-entity selector filters the table. The text filter searches statement text only. Select a statement or finding to open its source details in the right-side inspector. **Generate single Cross-Tenancy Policy** uses the same valid/resolved selection and ordering as the desktop and Qt views. These links describe local policy statements and do not prove that a reciprocal policy exists in the remote tenancy.
 
 ### Permissions Report Tab
 <!-- Anchor link; do not change or remove this line! -->

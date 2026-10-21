@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 from oci_policy_analysis.application.core.support.logger import get_logger
 from oci_policy_analysis.application.services.cache_service import CacheService
 from oci_policy_analysis.application.services.historical_analysis_service import HistoricalAnalysisService
+from oci_policy_analysis.presentation.qt.audit_commands import AuditCommandsDialog
 from oci_policy_analysis.presentation.qt.json_view import FieldChanges, JsonTree, json_text
 from oci_policy_analysis.presentation.qt.tables import RecordTable
 from oci_policy_analysis.presentation.qt.widgets import CollapsibleSection, label
@@ -243,6 +244,9 @@ class HistoricalPage(QWidget):
         close.clicked.connect(self.detail_window.close)
         for button in (expand, collapse, copy_detail, close):
             detail_actions.addWidget(button)
+        audit = QPushButton('Find OCI Audit records…')
+        audit.clicked.connect(self.show_audit_commands)
+        detail_actions.insertWidget(0, audit)
         detail_layout.addLayout(detail_actions)
         export_row = QHBoxLayout()
         self.inspect_button = QPushButton('Inspect JSON change')
@@ -258,6 +262,11 @@ class HistoricalPage(QWidget):
         layout.addLayout(export_row)
         self.refresh_caches()
         self._controls()
+
+    def show_audit_commands(self):
+        """Open a command-only helper scoped to the selected original change."""
+        if self.selected_change and self.result:
+            AuditCommandsDialog(self.selected_change, self.result.metadata, self).exec()
 
     def refresh_caches(self) -> None:
         """Refresh saved source choices, preserving selected cache and file inputs."""

@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from oci_policy_analysis.application.context import AppContext
+from oci_policy_analysis.application.core.common.policy_helpers import principal_display_name
 from oci_policy_analysis.application.core.policy_corpus import permissions_report_projection
 
 
@@ -338,7 +339,9 @@ class PermissionsReportService:
         for subject_key, subject_type, inherited_from in sorted(
             subject_map.values(), key=lambda item: item[0].casefold()
         ):
-            if principal_query_terms and not self._matches_all_terms(subject_key, principal_query_terms):
+            if principal_query_terms and not self._matches_all_terms(
+                f'{subject_key} {principal_display_name(subject_key)}', principal_query_terms
+            ):
                 continue
             if (
                 principal_type
@@ -346,7 +349,9 @@ class PermissionsReportService:
                 and subject_type.casefold() != principal_type.casefold()
             ):
                 continue
-            display_name = f'{subject_key} (inherited from {inherited_from})' if inherited_from else subject_key
+            display_name = principal_display_name(subject_key)
+            if inherited_from:
+                display_name += f' (inherited from {inherited_from})'
             rows.append(
                 {
                     'subject_key': subject_key,

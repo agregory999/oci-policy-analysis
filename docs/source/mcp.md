@@ -529,17 +529,17 @@ mcp-proxy add oci-policy-analysis --url https://oci-policy-analysis-mcp.ocidemo.
 
 For a containerized standalone MCP deployment on OCI:
 
-1. Build image using `Dockerfile.mcp`
-2. Push image to OCIR
-3. Deploy OCI Container Instance in private subnet
-4. Run with defaults:
+1. Build and push the source MCP target with `run/build-push-image.sh mcp` (or use `run/build-push-pypi.sh mcp` for an exact published version)
+2. Validate deployment with `OCI_DRY_RUN=true run/deploy-container-instance.sh mcp`
+3. Deploy with `run/deploy-container-instance.sh mcp`; replacement requires `OCI_REDEPLOY=true` and causes downtime.
+4. The deployment supplies these runtime settings:
    - `MCP_AUTH_MODE=resource_principal`
    - `MCP_TRANSPORT=streamable-http`
    - `MCP_HOST=0.0.0.0`
    - `MCP_PORT=8765`
-   - `MCP_LOG_LEVEL=INFO`
+   - `MCP_LOG_LEVEL=WARNING`
    - `MCP_SAVE_CACHE_AFTER_LOAD=false`
-   - `MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH=1` (use `2` when identity domains are in child compartments)
+   - `OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH=1` (use `2` when identity domains are in child compartments)
 
 Full procedure:
 

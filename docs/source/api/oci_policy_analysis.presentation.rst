@@ -157,6 +157,9 @@ For the ASGI application and server launcher, see :doc:`oci_policy_analysis`.
 .. automodule:: oci_policy_analysis.presentation.qt.pages.workflows
    :members:
 
+.. automodule:: oci_policy_analysis.presentation.qt.pages.consolidation
+   :members:
+
 .. automodule:: oci_policy_analysis.presentation.qt.pages.prospective
    :members:
 
@@ -203,6 +206,9 @@ For the ASGI application and server launcher, see :doc:`oci_policy_analysis`.
    :members:
    :show-inheritance:
 
+.. automodule:: oci_policy_analysis.presentation.qt.api_calls
+   :members:
+
 
 .. automodule:: oci_policy_analysis.analytics.qt
    :members:
@@ -212,4 +218,11 @@ For the ASGI application and server launcher, see :doc:`oci_policy_analysis`.
    :members:
 
 .. automodule:: oci_policy_analysis.analytics.model
+   :members:
+
+.. automodule:: oci_policy_analysis.presentation.qt.policy_limits
+   :members: PolicyLimitsDialog
+
+
+.. automodule:: oci_policy_analysis.presentation.qt.pages.tag_based
    :members:

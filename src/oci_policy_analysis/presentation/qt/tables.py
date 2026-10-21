@@ -94,10 +94,8 @@ class BrowserStatementModel(RecordModel):
 
 
 STATEMENT_COLUMNS = (
-    ('Policy', 'policy_name'),
-    ('Compartment', 'compartment_path'),
-    ('Subject type', 'subject_type'),
-    ('Valid', 'valid'),
+    ('Policy Path', 'policy_display'),
+    ('Effective path', 'effective_path'),
     ('Original statement', 'statement_text'),
 )
 
@@ -200,12 +198,10 @@ class StatementTable(RecordTable):
 
     def __init__(self, columns: tuple = STATEMENT_COLUMNS, *, source_model: RecordModel | None = None) -> None:
         """Expose context actions on rows while retaining the original statement text."""
-        super().__init__(columns, source_model=source_model)
+        super().__init__(columns, source_model=source_model or BrowserStatementModel(columns, None))
         if columns == STATEMENT_COLUMNS:
-            self.setColumnWidth(0, 165)
-            self.setColumnWidth(1, 150)
-            self.setColumnWidth(2, 115)
-            self.setColumnWidth(3, 55)
+            self.setColumnWidth(0, 260)
+            self.setColumnWidth(1, 220)
 
     def context_menu(self, record: dict) -> QMenu:
         """Build actions for one source record; identity resolution belongs to its page."""

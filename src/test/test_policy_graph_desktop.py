@@ -95,7 +95,9 @@ def test_graph_card_focus_preserves_other_filters_and_returns_to_first_page():
     assert tab.filters['query'].get() == 'Graph policy'
     assert tab.result['page'] == 1
     assert tab.result['total'] == 1
-    assert tab.result['principals'] == [{'principal': 'group:default/ops', 'grant_count': 1}]
+    assert tab.result['principals'] == [
+        {'principal': 'group:default/ops', 'principal_display': 'group:default/ops', 'grant_count': 1}
+    ]
 
 
 def test_refresh_reads_replaced_corpus_and_reset_clears_stale_rows():

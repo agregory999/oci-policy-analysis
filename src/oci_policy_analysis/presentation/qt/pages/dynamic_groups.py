@@ -77,8 +77,13 @@ class DynamicGroupsPage(QWidget):
         controls.addWidget(reset, 2, 1)
         layout.addLayout(controls)
         self.inventory_status = label('No dynamic groups loaded', 'muted')
-        layout.addWidget(self.inventory_status)
-        layout.addWidget(label('Select groups to see related statements · Ctrl/Cmd-click selects several', 'muted'))
+        inventory_row = QHBoxLayout()
+        inventory_row.addWidget(self.inventory_status)
+        inventory_row.addStretch()
+        selection_help = label('Select groups to see related statements', 'muted')
+        selection_help.setToolTip('Ctrl/Cmd-click or Shift-click selects several. Right-click for details.')
+        inventory_row.addWidget(selection_help)
+        layout.addLayout(inventory_row)
         splitter = QSplitter(Qt.Orientation.Vertical)
         self.group_table = RecordTable(
             (
@@ -174,7 +179,7 @@ class DynamicGroupsPage(QWidget):
             selection.blockSignals(False)
         self.details_requested.emit(None, '')
         self.inventory_status.setText(
-            f'{len(groups):,} shown · {len(self.context.policy_repo.dynamic_groups):,} known dynamic groups · Snapshot coverage may be incomplete'
+            f'{len(groups):,} shown · {len(self.context.policy_repo.dynamic_groups):,} known dynamic groups'
         )
         self._selection_changed()
 
@@ -196,7 +201,7 @@ class DynamicGroupsPage(QWidget):
         )
 
     def focus_statement(self, statement: dict) -> bool:
-        """Select known groups referenced by a statement, using exact names or IDs.
+        """Clear filters and focus known groups using their domains and names.
 
         Args:
             statement: Retained source statement; names are matched with domain,
@@ -241,6 +246,17 @@ class DynamicGroupsPage(QWidget):
                     self.group_table.scrollTo(index)
         finally:
             selection.blockSignals(False)
+        groups = self.group_table.selected_records()
+        if groups:
+            self._resetting = True
+            try:
+                self.filters['domain_name'].setText(' | '.join(sorted({group['domain_name'] for group in groups})))
+                self.filters['dynamic_group_name'].setText(
+                    ' | '.join(sorted({group['dynamic_group_name'] for group in groups}))
+                )
+            finally:
+                self._resetting = False
+            self.apply_filters()
         self.details_requested.emit(None, '')
         self._selection_changed()
         matched = bool(self.group_table.selected_records())

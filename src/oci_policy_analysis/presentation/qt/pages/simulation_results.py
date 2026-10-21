@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from oci_policy_analysis.application.core.common.policy_helpers import principal_display_name
 from oci_policy_analysis.application.services.simulation_workbench_service import SimulationWorkbenchService
 from oci_policy_analysis.presentation.qt.tables import RecordTable
 from oci_policy_analysis.presentation.qt.widgets import CollapsibleSection, label
@@ -268,7 +269,8 @@ class SimulationResultsPage(QWidget):
         metadata = service.suggestion_metadata()
         self.grant_principal.clear()
         self.grant_principal.addItem('Choose a grant principal…', '')
-        self.grant_principal.addItems(metadata['principals'])
+        for key in metadata['principals']:
+            self.grant_principal.addItem(principal_display_name(key), key)
         for combo in (self.related_path, self.policy_path, self.target_path):
             combo.clear()
             combo.addItem('Choose compartment…', '')
@@ -348,7 +350,7 @@ class SimulationResultsPage(QWidget):
         self.related.model.replace(report['related_scenarios'])
         self.related_operation.setCurrentIndex(0)
         self.related_path.setCurrentIndex(0)
-        self.grant_principal.setCurrentIndex(max(0, self.grant_principal.findText(request['principal_key'])))
+        self.grant_principal.setCurrentIndex(max(0, self.grant_principal.findData(request['principal_key'])))
         self.target_path.setCurrentText(request['compartment_path'])
         self._clear_candidates()
         self.candidate_options.button.setChecked(True)
@@ -439,7 +441,7 @@ class SimulationResultsPage(QWidget):
         self.controller.suggest(
             self.report,
             {
-                'principal_key': self.grant_principal.currentText(),
+                'principal_key': self.grant_principal.currentData(),
                 'granularity': self.granularity.currentData(),
                 'effective_path': self.target_path.currentData(),
                 'policy_path': self.policy_path.currentData(),

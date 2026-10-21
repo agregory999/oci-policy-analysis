@@ -43,7 +43,7 @@ structure, corpus construction reparses the source text on a detached copy;
 it does not rewrite the cache file.
 
 The breaking change is the removal of the former `common` and `logic` Python
-import packages, not a requirement to discard saved tenancy data. Callers should
+import packages (and the legacy top-level `web` aliases), not a requirement to discard saved tenancy data. Callers should
 migrate imports and run the appropriate post-load profile after loading. Changes
 in validation, permission mappings, and analysis can legitimately change derived
 results when the same snapshot is processed by a newer version.
@@ -79,6 +79,44 @@ should import `oci_policy_analysis.presentation.web.main:app`. The published
 `oci-policy-analysis-web` command name is unchanged.
 Keep integration tests close to the package version you run;
 there is not yet a separately versioned plugin SDK.
+
+### Choosing live policy discovery
+
+Live loads support two policy discovery methods through the same detail fetch and
+normalization pipeline:
+
+```python
+result = LoadService(context).load_from_tenancy(
+    use_instance_principal=False,
+    profile='DEFAULT',
+    recursive=True,
+    policy_load_method='compartment',
+    post_load_profile='minimal',
+)
+```
+
+`resource_search` is the default. It follows all Resource Search pages, then fetches
+full policy details. `compartment` lists active policies in each loaded compartment
+and fetches the same details, bypassing the policy search index. With `recursive=False`,
+only the tenancy root is listed; otherwise the root and all discovered accessible
+compartments are included. Identity-domain depth does not limit policy recursion.
+
+An explicit argument overrides `settings['policy_load_method']`. When the argument
+and setting are absent, older callers continue to use Resource Search. Unsupported
+values raise `ValueError` before the current context is reset. The chosen method is
+retained for subsequent policy-only refreshes of that live repository and cleared
+when the snapshot is reset. Compartment listings and detail fetches use bounded
+workers; parsing updates the repository serially. Individual failures remain in
+collection diagnostics; total discovery/fetch failure is rejected rather than
+accepted as an empty inventory. Success still does not establish complete coverage.
+The independent defined-tag namespace catalog continues to use Resource Search.
+
+Qt exposes **Policy loading** in **Overview & Settings → Live tenancy** only in
+Advanced mode. The choice is saved locally, restored at startup, and continues to
+apply if Advanced mode is hidden. The loaded snapshot coverage panel identifies
+the method used. Cache/export payloads remain version 2/schema 3: this option is a
+local load preference, not a new stored snapshot field, so no cache migration is
+needed and offline queries never rewrite source files.
 
 ### Qt desktop exploration
 
@@ -387,3 +425,63 @@ new compartment selection, preparation and explicit run, not reuse of primary
 checked IDs. Matching denies, conditions and inventory/reference coverage remain
 constraints after any suggested allow. The current reverse mapping uses greedy
 catalog coverage rather than proving globally minimal privilege.
+
+### Policy limit controls
+
+Qt Recommendations → Limits shows tenancy policy-object and compartment-hierarchy
+statement limits, with their source, and recalculates inventory status when the
+values change. Fetch limits from OCI is available only when the current repository
+was live loaded and retains an OCI Limits client. Merely attaching a client to an
+imported snapshot does not enable the action. Policy Inventory enforces the same
+source check and shares the existing asynchronous worker and serialization gate.
+
+For cache, exported JSON, CIS, or sample snapshots, Enter known limits opens a modal
+with positive whole-number validation. It explains how to find the Identity limits
+in Console → Limits, Quotas and Usage and supplies copyable OCI CLI commands:
+
+```bash
+oci limits value list --compartment-id TENANCY_OCID --service-name identity --name policies-count --all
+oci limits value list --compartment-id TENANCY_OCID --service-name identity --name policy-statements-per-compartment-chain-count --all
+```
+
+See the [OCI CLI reference](https://docs.oracle.com/en-us/iaas/tools/oci-cli/latest/oci_cli_docs/cmdref/limits/value/list.html)
+and [service limit documentation](https://docs.oracle.com/en-us/iaas/Content/General/service-limits/default.htm).
+Use the actual tenancy values; the application does not assume 500.
+
+`PolicyLimitsService` centralizes eligibility and explicit manual application.
+Manual values update only the active snapshot and, for a named cache, its existing
+optional `tenancy_policy_limits` metadata. Failure to save restores both in-memory
+limit representations. Export/CIS source files and global preferences are not
+rewritten. Cancel has no effect. The version-2/schema-3 format is unchanged and
+older caches without limits remain supported; no migration is required.
+
+Live `LoadService` collection automatically retrieves all Identity limit pages
+before enrichment and cache saving, including minimal/none profiles. A missing
+Limits permission or unavailable value produces a load warning and leaves limits
+unknown; it does not fail otherwise successful policy collection. Both Qt views
+are populated on initial publication. Fetch limits from OCI remains available as
+an explicit refresh for live sessions.
+
+Policy Inventory now uses the same manual-entry modal as Recommendations for
+non-live snapshots; it no longer has separate inline limit editors. Recommendations
+keeps a single limit summary and shows its feedback row only for progress or
+errors. Snapshot resets clear previous limit metadata and the active cache name
+so a new live load cannot inherit another snapshot's limits. Serialization stays
+version 2/schema 3 with the existing optional metadata; no migration is required.
+
+
+### 7.0 desktop simplification and tag inventory
+
+`AppContext.ai` and the desktop OCI Generative AI backend were removed in 7.0; callers
+should remove AI repository/model setup. Existing saved AI settings are inert. This does
+not change combined-cache version 2/schema 3 or require snapshot migration.
+
+`TagBasedPolicyService.inventory(context.policy_repo.regular_statements)` returns detached
+`statements`, `conditions` and `namespace_count` data. Predicate rows retain the full condition
+and provenance; a matching atom does not establish that the complete condition passes.
+No cache, source record or OCI resource is modified. Rebuild the projection after reload.
+
+Qt desktop live loading supports config profiles (including session tokens) and Instance
+Principal. A saved Resource Principal selection falls back to profile authentication; explicit
+Resource Principal worker requests are rejected. Resource Principal remains supported for
+container-based web/MCP and shared service callers.

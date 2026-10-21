@@ -202,8 +202,6 @@ class PolicyRecommendationsTab(BaseUITab):
     Unified UI tab for displaying Oracle Cloud Policy Recommendations and analytics.
     """
 
-    STATEMENTS_PER_COMPARTMENT_LIMIT = 500  # Hard OCI Limit
-
     def __init__(self, parent, app):
         self.logger = get_logger(component='policy_recommendations_tab')
         self.logger.debug('Initializing unified PolicyRecommendationsTab (notebook prototype).')
@@ -364,28 +362,10 @@ class PolicyRecommendationsTab(BaseUITab):
         Called after policy analysis/intelligence is refreshed. Reload all analytics/tables, using timing.
         Also launches OCI tenancy limits fetch for policy objects and hierarchy statements.
         """
-        import threading
-
         self.logger.info('Populating PolicyRecommendationsTab data...')
-
-        # Get the data for the limits tab and update the output; this is separate from reload_all_analytics since it can run in parallel and may involve API calls to fetch tenancy limits
         self.timed_step('load_compartment_limits', self.update_limits_tab_output)
-
-        # Fetch tenancy limits in the background; update label when done
-        def update_tenancy_limit_label():
-            if not (
-                hasattr(self.app.policy_compartment_analysis, 'limits_client')
-                and self.app.policy_compartment_analysis.limits_client
-            ):
-                txt = self._tenancy_limits_summary()
-            else:
-                self.app.policy_compartment_analysis.fetch_tenancy_policy_statement_limits()
-                txt = self._tenancy_limits_summary()
-            if hasattr(self, 'tenancy_limit_label_var'):
-                # Set from worker thread: use "after" to update GUI label safely
-                self.after(0, self.tenancy_limit_label_var.set, txt)
-
-        threading.Thread(target=update_tenancy_limit_label, daemon=True).start()
+        if hasattr(self, 'tenancy_limit_label_var'):
+            self.tenancy_limit_label_var.set(self._tenancy_limits_summary())
 
         self.timed_step('refresh_analytics_views', self._refresh_analytics_views)
         self.logger.info('Finished PolicyRecommendationsTab.populate_data')
@@ -459,6 +439,10 @@ class PolicyRecommendationsTab(BaseUITab):
         self.add_context_help(
             doc_link, 'Open Oracle documentation for policies-count and policy statement hierarchy limits.'
         )
+
+        ttk.Button(
+            controls_frame, text='Policy limits…', command=self.app.policy_browser_tab.manage_policy_limits
+        ).pack(side='left', padx=5)
 
         # Data Table for compartment statement limits
         limits_columns = [
@@ -552,7 +536,7 @@ class PolicyRecommendationsTab(BaseUITab):
         policies_limit = limits.get('policies_count')
         chain_limit = limits.get('policy_statements_per_compartment_chain_count')
         if not policies_limit or not chain_limit:
-            return 'Limits not supplied for this dataset: enter them in Policy Browser > Show Limit Data.'
+            return 'Limits not supplied for this dataset. Use Policy limits to inspect or enter snapshot values.'
         max_chain = max(
             (
                 int(c.get('statement_count_cumulative', 0) or 0)
@@ -591,19 +575,22 @@ class PolicyRecommendationsTab(BaseUITab):
         """
         pi = self.app.policy_intelligence
         recs = pi.overlay.get('recommendations', [])
-        LIMIT = 500
-        NEAR = 0.85
+        limits = getattr(self.policy_repo, 'tenancy_policy_limits', {}) or {}
+        try:
+            limit = int(limits.get('policy_statements_per_compartment_chain_count') or 0)
+        except (TypeError, ValueError):
+            limit = 0
         compartments = getattr(self.app.policy_compartment_analysis, 'compartments', [])
         # Remove all existing limit recommendations (by category/title) before inserting
         title = 'Compartment Policy Statement Limits'
         new_recs = [
             r for r in recs if not ((r.get('Category', '') == 'Limits') or (title in r.get('Recommendation', '')))
         ]
-        has_over = any((c.get('statement_count_cumulative', 0) > LIMIT) for c in compartments)
-        has_near = any(
+        has_over = bool(limit) and any((c.get('statement_count_cumulative', 0) > limit) for c in compartments)
+        has_near = bool(limit) and any(
             (
-                c.get('statement_count_cumulative', 0) >= int(LIMIT * NEAR)
-                and c.get('statement_count_cumulative', 0) <= LIMIT
+                c.get('statement_count_cumulative', 0) >= int(limit * 0.85)
+                and c.get('statement_count_cumulative', 0) <= limit
             )
             for c in compartments
         )
@@ -614,7 +601,7 @@ class PolicyRecommendationsTab(BaseUITab):
                 'Priority': RECOMMENDATION_PRIORITY_HIGH if has_over else RECOMMENDATION_PRIORITY_MEDIUM,
                 'Category': 'Limits',
                 'Notes': (
-                    f'At least one compartment is {first_status} for the OCI 500 policy statement-per-compartment limit. '
+                    f'At least one compartment is {first_status} for the tenancy limit of {limit} policy statements per compartment chain. '
                     'Review the Limits tab below for details and mitigation steps.'
                 ),
                 'Action': 'Use the Limits tab to review and reduce/consolidate compartment statements as needed.',

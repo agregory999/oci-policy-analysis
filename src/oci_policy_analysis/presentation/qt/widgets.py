@@ -22,7 +22,7 @@ QFrame#sidebar { background: #163e38; }
 QFrame#sidebar QLabel { color: #c3d8d1; }
 QLabel#brand { color: white; font-size: 23px; font-weight: 600; }
 QListWidget#navigation { background: transparent; color: #d5e3de; border: none; outline: none; }
-QListWidget#navigation::item { padding: 14px 16px; margin: 3px 0; border-radius: 6px; }
+QListWidget#navigation::item { padding: 6px 16px; margin: 1px 0; border-radius: 6px; }
 QListWidget#navigation::item:disabled { color: #85958c; background: transparent; }
 QListWidget#navigation::item:selected:enabled { background: #2b554d; color: white; }
 QLabel#title { font-size: 29px; font-weight: 600; }

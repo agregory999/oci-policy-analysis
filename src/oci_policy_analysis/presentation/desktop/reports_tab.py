@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import queue
+import threading
 import tkinter as tk
 import tkinter.filedialog as tkfiledialog
 import tkinter.messagebox
@@ -74,18 +76,60 @@ class ReportsTab(BaseUITab):
         return ReportsService(self.app.app_context)
 
     def run_selected_report(self) -> None:
-        """Generate the selected report on demand."""
-        self.status_var.set('Generating report…')
-        self.update_idletasks()
-        try:
-            self._report = self._service().get_report(self.report_choices[self.report_var.get()])
-        except Exception as exc:
-            self.status_var.set('Report failed.')
-            tkinter.messagebox.showerror('Report', str(exc))
+        """Generate on a worker while a modal progress window protects the snapshot."""
+        if getattr(self, '_report_worker', None) is not None:
             return
-        self.export_button.configure(state=tk.NORMAL)
-        self.status_var.set(self._completion_message())
-        self._refresh_preview()
+        if getattr(self.app, '_tenancy_load_in_progress', False) or getattr(
+            self.app, '_policy_reload_in_progress', False
+        ):
+            self.status_var.set('Wait for the current load to finish.')
+            return
+        context = self.app.app_context
+        service = ReportsService(context)
+        report_id = self.report_choices[self.report_var.get()]
+        results = queue.Queue()
+        dialog = tk.Toplevel(self)
+        dialog.title('Generating report')
+        dialog.transient(self.winfo_toplevel())
+        ttk.Label(dialog, text='Generating report…', padding=20).pack()
+        progress = ttk.Progressbar(dialog, mode='indeterminate', length=300)
+        progress.pack(padx=20, pady=(0, 20))
+        progress.start()
+        dialog.protocol('WM_DELETE_WINDOW', lambda: None)
+        dialog.grab_set()
+        self.status_var.set('Generating report…')
+        self.run_button.configure(state=tk.DISABLED)
+        self.export_button.configure(state=tk.DISABLED)
+
+        def work():
+            try:
+                results.put((service.get_report(report_id), None))
+            except Exception as exc:
+                results.put((None, str(exc)))
+
+        def poll():
+            try:
+                report, error = results.get_nowait()
+            except queue.Empty:
+                self.after(50, poll)
+                return
+            self._report_worker = None
+            progress.stop()
+            dialog.grab_release()
+            dialog.destroy()
+            self.run_button.configure(state=tk.NORMAL)
+            if error:
+                self.status_var.set('Report failed.')
+                tkinter.messagebox.showerror('Report', error)
+            elif context is self.app.app_context:
+                self._report = report
+                self.export_button.configure(state=tk.NORMAL)
+                self.status_var.set(self._completion_message())
+                self._refresh_preview()
+
+        self._report_worker = threading.Thread(target=work, daemon=True)
+        self._report_worker.start()
+        self.after(50, poll)
 
     def _completion_message(self) -> str:
         """Return a concise completion label appropriate to the generated report."""

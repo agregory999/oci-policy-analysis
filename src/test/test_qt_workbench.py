@@ -44,6 +44,7 @@ def workbench(qt_application, monkeypatch, tmp_path, request):
     _wait_for_reports(application, window)
     _wait_for_recommendations(application, window)
     _wait_for_historical(application, window)
+    _wait_for_consolidation(application, window)
     window.mcp_page.stop_all()
     deadline = time.monotonic() + 20
     while window.mcp_page.active and time.monotonic() < deadline:
@@ -83,6 +84,288 @@ def _wait_for_simulation(application, window):
         application.processEvents()
         time.sleep(0.01)
     assert window.simulation_page.controller.worker is None, 'Statement preparation did not finish'
+
+
+def _wait_for_consolidation(application, window):
+    deadline = time.monotonic() + 20
+    while window.consolidation_page.worker is not None and time.monotonic() < deadline:
+        application.processEvents()
+        time.sleep(0.01)
+    assert window.consolidation_page.worker is None, 'Consolidation task did not finish'
+
+
+def test_consolidation_selection_protection_plan_review_and_history(workbench):
+    from copy import deepcopy
+
+    from PySide6.QtCore import Qt
+
+    application, window = workbench
+    assert window.navigation.item(window.page_index('consolidation')).isHidden()
+    window.settings_page.load_sample()
+    _wait_for_load(application, window)
+    window.settings_page.advanced_mode.setChecked(True)
+    window.navigation.setCurrentRow(window.page_index('consolidation'))
+    page = window.consolidation_page
+    repo = window.controller.context.policy_repo
+    original_statements = deepcopy(repo.regular_statements)
+    assert page.protection.model.rowCount() > 0
+    assert page.strategy.count() > 0 and page.strategy_description.text()
+
+    # Checkboxes retain hidden IDs; only displayed rows are selected/cleared.
+    page.protection_search.setText('Audit evidence')
+    page._check_displayed(page.protection, True)
+    protected_ids = set(page.protection.model.checked)
+    assert protected_ids
+    page.protection_search.setText('Application storage')
+    assert protected_ids <= page.protection.model.checked
+    assert 'hidden' in page.protection_count.text()
+    page.save_protection_button.click()
+    assert protected_ids == {row['internal_id'] for row in page.service.get_protected_set()['protected']}
+    assert not protected_ids & {row['internal_id'] for row in page.candidates.model.records}
+    page.show_stage(1)
+    page.candidate_search.setText('Application storage')
+    page._check_displayed(page.candidates, True)
+    selected = set(page.candidates.model.checked)
+    assert selected
+    page.candidate_search.setText('no matches')
+    assert page.candidates.proxy.rowCount() == 0
+    assert page.candidates.model.checked == selected
+    page.strategy.setCurrentText('Move to Root Compartment')
+    page.generate_button.click()
+    _wait_for_consolidation(application, window)
+    assert page.stages.currentIndex() == 2
+    assert page.effort_id and page.plan['plan_steps']
+    assert page.plan_steps.model.rowCount() == len(page.plan['plan_steps'])
+    assert page.after.toPlainText()
+    assert page.rollback.toPlainText()
+    assert not page.check_progress_button.isEnabled()  # Sample/cache has no OCI progress check.
+    assert page.service.get_history()[0]['effort_id'] == page.effort_id
+    page.notes.setPlainText('Reviewed in Qt')
+    page.save_notes_button.click()
+    assert page.service.get_history_run(page.effort_id)['plan']['notes'] == 'Reviewed in Qt'
+    page.output_format.setCurrentIndex(page.output_format.findData('cli'))
+    assert 'oci iam policy' in page.output.toPlainText()
+    page.output_section.setCurrentIndex(page.output_section.findData('rollback'))
+    assert page.output.toPlainText()
+    page.copy_button.click()
+    assert QApplication.clipboard().text() == page.output.toPlainText()
+
+    effort_id = page.effort_id
+    page.set_context(window.controller.context)
+    assert page.plan is None and not page.output.toPlainText()
+    assert page.protection.model.checked == protected_ids
+    assert not page.candidates.model.checked
+    page.show_stage(3)
+    page.history.selectRow(0)
+    assert page.effort_id == effort_id
+    assert page.notes.toPlainText() == 'Reviewed in Qt'
+    assert repo.regular_statements == original_statements
+
+    # Checkbox changes use source IDs even when proxy order differs.
+    page.protection_search.clear()
+    index = page.protection.model.index(0, 0)
+    page.protection.model.setData(index, Qt.CheckState.Checked, Qt.ItemDataRole.CheckStateRole)
+    assert page.protection.model.records[0]['internal_id'] in page.protection.model.checked
+
+
+def test_consolidation_worker_gates_snapshot_and_restores_after_failure(workbench, monkeypatch):
+    from PySide6.QtGui import QCloseEvent
+
+    application, window = workbench
+    window.settings_page.load_sample()
+    _wait_for_load(application, window)
+    window.settings_page.advanced_mode.setChecked(True)
+    page = window.consolidation_page
+    page.candidates.model.set_checked({page.candidates.model.records[0]['internal_id']})
+    entered, release = threading.Event(), threading.Event()
+
+    def fail_proposal(*_args):
+        entered.set()
+        assert release.wait(5)
+        raise ValueError('synthetic planning failure')
+
+    monkeypatch.setattr(page.service, 'create_proposal', fail_proposal)
+    page.generate_proposal()
+    assert entered.wait(2)
+    try:
+        assert window.controller.load_block_reason
+        assert not window.browser_page.isEnabled()
+        assert not page.generate_button.isEnabled()
+        close = QCloseEvent()
+        window.closeEvent(close)
+        assert not close.isAccepted()
+    finally:
+        release.set()
+    _wait_for_consolidation(application, window)
+    assert 'synthetic planning failure' in page.status.text()
+    assert not window.controller.load_block_reason
+    assert window.browser_page.isEnabled()
+    assert page.generate_button.isEnabled()
+    page.set_block_reason('Embedded MCP active')
+    assert not page.generate_button.isEnabled()
+    page.generate_proposal()
+    assert page.worker is None
+
+
+def test_consolidation_live_progress_rebinds_derived_snapshot_and_keeps_plan(workbench, monkeypatch):
+    application, window = workbench
+    window.settings_page.load_sample()
+    _wait_for_load(application, window)
+    window.settings_page.advanced_mode.setChecked(True)
+    context = window.controller.context
+    page = window.consolidation_page
+    page.candidates.model.set_checked({page.candidates.model.records[0]['internal_id']})
+    page.strategy.setCurrentText('Move to Root Compartment')
+    page.generate_proposal()
+    _wait_for_consolidation(application, window)
+    effort = page.effort_id
+    previous_corpus = context.corpus
+    context.policy_repo.policies_loaded_from_tenancy = True
+    page.set_context(context)
+    page._open_plan(effort)
+    reloads = []
+    monkeypatch.setattr(context.policy_repo, 'reload_compartment_policy_data', lambda: reloads.append(True) or True)
+    page.check_progress()
+    _wait_for_consolidation(application, window)
+    assert reloads == [True]
+    assert context.corpus is not previous_corpus
+    assert page.effort_id == effort and page.plan['plan_steps']
+    assert page.service.context is context
+    assert window.browser_page.context is context
+    assert 'steps executed' in page.status.text()
+    assert page.check_progress_button.isEnabled()
+
+
+def test_duplicate_source_statements_publish_consolidation_and_iam_pages(workbench, monkeypatch):
+    from copy import deepcopy
+
+    application, window = workbench
+    snapshot = sample_snapshot()
+    repeated = deepcopy(snapshot['policy_statements'][0])
+    snapshot['policy_statements'].append(repeated)
+    monkeypatch.setattr('oci_policy_analysis.presentation.qt.loading.sample_snapshot', lambda: deepcopy(snapshot))
+    window.settings_page.load_sample()
+    _wait_for_load(application, window)
+    context = window.controller.context
+    page = window.consolidation_page
+    assert len(context.policy_repo.regular_statements) == len(snapshot['policy_statements'])
+
+    assert window.dynamic_groups_page.context is context
+    assert window.users_groups_page.context is context
+    assert window.dynamic_groups_page.group_table.model.rowCount()
+    assert window.users_groups_page.group_view.inventory.model.rowCount()
+    assert page.protection.model.rowCount() == len(snapshot['policy_statements']) - 1
+    assert page.candidates.model.rowCount()
+    duplicate_row = next(row for row in page.protection.model.records if row['internal_id'] == repeated['internal_id'])
+    assert duplicate_row['source_occurrences'] == 2
+    page.protection.model.set_checked({repeated['internal_id']})
+    page.save_protection()
+    assert not any(row['internal_id'] == repeated['internal_id'] for row in page.candidates.model.records)
+    assert len(context.policy_repo.regular_statements) == len(snapshot['policy_statements'])
+    # A grouped checkbox still produces a faithful original-state rollback snapshot.
+    page.protection.model.set_checked(set())
+    page.save_protection()
+    page.candidates.model.set_checked({repeated['internal_id']})
+    page.strategy.setCurrentText('Move to Root Compartment')
+    page.generate_proposal()
+    _wait_for_consolidation(application, window)
+    source_step = next(step for step in page.plan['plan_steps'] if step.get('policy_ocid') == repeated['policy_ocid'])
+    assert source_step['before_statements'].count(repeated['statement_text']) == 2
+    assert len(context.policy_repo.regular_statements) == len(snapshot['policy_statements'])
+
+
+def test_maintenance_resets_only_selected_tenancys_consolidation_state(workbench, monkeypatch):
+    from copy import deepcopy
+
+    from PySide6.QtWidgets import QMessageBox
+
+    application, window = workbench
+    window.settings_page.load_sample()
+    _wait_for_load(application, window)
+    window.settings_page.advanced_mode.setChecked(True)
+    context = window.controller.context
+    cache = context.cache
+    state = {
+        'protected_set': {'protected': [{'internal_id': context.policy_repo.regular_statements[0]['internal_id']}]},
+        'history': [
+            {'consolidation_effort_id': 'reset-me', 'plan': {'plan_id': 'reset-me', 'plan_steps': [], 'notes': 'notes'}}
+        ],
+    }
+    cache.save_consolidation_state(context.policy_repo.tenancy_ocid, deepcopy(state))
+    cache.save_consolidation_state('other-tenancy', deepcopy(state))
+    window.consolidation_page.set_context(context)
+    window.consolidation_page._open_plan('reset-me')
+    original = deepcopy(context.policy_repo.regular_statements)
+    page = window.tools_page.maintenance
+    page.refresh_caches()
+    source_index = next(
+        index
+        for index, row in enumerate(page.consolidation_table.model.records)
+        if row['tenancy_ocid'] == context.policy_repo.tenancy_ocid
+    )
+    shown = page.consolidation_table.proxy.mapFromSource(page.consolidation_table.model.index(source_index, 0))
+    page.consolidation_table.selectRow(shown.row())
+    assert page.reset_consolidation_button.isEnabled()
+    monkeypatch.setattr(
+        'oci_policy_analysis.presentation.qt.pages.maintenance.QMessageBox.question',
+        lambda *_args, **_kwargs: QMessageBox.StandardButton.No,
+    )
+    page.reset_consolidation_button.click()
+    assert cache.get_or_create_consolidation_state(context.policy_repo.tenancy_ocid) == state
+    monkeypatch.setattr(
+        'oci_policy_analysis.presentation.qt.pages.maintenance.QMessageBox.question',
+        lambda *_args, **_kwargs: QMessageBox.StandardButton.Yes,
+    )
+    page.reset_consolidation_button.click()
+    assert cache.get_or_create_consolidation_state(context.policy_repo.tenancy_ocid) == {
+        'protected_set': {},
+        'history': [],
+    }
+    assert cache.get_or_create_consolidation_state('other-tenancy') == state
+    assert window.consolidation_page.plan is None
+    assert not window.consolidation_page.protection.model.checked
+    assert not window.consolidation_page.history.model.records
+    assert context.policy_repo.regular_statements == original
+    page.set_block_reason('Task running')
+    assert not page.reset_consolidation_button.isEnabled()
+
+
+def test_api_calls_tab_retains_filters_and_inspects_errors_without_log_parsing(workbench, monkeypatch):
+    from oci.exceptions import ServiceError
+
+    from oci_policy_analysis.application.core.repo.policy_analysis_repository import PolicyAnalysisRepository
+    from oci_policy_analysis.application.core.support import api_calls
+
+    _, window = workbench
+    journal = api_calls.ApiCallJournal()
+    monkeypatch.setattr(api_calls, 'API_CALLS', journal)
+    view = window.api_calls
+    view.journal, view.revision = journal, None
+    repo = PolicyAnalysisRepository()
+    repo.api_calls_separate_view = True
+    repo._api_call_with_logging('IdentityClient.list_groups', lambda: None)
+
+    def missing(**_kwargs):
+        raise ServiceError(
+            404, 'NotAuthorizedOrNotFound', {'opc-request-id': 'diagnostic-request-id'}, 'Not found or not authorized'
+        )
+
+    with pytest.raises(ServiceError):
+        repo._api_call_with_logging('IdentityClient.get_policy', missing, policy_id='missing-policy')
+    view.refresh()
+    assert window.log_tabs.tabText(window.log_tabs.indexOf(view)) == 'API Calls'
+    assert view.table.model.rowCount() == 2
+    view.errors_only.setChecked(True)
+    assert view.table.model.rowCount() == 1
+    view.table.selectRow(0)
+    assert 'diagnostic-request-id' in view.details.toPlainText()
+    assert 'does not confirm deletion' in view.details.toPlainText()
+    view.search.setText('missing-policy')
+    assert view.table.model.rowCount() == 1
+    view.search.setText('no match')
+    assert view.table.model.rowCount() == 0
+    view.clear_history()
+    assert not journal.snapshot()[1]
 
 
 def _prepare_execution(workbench, operation_name='CreateBucket'):
@@ -924,7 +1207,7 @@ def test_qt_logging_levels_are_reversible_survive_reload_and_detach(workbench):
     assert handler not in logging.getLogger().handlers
 
 
-def test_graph_pagination_exclusions_and_unresolved_source_survive_import(workbench, tmp_path):
+def test_graph_all_results_exclusions_and_unresolved_source_survive_import(workbench, tmp_path):
     application, window = workbench
     snapshot = sample_snapshot()
     template = snapshot['policy_statements'][1]
@@ -943,11 +1226,9 @@ def test_graph_pagination_exclusions_and_unresolved_source_survive_import(workbe
     window.controller.start_load('file', {'path': str(path)}, 'Partial test snapshot')
     _wait_for_load(application, window)
     graph = window.graph_page
-    assert len(graph.visible_grants) == 12
-    assert graph.next.isEnabled()
-    graph.next.click()
-    assert graph.page == 2
-    assert graph.previous.isEnabled()
+    assert len(graph.visible_grants) == graph.result['total']
+    assert len(graph.visible_grants) > 12
+    assert not hasattr(graph, 'next')
     nodes = [
         item
         for item in graph.scene.items()
@@ -957,7 +1238,8 @@ def test_graph_pagination_exclusions_and_unresolved_source_survive_import(workbe
     nodes[0].setSelected(True)
     assert graph.statements.model.rowCount() == 16
     assert all(record['permission_facts'] for record in graph.statements.model.records)
-    graph.previous.click()
+    assert graph.filters['principal'].text() == nodes[0].data(0)['principal']
+    graph.reset_filters()
     assert graph.statements.model.rowCount() == 0
     assert 'invalid-evidence' in graph.exclusions.toPlainText()
     assert window.browser_page.model.rowCount() == 22
@@ -969,7 +1251,7 @@ def test_graph_pagination_exclusions_and_unresolved_source_survive_import(workbe
 def test_settings_start_collapsed_and_widgets_apply_session_values(workbench):
     application, window = workbench
     page = window.settings_page
-    assert window.navigation.count() == 13
+    assert window.navigation.count() == 17
     assert page.results.isHidden()
     assert window.log_dock.isHidden()
     assert not window.windowIcon().isNull()
@@ -1148,6 +1430,46 @@ def test_statement_context_action_focuses_known_dynamic_groups(workbench):
     assert not page.focus_statement({'subject_type': 'dynamic-group-id', 'subject': ['SAMPLE-DG-NETWORK']})
     assert not page.group_table.selected_records()
     assert page.statements.model.rowCount() == 0
+
+
+@pytest.mark.parametrize('table_name', ['statements', 'conditions'])
+def test_tag_based_context_action_resets_and_filters_dynamic_groups(workbench, table_name):
+    from copy import deepcopy
+
+    application, window = workbench
+    window.settings_page.load_sample()
+    _wait_for_load(application, window)
+    context = window.controller.context
+    statement = deepcopy(
+        next(row for row in context.policy_repo.regular_statements if row['subject_type'] == 'dynamic-group')
+    )
+    statement.update(conditions="target.resource.tag.Team.Env = 'Prod'", tag_conditions=[])
+    context.policy_repo.regular_statements.append(statement)
+    window.tag_based_page.set_context(context)
+    window.experience.set_advanced(True)
+    window.navigation.setCurrentRow(window.page_index('tag_based'))
+    page = window.dynamic_groups_page
+    for field in page.filters.values():
+        field.setText('stale filter')
+    page.in_use.setCurrentIndex(2)
+    page.search.setText('stale evidence search')
+    table = getattr(window.tag_based_page, table_name)
+    assert table.model.records
+    menu = table.context_menu(table.model.records[0])
+    next(action for action in menu.actions() if action.text() == 'Focus on Dynamic Group').trigger()
+    menu.deleteLater()
+    assert window.navigation.currentRow() == window.page_index('dynamic_groups')
+    assert page.filters['domain_name'].text() == 'Default'
+    assert page.filters['dynamic_group_name'].text() == 'AppWorkers'
+    assert page.filters['matching_rule'].text() == ''
+    assert page.filters['dynamic_group_ocid'].text() == ''
+    assert page.in_use.currentIndex() == 0
+    assert page.search.text() == ''
+    assert page.group_table.model.rowCount() == 1
+    assert len(page.group_table.selected_records()) == 1
+    assert page.statements.model.rowCount() > 0
+    application.processEvents()
+    assert len(page.group_table.selected_records()) == 1
 
 
 def test_shared_drawer_retains_all_evidence_and_clears_on_navigation_and_reload(workbench):
@@ -1634,6 +1956,113 @@ def test_codex_rejects_unknown_configuration_permissions_malformed_data_and_time
     another._timeouts()
     assert 'timed out' in statuses[-1]
     assert not another.ready
+
+
+def test_logging_panel_construction_does_not_show_temporary_windows(workbench):
+    from PySide6.QtCore import QObject
+    from PySide6.QtWidgets import QWidget
+
+    from oci_policy_analysis.presentation.qt.logging_panel import LoggingPanel
+
+    application, _window = workbench
+    shown = []
+
+    class ShowWatcher(QObject):
+        def eventFilter(self, watched, event):
+            if event.type() == QEvent.Type.Show and isinstance(watched, QWidget) and watched.isWindow():
+                shown.append(type(watched).__name__)
+            return False
+
+    watcher = ShowWatcher()
+    application.installEventFilter(watcher)
+    second_window = None
+    try:
+        panel = LoggingPanel({})
+        panel.refresh_components()
+        second_window = WorkbenchWindow()
+        assert not shown, f'Unexpected startup windows: {shown}'
+    finally:
+        application.removeEventFilter(watcher)
+        panel.deleteLater()
+        if second_window is not None:
+            second_window.close()
+            second_window.deleteLater()
+
+
+def test_assistant_transcript_renders_streamed_markdown_and_literal_questions(workbench):
+    from PySide6.QtCore import QUrl
+    from PySide6.QtGui import QTextDocument
+
+    application, window = workbench
+    page = window.mcp_page
+    transcript = page.conversation
+    transcript.begin_answer('Explain **this literally** <b>question</b>')
+    page._queue_text('## Summary\n\n**Strong')
+    page._flush_text()
+    page._queue_text(
+        ' evidence**\n\n- First\n- Second\n\n```text\nservice:cloudguard\n```\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n'
+    )
+    page._flush_text()
+    page._queue_text('\nAfter the table.\n')
+    page._turn_finished('completed')
+    document = transcript.document()
+    assert 'Explain **this literally** <b>question</b>' in transcript.toPlainText()
+    assert 'Strong evidence' in transcript.toPlainText()
+    assert '**Strong' not in transcript.toPlainText()
+    assert transcript.toPlainText().count('Summary') == 1
+    assert 'After the table.' in transcript.toPlainText()
+    assert document.find('Codex').charFormat().fontItalic()
+    assert document.find('Strong evidence').charFormat().fontWeight() >= 700
+    assert '<ul' in document.toHtml()
+    assert '<table' in document.toHtml()
+    assert document.find('service:cloudguard').charFormat().fontFixedPitch()
+    assert transcript.loadResource(QTextDocument.ResourceType.ImageResource, QUrl('file:///tmp/absent.png')) is None
+    assert not transcript.openLinks() and not transcript.openExternalLinks()
+    transcript.begin_answer('Second question')
+    page._queue_text('*Partial answer*')
+    page._client_stopped()
+    assert 'Strong evidence' in transcript.toPlainText()
+    assert 'Second question' in transcript.toPlainText()
+    assert document.find('Partial answer').charFormat().fontItalic()
+    assert not document.find('Second question').charFormat().fontItalic()
+    application.processEvents()
+
+
+def test_graph_service_labels_keep_canonical_node_selection(workbench):
+    from dataclasses import replace
+
+    application, window = workbench
+    window.settings_page.load_sample()
+    _wait_for_load(application, window)
+    context = window.controller.context
+    context.corpus = replace(
+        context.corpus,
+        facts=(
+            replace(
+                context.corpus.facts[0],
+                principal_key='service:none/cloudguard',
+                original_principal_key='service:None/CloudGuard',
+            ),
+        ),
+    )
+    page = window.graph_page
+    page.set_context(context)
+    indexed = page.filters['principal'].completer().model().stringList()
+    assert 'service:cloudguard' in indexed
+    assert 'service:none/cloudguard' not in indexed
+    page.filters['principal'].setText('service:cloudguard')
+    page.search()
+    node = next(
+        item
+        for item in page.scene.items()
+        if isinstance(item.data(0), dict)
+        and item.data(0).get('principal') == 'service:none/cloudguard'
+        and 'statement_id' not in item.data(0)
+    )
+    node.setSelected(True)
+    assert page.filters['principal'].text() == 'service:cloudguard'
+    assert page.visible_grants[0]['principal'] == 'service:none/cloudguard'
+    assert page.statements.model.rowCount() == 1
 
 
 def test_codex_missing_executable_and_absent_account_are_recoverable(workbench):
@@ -2288,7 +2717,7 @@ def test_browser_subject_union_detail_filter_order_and_hidden_column(workbench):
     application.processEvents()
     assert page.filter_toggle.text() == 'Detailed Filters'
     assert page.search.mapTo(page, page.search.rect().topLeft()).y() < page.filter_toggle.y()
-    assert page.model.headers == ('Policy', 'Effective path', 'Original statement')
+    assert page.model.headers == ('Policy Path', 'Effective path', 'Original statement')
     assert {row['subject_type'] for row in page.model.records} == {'group', 'dynamic-group'}
     page.subject_types.checks['group'].setChecked(True)
     assert page.model.rowCount() == 4
@@ -2597,6 +3026,16 @@ def test_recommendations_filters_numeric_sort_and_formatted_supersession(workben
     page.compartment.setCurrentIndex(page.compartment.findData('ROOT/Applications'))
     table = page.tables['supersession']
     assert table.model.rowCount() == 1  # descendant included
+    from PySide6.QtWidgets import QHeaderView
+
+    from oci_policy_analysis.presentation import format_compartment_policy_name
+
+    assert table.model.data(table.model.index(0, 0)) == format_compartment_policy_name(
+        candidate['compartment_path'], candidate['policy_name']
+    )
+    assert 'Action Detail' not in page.tables['summary'].model.headers
+    assert table.horizontalHeader().sectionResizeMode(4) == QHeaderView.ResizeMode.Stretch
+    assert page.tables['summary'].horizontalHeader().sectionResizeMode(2) == QHeaderView.ResizeMode.Stretch
     menu = table.context_menu(table.model.records[0])
     menu.actions()[0].trigger()
     menu.deleteLater()
@@ -3175,7 +3614,7 @@ def test_overview_restores_legacy_load_and_logging_preferences_and_saves_edits(w
         assert logging.getLogger('oci-policy-analysis.qt.main').level == logging.ERROR
         assert logging.getLogger('saved_runtime_logger').level == logging.WARNING
         page.profile.setCurrentText('NEW_PROFILE')
-        page.auth.setCurrentIndex(page.auth.findData('resource_principal'))
+        page.auth.setCurrentIndex(page.auth.findData('profile'))
         page.depth.setValue(2)
         page.recursive.setChecked(True)
         page.cis_users.setChecked(True)
@@ -3185,12 +3624,12 @@ def test_overview_restores_legacy_load_and_logging_preferences_and_saves_edits(w
         assert saved['unrelated_preference'] == 'retain-me'
         assert saved['named_profile'] == 'NEW_PROFILE'
         assert saved['domain_compartment_depth'] == 2
-        assert saved['qt_auth_mode'] == 'resource_principal' and not saved['instance_principal']
+        assert saved['qt_auth_mode'] == 'profile' and not saved['instance_principal']
         assert saved['load_all_users'] and saved['recursive']
         reopened = WorkbenchWindow()
         try:
             assert reopened.settings_page.profile.currentText() == 'NEW_PROFILE'
-            assert reopened.settings_page.auth.currentData() == 'resource_principal'
+            assert reopened.settings_page.auth.currentData() == 'profile'
             assert reopened.settings_page.depth.value() == 2
             assert reopened.settings_page.load_all_users.isChecked()
         finally:
@@ -3271,7 +3710,7 @@ def test_browser_combined_policy_effective_path_invalid_style_and_prominent_reas
     page.model.replace([record, unknown])
     page._row_count()
     model = page.model
-    assert model.headers == ('Policy', 'Effective path', 'Original statement')
+    assert model.headers == ('Policy Path', 'Effective path', 'Original statement')
     assert model.data(model.index(0, 0)) == format_compartment_policy_name(
         record['compartment_path'], record['policy_name']
     )
@@ -3316,3 +3755,760 @@ def test_load_preferences_autosave_and_clean_close_preserve_external_updates(wor
     Path(config.SETTINGS_PATH).write_text(json.dumps(saved))
     window.close()
     assert json.loads(Path(config.SETTINGS_PATH).read_text())['named_profile'] == 'EXTERNAL_UPDATE'
+
+
+def test_shared_statement_presentation_and_optional_detail_sections(workbench):
+    from copy import deepcopy
+
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QLabel
+
+    from oci_policy_analysis.presentation import format_compartment_policy_name
+    from oci_policy_analysis.presentation.qt.widgets import CollapsibleSection
+
+    _, window = workbench
+    source = {
+        'statement_text': 'Allow group Missing to read buckets in tenancy',
+        'policy_name': 'Storage',
+        'compartment_path': 'ROOT/Apps',
+        'effective_path': 'ROOT',
+        'internal_id': 'source-1',
+        'policy_tags': {'team': 'apps'},
+        'valid': False,
+        'invalid_reasons': ['Missing group', 'Unresolved scope'],
+        'conditions': '',
+        'condition_atoms': [],
+        'comments': None,
+    }
+    before = deepcopy(source)
+    tables = [
+        window.users_groups_page.group_view.statements,
+        window.users_groups_page.user_view.statements,
+        window.dynamic_groups_page.statements,
+        window.resource_principals_page.statements,
+    ]
+    for table in tables:
+        table.model.replace([source])
+        assert table.model.headers == ('Policy Path', 'Effective path', 'Original statement')
+        assert table.model.data(table.model.index(0, 0)) == format_compartment_policy_name('ROOT/Apps', 'Storage')
+        assert table.model.data(table.model.index(0, 1)) == 'ROOT'
+        assert table.model.data(table.model.index(0, 0), Qt.ItemDataRole.FontRole).italic()
+        assert table.model.data(table.model.index(0, 0), Qt.ItemDataRole.ForegroundRole) is not None
+    window.drawer.show_record(source)
+    sections = {
+        section.button.text(): section for section in window.drawer.scroll.widget().findChildren(CollapsibleSection)
+    }
+    assert 'Source' not in sections and 'Conditions' not in sections
+    assert 'Basic Details' in sections and 'Additional Details' in sections
+    assert sections['Validity'].button.isChecked()
+    basic_labels = [item.text() for item in sections['Basic Details'].findChildren(QLabel)]
+    additional_labels = [item.text() for item in sections['Additional Details'].findChildren(QLabel)]
+    assert 'Effective Path' in basic_labels and 'Internal Id' not in basic_labels
+    assert 'Internal Id' in additional_labels and 'Policy Tags' in additional_labels
+    assert '• Missing group\n• Unresolved scope' in window.drawer.invalid_notice.toPlainText()
+    assert source == before
+    window.drawer.show_record(
+        {'statement_text': 'test', 'valid': True, 'conditions': None, 'conditions_parsed_structure': {}}
+    )
+    sections = {
+        section.button.text(): section for section in window.drawer.scroll.widget().findChildren(CollapsibleSection)
+    }
+    assert 'Conditions' not in sections and not sections['Validity'].button.isChecked()
+
+
+def test_groups_member_filter_intersects_inventory_and_discards_hidden_selection(workbench):
+    application, window = workbench
+    window.settings_page.load_sample()
+    _wait_for_load(application, window)
+    context = window.controller.context
+    repo = context.policy_repo
+    repo.groups = [
+        {'group_name': 'Team', 'domain_name': 'Default', 'group_ocid': 'g1'},
+        {'group_name': 'Team', 'domain_name': 'Other', 'group_ocid': 'g2'},
+        {'group_name': 'Empty', 'domain_name': 'Default', 'group_ocid': 'g3'},
+    ]
+    repo.users = [
+        {'user_name': 'alice', 'display_name': 'Alice Example', 'domain_name': 'Default', 'groups': ['g1']},
+        {'user_name': 'bob', 'display_name': 'Robert', 'domain_name': 'Other', 'groups': ['g2', 'missing']},
+    ]
+    view = window.users_groups_page.group_view
+    view.set_context(context)
+    view.inventory.selectRow(0)
+    view.filters['user_search'].setText('ROBERT')
+    view.apply_filters()
+    assert [row['group_ocid'] for row in view.inventory.model.records] == ['g2']
+    assert not view.inventory.selected_records()
+    view.filters['domain_name'].setText('Default')
+    view.apply_filters()
+    assert view.inventory.model.rowCount() == 0
+    view.filters['user_search'].setText('Alice | Robert')
+    view.filters['domain_name'].clear()
+    view.apply_filters()
+    assert {row['group_ocid'] for row in view.inventory.model.records} == {'g1', 'g2'}
+    view.reset_filters()
+    assert view.inventory.model.rowCount() == 3
+
+
+def test_cross_tenancy_graph_provenance_paging_findings_and_reload(workbench):
+    from copy import deepcopy
+
+    from PySide6.QtWidgets import QGraphicsItem
+
+    from oci_policy_analysis.application.core.cross_tenancy_corpus import CrossTenancyCorpusBuilder
+    from oci_policy_analysis.application.services.recommendations_service import RecommendationsService
+
+    application, window = workbench
+    window.settings_page.load_sample()
+    _wait_for_load(application, window)
+    context = window.controller.context
+    repo = context.policy_repo
+    repo.defined_aliases = [
+        {
+            'defined_type': 'tenancy',
+            'defined_name': 'Partner',
+            'ocid_alias': 'remote',
+            'policy_ocid': 'ct',
+            'policy_name': 'Trust',
+            'compartment_path': 'ROOT',
+            'statement_text': 'Define tenancy Partner as remote',
+        },
+        {
+            'defined_type': 'group',
+            'defined_name': 'Unused',
+            'ocid_alias': 'unused',
+            'policy_ocid': 'ct',
+            'statement_text': 'Define group Unused as unused',
+        },
+    ]
+    repo.cross_tenancy_statements = [
+        {
+            'policy_ocid': 'ct',
+            'policy_name': 'Trust',
+            'compartment_path': 'ROOT',
+            'internal_id': str(i),
+            'statement_text': f'Admit group Admins of tenancy {alias} to read buckets in tenancy',
+            'tenancy_aliases': [alias],
+            'parsed': True,
+            'valid': i == 0,
+            'admitted_principal_type': 'group',
+            'admitted_principal': 'Admins',
+            'admitted_tenancy': alias,
+        }
+        for i, alias in enumerate(['Partner', 'Partner', *[f'Remote{j}' for j in range(8)]])
+    ]
+    before = deepcopy((repo.defined_aliases, repo.cross_tenancy_statements))
+    findings = [
+        {
+            'Type': 'Duplicate',
+            'Severity': 'Medium',
+            'Policy Name': 'Trust',
+            'Issue': 'Duplicate evidence',
+            'related_statements': [repo.cross_tenancy_statements[1]],
+        }
+    ]
+    context.cross_tenancy_corpus = CrossTenancyCorpusBuilder().build(repo, findings)
+    page = window.cross_tenancy_page
+    page.set_context(context)
+    assert page.tables['statements'].model.rowCount() == 12
+    assert page.entities.model.headers[3] == 'Defined OCID'
+    tenancy = next(
+        row for row in page.entities.model.records if row.get('kind') == 'tenancy' and row.get('name') == 'Partner'
+    )
+    assert tenancy['defined_ocid'] == 'remote'
+    assert tenancy['tenancy_display'] == 'Partner'
+    unused = next(row for row in page.entities.model.records if row.get('name') == 'Unused')
+    assert unused['defined_ocid'] == 'unused'
+    assert page.tabs.count() == 3  # Unknown/unresolved source rows live under Findings.
+    assert page.findings.model.rowCount() == 9  # Original duplicate plus eight unresolved tenancy references.
+    assert len(RecommendationsService(context)._cross_tenancy_rows()) == 1
+    assert sum('Unresolved tenancy reference' in row.get('Type', '') for row in page.findings.model.records) == 8
+    assert len(page.scene.items()) > len(page.payload['relationship_graph']['tenancies'])
+    assert len(
+        [item for item in page.scene.items() if item.flags() & QGraphicsItem.GraphicsItemFlag.ItemIsSelectable]
+    ) > len(page.payload['relationship_graph']['tenancies'])
+    assert page.tables['statements'].model.rowCount() == 12  # graph navigation does not discard evidence
+    page.relationship.setCurrentIndex(
+        next(i for i in range(page.relationship.count()) if page.relationship.itemText(i) == 'Tenancy · Partner')
+    )
+    assert page.tables['statements'].model.rowCount() == 3  # matching Define plus both duplicate occurrences
+    assert window.drawer.record is None
+    page.search.setText('does not exist')
+    assert page.tables['statements'].proxy.rowCount() == 0
+    page.search.clear()
+    page.clear_selection()
+    duplicate_row = next(
+        index
+        for index in range(page.findings.proxy.rowCount())
+        if page.findings.record_at(page.findings.proxy.index(index, 0)).get('Issue') == 'Duplicate evidence'
+    )
+    page.findings.selectRow(duplicate_row)
+    assert page.tables['statements'].model.rowCount() == 1
+    assert window.drawer.record['Issue'] == 'Duplicate evidence'
+    page.clear_selection()
+    node = next(
+        item
+        for item in page.scene.items()
+        if isinstance(item.data(0), dict)
+        and item.data(0).get('alias') == 'Partner'
+        and not item.data(0).get('direction')
+    )
+    node.setSelected(True)
+    assert page.tables['statements'].model.rowCount() == 3
+    assert window.drawer.record is None
+    admit_row = next(row for row in page.tables['statements'].model.records if row.get('kind') == 'Admit')
+    menu = page.tables['statements'].context_menu(admit_row)
+    menu.actions()[0].trigger()
+    assert window.drawer.record['statement_text'].startswith('Admit')
+    assert 'parsed_fields' in window.drawer.record
+    menu.deleteLater()
+    assert (repo.defined_aliases, repo.cross_tenancy_statements) == before
+    page.set_context(None)
+    assert not page.scene.selectedItems()
+    assert page.tables['statements'].model.rowCount() == 0
+    assert window.drawer.record is None
+
+
+def test_graph_live_search_complete_principal_index_and_conditional_evidence(workbench):
+    from PySide6.QtTest import QTest
+
+    application, window = workbench
+    window.settings_page.load_sample()
+    _wait_for_load(application, window)
+    page = window.graph_page
+    corpus = window.controller.context.corpus
+    indexed = page.filters['principal'].completer().model().stringList()
+    assert {fact.principal_key for fact in corpus.facts} <= set(indexed)
+    page.filters['resource'].setText('SECRET_BUNDLE_READ')
+    QTest.qWait(300)
+    application.processEvents()
+    assert page.visible_grants
+    assert all('SECRET_BUNDLE_READ' in row['permissions'] for row in page.visible_grants)
+    node = next(
+        item for item in page.scene.items() if isinstance(item.data(0), dict) and 'statement_id' in item.data(0)
+    )
+    node.setSelected(True)
+    assert page.filters['principal'].text() == node.data(0)['principal']
+    assert page.filters['path'].text() == node.data(0)['path']
+    assert page.statements.model.headers[2] == 'Conditional'
+    assert all(row['conditional'] is True for row in page.statements.model.records)
+    assert all(
+        len(item.childItems()) == 3
+        for item in page.scene.items()
+        if isinstance(item.data(0), dict) and 'statement_id' in item.data(0)
+    )
+
+
+def test_recommendation_handoff_selects_only_eligible_sources_without_saving_plan(workbench):
+    from PySide6.QtWidgets import QPushButton
+
+    from oci_policy_analysis.presentation.qt.json_view import JsonTree
+    from oci_policy_analysis.presentation.qt.widgets import CollapsibleSection
+
+    application, window = workbench
+    window.settings_page.load_sample()
+    _wait_for_load(application, window)
+    consolidation = window.consolidation_page
+    ids = [row['internal_id'] for row in consolidation.candidates.model.records]
+    consolidation.service.set_protected_set([ids[0]])
+    consolidation.saved_protection = {ids[0]}
+    consolidation.protection.model.set_checked({ids[0]})
+    opportunity = {
+        'Opportunity ID': 'test-grouping',
+        'Type': 'Group similar statements',
+        'Statement Internal IDs': [ids[0], ids[1], 'missing'],
+        'Handoff Mode': 'supported',
+        'Recommended Strategy': 'Group Similar Statements',
+        'Evidence': {'members': [{'internal_id': ids[1]}]},
+    }
+    page = window.recommendations_page
+    page._details('consolidation', opportunity)
+    assert window.drawer.record is opportunity
+    assert 'Additional Details' not in [
+        section.button.text() for section in window.drawer.findChildren(CollapsibleSection)
+    ]
+    assert window.drawer.findChildren(JsonTree)
+    menu = page.tables['consolidation'].context_menu(opportunity)
+    action = next(action for action in menu.actions() if action.text() == 'Create consolidation plan…')
+    action.trigger()
+    menu.deleteLater()
+    assert window.experience.advanced
+    assert window.navigation.currentRow() == window.page_index('consolidation')
+    assert consolidation.candidates.model.checked == {ids[1]}
+    assert consolidation.strategy.currentText() == 'Group Similar Statements'
+    assert consolidation.plan is None and consolidation.worker is None
+    assert consolidation.history.model.rowCount() == 0
+    assert any('Statements && Strategy' in button.text() for button in consolidation.findChildren(QPushButton))
+    consolidation.set_block_reason('Snapshot is busy')
+    assert not consolidation.select_opportunity(opportunity)
+    assert consolidation.candidates.model.checked == {ids[1]}
+
+
+def test_advanced_policy_loading_choice_persists_and_reaches_live_worker(workbench, monkeypatch):
+    application, window = workbench
+    page = window.settings_page
+    assert page.policy_load_method.currentData() == 'resource_search'
+    assert page.policy_loading_controls.isHidden()
+    window.experience.set_advanced(True)
+    assert not page.policy_loading_controls.isHidden()
+    page.policy_load_method.setCurrentIndex(page.policy_load_method.findData('compartment'))
+    captured = []
+
+    def live_load(service, **kwargs):
+        captured.append(kwargs)
+        return LoadResult(False, 'No network needed for option forwarding test')
+
+    monkeypatch.setattr(LoadService, 'load_from_tenancy', live_load)
+    page.load_button.click()
+    _wait_for_load(application, window)
+    assert captured[0]['policy_load_method'] == 'compartment'
+    assert captured[0]['save_cache_after_load'] is True
+    page.set_busy(True)
+    assert not page.policy_load_method.isEnabled()
+    page.set_busy(False)
+    window.experience.set_advanced(False)
+    assert page.policy_loading_controls.isHidden()
+    assert page.load_options()['policy_load_method'] == 'compartment'
+    page.save_load_preferences(force=True)
+    restored = WorkbenchWindow(record_usage=False)
+    try:
+        assert restored.settings_page.policy_load_method.currentData() == 'compartment'
+        assert restored.settings_page.policy_loading_controls.isHidden()
+        assert restored.settings_page.load_options()['policy_load_method'] == 'compartment'
+    finally:
+        restored.close()
+        restored.deleteLater()
+
+
+def test_api_calls_dock_can_show_multiple_rows_and_resize_details(workbench):
+    from PySide6.QtCore import Qt
+
+    from oci_policy_analysis.application.core.support.api_calls import ApiCallJournal
+
+    application, window = workbench
+    window.resize(1500, 1050)
+    window.show()
+    window.settings_page.load_sample()
+    _wait_for_load(application, window)
+    view = window.api_calls
+    journal = ApiCallJournal()
+    for index in range(25):
+        journal.append(
+            {
+                'operation': 'IdentityClient.get_policy',
+                'started_at': str(index),
+                'http_status': 200,
+                'outcome': 'Success',
+            }
+        )
+    view.journal, view.revision = journal, None
+    view.refresh()
+    window._show_logs()
+    window.log_tabs.setCurrentWidget(view)
+    for _ in range(8):
+        application.processEvents()
+    assert view.details.isHidden()
+    assert view.table.viewport().height() >= 3 * view.table.rowHeight(0)
+    initial_height = view.table.viewport().height()
+    window.resizeDocks([window.log_dock], [550], Qt.Orientation.Vertical)
+    for _ in range(8):
+        application.processEvents()
+    assert view.table.viewport().height() > initial_height + 50
+    menu = view.table.context_menu(view.table.model.records[0])
+    menu.actions()[0].trigger()
+    menu.deleteLater()
+    assert view.show_details.isChecked() and not view.details.isHidden()
+    assert 'IdentityClient.get_policy' in view.details.toPlainText()
+    view.splitter.setSizes([150, 250])
+    for _ in range(3):
+        application.processEvents()
+    with_details = view.table.viewport().height()
+    view.show_details.setChecked(False)
+    for _ in range(3):
+        application.processEvents()
+    assert view.table.viewport().height() > with_details + 100
+    assert view.table.proxy.rowCount() == 25
+
+
+def test_inventory_limit_worker_completion_and_retry_messages(workbench, monkeypatch):
+    application, window = workbench
+    window.settings_page.load_sample()
+    _wait_for_load(application, window)
+    page = window.policy_inventory_page
+    repo = window.controller.context.policy_repo
+    repo.limits_client = object()
+    repo.policies_loaded_from_tenancy = True
+    page.set_context(window.controller.context)
+    busy = []
+    page.busy_changed.connect(busy.append)
+    for outcome in ('complete', 'incomplete', 'error', 'complete'):
+
+        def fetch_limits(result=outcome):
+            if result == 'error':
+                raise RuntimeError('simulated limits failure')
+            repo.tenancy_policy_limits = {'policies_count': 1000, 'source': 'live OCI'}
+            if result == 'complete':
+                repo.tenancy_policy_limits['policy_statements_per_compartment_chain_count'] = 900
+
+        monkeypatch.setattr(repo, 'fetch_tenancy_policy_statement_limits', fetch_limits)
+        page.fetch_limits.click()
+        _wait_until(application, lambda: page.worker is None)
+        assert busy[-2:] == [True, False]
+        assert page.fetch_limits.isEnabled()
+        message = page.limits_summary.text()
+        if outcome == 'complete':
+            assert '900' in message and 'live OCI' in message
+            assert 'did not return' not in message and 'Could not fetch' not in message
+        elif outcome == 'incomplete':
+            assert 'did not return both policy limits' in message
+        else:
+            assert 'Could not fetch OCI limits' in message and 'simulated limits failure' in message
+
+
+@pytest.mark.parametrize('kind', ['export', 'cache', 'compliance'])
+def test_recommendations_limits_manual_modal_validates_refreshes_and_never_fetches(
+    workbench, monkeypatch, tmp_path, kind
+):
+    from PySide6.QtWidgets import QDialogButtonBox
+
+    application, window = workbench
+    window.settings_page.load_sample()
+    _wait_for_load(application, window)
+    context = window.controller.context
+    repo = context.policy_repo
+    # Even a retained SDK client cannot turn an offline snapshot into a live load.
+    repo.limits_client = object()
+    repo.policies_loaded_from_tenancy = kind == 'cache'
+    repo.loaded_from_compliance_output = kind == 'compliance'
+    if kind == 'cache':
+        repo.current_cache_name = 'example_2026-10-21'
+        file = context.cache.cache_dir / f'combined_cache_{repo.current_cache_name}.json'
+        file.parent.mkdir(parents=True, exist_ok=True)
+        file.write_text(json.dumps(sample_snapshot()))
+    else:
+        repo.current_cache_name = ''
+    calls = []
+    monkeypatch.setattr(repo, 'fetch_tenancy_policy_statement_limits', lambda: calls.append('unexpected API call'))
+    for compartment in repo.compartments:
+        compartment['statement_count_cumulative'] = 750
+    window.policy_inventory_page.set_context(context)
+    page = window.recommendations_page
+    page.set_context(context)
+    window.navigation.setCurrentRow(window.page_index('recommendations'))
+    page.tabs.setCurrentIndex(page.tabs.count() - 1)
+    assert page.manage_limits_button.text() == 'Enter known limits…'
+    page.manage_limits_button.click()
+    dialog = window.policy_inventory_page.limit_dialog
+    assert dialog.isModal() and dialog.isVisible()
+    assert '--service-name identity' in dialog.commands.toPlainText()
+    assert '--name policies-count' in dialog.commands.toPlainText()
+    assert '--name policy-statements-per-compartment-chain-count' in dialog.commands.toPlainText()
+    dialog.policy_limit.setText('0')
+    dialog.chain_limit.setText('900')
+    dialog.buttons.button(QDialogButtonBox.StandardButton.Apply).click()
+    assert dialog.isVisible() and 'positive whole numbers' in dialog.error.text()
+    dialog.policy_limit.setText('1200')
+    dialog.buttons.button(QDialogButtonBox.StandardButton.Apply).click()
+    assert not dialog.isVisible()
+    assert not calls
+    assert repo.tenancy_policy_limits['policy_statements_per_compartment_chain_count'] == 900
+    assert '900' in page.limits_summary.text() and 'user-supplied' in page.limits_summary.text()
+    assert '900' in window.policy_inventory_page.hierarchy.topLevelItem(0).text(0)
+    assert all(row['Status'] != 'Over Limit' for row in page.tables['limits'].model.records)
+    if kind == 'cache':
+        assert json.loads(file.read_text())['tenancy_policy_limits']['policies_count'] == 1200
+    # Cancel preserves the previously applied metadata.
+    previous = dict(repo.tenancy_policy_limits)
+    page.manage_limits_button.click()
+    window.policy_inventory_page.limit_dialog.chain_limit.setText('500')
+    window.policy_inventory_page.limit_dialog.reject()
+    assert repo.tenancy_policy_limits == previous
+    window.policy_inventory_page._fetch_limits()
+    assert not calls
+
+
+def test_recommendations_limits_live_fetch_updates_both_pages_and_honors_busy_gate(workbench, monkeypatch):
+    application, window = workbench
+    window.settings_page.load_sample()
+    _wait_for_load(application, window)
+    context = window.controller.context
+    repo = context.policy_repo
+    repo.policies_loaded_from_tenancy = True
+    repo.limits_client = object()
+    fetched = []
+
+    def fetch():
+        fetched.append(True)
+        repo.tenancy_policy_limits = {
+            'policies_count': 1200,
+            'policy_statements_per_compartment_chain_count': 900,
+            'source': 'live OCI',
+        }
+
+    monkeypatch.setattr(repo, 'fetch_tenancy_policy_statement_limits', fetch)
+    window.policy_inventory_page.set_context(context)
+    page = window.recommendations_page
+    page.set_context(context)
+    assert page.manage_limits_button.text() == 'Fetch limits from OCI'
+    page.set_block_reason('Another operation is running')
+    assert not page.manage_limits_button.isEnabled()
+    page.set_block_reason('')
+    page.manage_limits_button.click()
+    _wait_until(application, lambda: window.policy_inventory_page.worker is None)
+    assert fetched == [True]
+    assert window.policy_inventory_page.limit_dialog is None
+    assert '900' in page.limits_summary.text() and 'live OCI' in page.limits_summary.text()
+    assert '900' in window.policy_inventory_page.hierarchy.topLevelItem(0).text(0)
+    assert page.manage_limits_button.isEnabled()
+    assert page.limits_feedback.isHidden() and not page.limits_feedback.text()
+    repo.limits_client = None
+    page.refresh_snapshot_data()
+    assert not page.manage_limits_button.isEnabled()
+
+
+def test_inventory_uses_shared_modal_and_success_feedback_is_not_duplicated(workbench):
+    from PySide6.QtWidgets import QDialogButtonBox
+
+    application, window = workbench
+    window.settings_page.load_sample()
+    _wait_for_load(application, window)
+    inventory = window.policy_inventory_page
+    assert inventory.fetch_limits.text() == 'Enter known limits…'
+    inventory.fetch_limits.click()
+    dialog = inventory.limit_dialog
+    assert dialog.isVisible() and dialog.isModal()
+    dialog.policy_limit.setText('1200')
+    dialog.chain_limit.setText('900')
+    dialog.buttons.button(QDialogButtonBox.StandardButton.Apply).click()
+    assert not dialog.isVisible()
+    recommendations = window.recommendations_page
+    assert '900' in inventory.limits_summary.text()
+    assert '900' in recommendations.limits_summary.text()
+    assert recommendations.limits_feedback.isHidden()
+    assert not recommendations.limits_feedback.text()
+
+
+def test_live_load_populates_limits_in_both_views_and_saved_cache_without_clicks(workbench, monkeypatch):
+    from copy import deepcopy
+    from types import SimpleNamespace
+
+    from oci.response import Response
+
+    from oci_policy_analysis.application.core.repo.policy_analysis_repository import PolicyAnalysisRepository
+
+    application, window = workbench
+    calls = []
+
+    def limit_values(**kwargs):
+        calls.append(kwargs)
+        return Response(
+            200,
+            {},
+            [
+                SimpleNamespace(name='policies-count', value=1200),
+                SimpleNamespace(name='policy-statements-per-compartment-chain-count', value=900),
+            ],
+            None,
+        )
+
+    def initialize(repo, **kwargs):
+        loaded = caching.CacheManager().load_cache_from_json(
+            loaded_json=deepcopy(sample_snapshot()), policy_analysis=repo
+        )
+        repo.limits_client = SimpleNamespace(list_limit_values=limit_values)
+        return loaded
+
+    def policies(repo):
+        repo.policies_loaded_from_tenancy = True
+        return True
+
+    monkeypatch.setattr(PolicyAnalysisRepository, 'initialize_client', initialize)
+    monkeypatch.setattr(PolicyAnalysisRepository, 'load_compartments_only', lambda repo: True)
+    monkeypatch.setattr(PolicyAnalysisRepository, 'load_complete_identity_domains', lambda repo, **kwargs: True)
+    monkeypatch.setattr(PolicyAnalysisRepository, 'load_policies_only', policies)
+    window.settings_page.load_button.click()
+    _wait_for_load(application, window)
+    assert len(calls) == 1
+    assert '900' in window.policy_inventory_page.limits_summary.text()
+    assert '900' in window.recommendations_page.limits_summary.text()
+    assert 'live OCI' in window.recommendations_page.limits_summary.text()
+    assert window.recommendations_page.limits_feedback.isHidden()
+    cache_name = window.settings_page.cache_service.list_caches()[0]
+    saved = window.controller.context.cache.load_cache_into_local_json(cache_name)
+    assert saved['tenancy_policy_limits']['policy_statements_per_compartment_chain_count'] == 900
+
+
+def test_tag_based_advanced_page_filters_hands_off_conditions_and_reloads(workbench):
+    from copy import deepcopy
+
+    application, window = workbench
+    assert 'Preview' in window.windowTitle()
+    index = window.page_index('tag_based')
+    assert window.navigation.item(index).isHidden()
+    window.controller.start_load('sample', {}, 'Sample')
+    _wait_for_load(application, window)
+    context = window.controller.context
+    clause = "all { target.resource.tag.Team.Env = 'Prod', request.operation = 'GetInstance' }"
+    record = deepcopy(context.policy_repo.regular_statements[0])
+    record.update(
+        conditions=clause,
+        statement_text='Allow group Observers to use instances in tenancy where ' + clause,
+        tag_conditions=[],
+        valid=False,
+        invalid_reasons=['Invalid source evidence'],
+    )
+    context.policy_repo.regular_statements.append(record)
+    context.policy_repo.defined_tag_namespace_keys = {'Team': {'keys': {'Env': ['Prod', 'Stage']}}}
+    before = deepcopy(context.policy_repo.regular_statements)
+    page = window.tag_based_page
+    page.set_context(context)
+    assert context.policy_repo.regular_statements == before
+    assert page.statements.model.rowCount() == page.conditions.model.rowCount() == 1
+    assert page.catalog.model.rowCount() == 1
+    page.filters['tag_key'].setText('WrongKey')
+    page.apply_filters()
+    assert page.statements.model.rowCount() == 0
+    page.reset_filters()
+    window.experience.set_advanced(True)
+    assert not window.navigation.item(index).isHidden()
+    window.navigation.setCurrentRow(index)
+    page.tabs.setCurrentWidget(page.conditions)
+    page.conditions.selectRow(0)
+    assert page.test_full.isEnabled() and page.test_atom.isEnabled()
+    page.test_atom.click()
+    tester = window.tools_page.condition_tester
+    assert window.navigation.currentRow() == window.page_index('tools')
+    assert tester.clause.toPlainText() == "target.resource.tag.Team.Env='Prod'"
+    page.test_full.click()
+    assert tester.clause.toPlainText() == clause
+    assert tester.result.text() == 'No test run.'
+    assert tester.comparisons.model.rowCount() == 0
+    page.conditions.details_requested.emit(page.conditions.model.records[0])
+    assert not window.drawer.isHidden()
+    page.set_context(None)
+    assert page.statements.model.rowCount() == page.conditions.model.rowCount() == page.catalog.model.rowCount() == 0
+    assert not page.test_full.isEnabled() and not page.test_atom.isEnabled()
+
+
+def test_qt_authentication_offers_profiles_and_instance_principal_only(workbench):
+    from oci_policy_analysis.presentation.qt.loading import LoadWorker
+
+    _application, window = workbench
+    auth = window.settings_page.auth
+    assert [auth.itemData(index) for index in range(auth.count())] == ['profile', 'instance_principal']
+    failures, loaded = [], []
+    worker = LoadWorker('oci', {'auth': 'resource_principal'}, {}, window)
+    worker.failed.connect(failures.append)
+    worker.loaded.connect(lambda *_: loaded.append(True))
+    worker.run()
+    assert len(failures) == 1 and 'profiles or instance principal only' in failures[0]
+    assert not loaded
+
+
+def test_stale_qt_resource_principal_preference_falls_back_to_profile(workbench):
+    application, original = workbench
+    original.close()
+    Path(config.SETTINGS_PATH).write_text(
+        json.dumps({'qt_auth_mode': 'resource_principal', 'named_profile': 'DEFAULT'})
+    )
+    restored = WorkbenchWindow()
+    try:
+        assert restored.settings_page.auth.currentData() == 'profile'
+        assert restored.settings_page.profile.isEnabled()
+    finally:
+        restored.close()
+        restored.deleteLater()
+        application.processEvents()
+
+
+def test_shared_saved_search_roundtrip_legacy_web_and_advanced_filters(workbench):
+    application, window = workbench
+    page = window.browser_page
+    window.settings_page.load_sample()
+    _wait_for_load(application, window)
+    source = window.controller.context.policy_repo.regular_statements[0]
+    clause = {'policy_ocid': [source['policy_ocid']], 'exact_subject_types': ['group']}
+    page.raw_filters.setPlainText(json.dumps(clause))
+    page.apply_filters()
+    assert page.model.rowCount() >= 1
+    assert page.save_named_search('Exact policy')
+    assert not page.save_named_search('Exact policy')
+    page.reset_filters()
+    page.saved_searches.setCurrentIndex(page.saved_searches.findText('Exact policy'))
+    page.restore_search()
+    assert json.loads(page.raw_filters.toPlainText())['policy_ocid'] == [source['policy_ocid']]
+    assert all(row['policy_ocid'] == source['policy_ocid'] for row in page.model.records)
+    saved = json.loads(Path(config.SETTINGS_PATH).read_text())
+    saved['saved_policy_searches'].append(
+        {
+            'name': 'Legacy web',
+            'search': {'policy_name': source['policy_name']},
+            'raw_json': json.dumps({'policy_ocid': [source['policy_ocid']]}),
+        }
+    )
+    Path(config.SETTINGS_PATH).write_text(json.dumps(saved))
+    page.refresh_saved_searches()
+    page.saved_searches.setCurrentIndex(page.saved_searches.findText('Legacy web'))
+    page.restore_search()
+    assert page.search_payload()['policy_ocid'] == [source['policy_ocid']]
+    page.raw_filters.setPlainText('[]')
+    page.apply_filters()
+    assert page.model.rowCount() == 0
+    assert 'must be an object' in page.filter_status.text()
+
+
+def test_permissions_analysis_requires_full_then_exposes_sources_and_exclusions(workbench):
+    application, window = workbench
+    window.settings_page.load_sample()
+    _wait_for_load(application, window)
+    page = window.permissions_page
+    assert page.tree.topLevelItemCount() == 0
+    assert 'Full intelligence' in page.status.text()
+    window.recommendations_page.run_analysis()
+    _wait_for_recommendations(application, window)
+    assert page.tree.topLevelItemCount() > 0
+    assert page.exclusions.model.rowCount() > 0
+    assert all(row.get('category') and row.get('reason') for row in page.exclusions.model.records)
+    root = page.tree.topLevelItem(0)
+    assert root.childCount() > 0
+    page.tree.setCurrentItem(root.child(0))
+    allow = page.tables['allow']
+    assert allow.model.rowCount() > 0
+    allow.selectRow(0)
+    assert page.sources.model.rowCount() > 0
+    assert all(row['statement_text'] for row in page.sources.model.records)
+    assert (
+        len(
+            {
+                (row.get('statement_id'), row.get('statement_text'), row.get('prospective'))
+                for row in page.sources.model.records
+            }
+        )
+        == page.sources.model.rowCount()
+    )
+    page.set_block_reason('Locked snapshot')
+    assert not page.analysis_button.isEnabled() and not page.export_button.isEnabled()
+    page.set_block_reason('')
+    assert page.tree.topLevelItemCount() > 0
+    page.set_context(None)
+    assert page.tree.topLevelItemCount() == page.sources.model.rowCount() == 0
+
+
+def test_audit_dialog_generates_only_on_explicit_action_and_clears_stale_commands(workbench):
+    from oci_policy_analysis.presentation.qt.audit_commands import AuditCommandsDialog
+
+    _application, window = workbench
+    dialog = AuditCommandsDialog(
+        {'old_value': {'policy_ocid': 'ocid1.policy.example', 'compartment_ocid': 'ocid1.compartment.example'}},
+        {'audit_context': {'start_time': '2026-09-01T00:00:00Z', 'end_time': '2026-10-01T00:00:00Z'}},
+        window,
+    )
+    assert dialog.output.toPlainText() == ''
+    dialog.generate()
+    assert dialog.output.toPlainText().count('oci audit event list') == 3
+    assert dialog.copy.isEnabled()
+    dialog.fields['region'].setText('us-ashburn-1')
+    assert dialog.output.toPlainText() == '' and not dialog.copy.isEnabled()
+    dialog.generate()
+    assert '--region us-ashburn-1' in dialog.output.toPlainText()
+    dialog.close()
+    dialog.deleteLater()

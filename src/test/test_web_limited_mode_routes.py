@@ -7,7 +7,7 @@ from fastapi import HTTPException
 from fastapi.responses import FileResponse, RedirectResponse
 from starlette.requests import Request
 
-from oci_policy_analysis.web.api import routes_core
+from oci_policy_analysis.presentation.web.api import routes_core
 
 
 class _Req:

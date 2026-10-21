@@ -14,28 +14,13 @@
 ##########################################################################
 
 import os
-import time
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
-from oci_policy_analysis.application.core.repo import AI
-from oci_policy_analysis.application.core.repo.ai_repo import load_inference_model_overrides, load_tested_model_ids
 from oci_policy_analysis.application.core.support.caching import CacheManager
 from oci_policy_analysis.application.core.support.logger import get_logger
 from oci_policy_analysis.presentation.desktop.base_tab import BaseUITab
-from oci_policy_analysis.presentation.desktop.data_table import DataTable
-
-# Constants for data table
-AI_MODEL_COLUMNS = ['Model Name', 'Model OCID', 'Capabilities', 'Lifecycle State', 'Creation Date', 'Tested']
-AI_MODEL_COLUMN_WIDTHS = {
-    'Model Name': 250,
-    'Model OCID': 450,
-    'Capabilities': 200,
-    'Lifecycle State': 125,
-    'Creation Date': 250,
-    'Tested': 90,
-}
 
 # Context help messages for the SettingsTab
 CONTEXT_HELP = {
@@ -58,10 +43,6 @@ CONTEXT_HELP = {
         'Load from the output of an unzipped CIS Complaince run - these scripts are provided by Oracle as part of MAP engagement, '
         'or freely downloadable from https://github.com/oci-landing-zones/oci-cis-landingzone-quickstart/blob/main/README.md'
     ),
-    'OCI_GENAI': (
-        'Set up connectivity to Oracle’s Generative AI services. Select or refresh models, test endpoints and compartments, and verify access. '
-        'Use this panel to enable policy text analysis and AI-driven explanations.'
-    ),
     'RECOMMENDATION_CONSOLIDATION': (
         'Control which intelligence strategies run (risk, complete supersession, cleanup checks, consolidation suggestions, recommendations). '
         'Uncheck to skip. Preferences are saved globally and used by the Recommendations tab.'
@@ -80,11 +61,11 @@ logger = get_logger(component='settings_tab')
 class SettingsTab(BaseUITab):
     """
     Settings Tab for OCI Policy Analysis UI.
-    Allows configuration of tenancy, profile, MCP server, and AI settings.
+    Allows configuration of tenancy, profile, MCP server, and display settings.
     All tenancy data is loaded via this tab.
     """
 
-    def __init__(self, parent, app, caching: CacheManager, ai_repo: AI, settings):
+    def __init__(self, parent, app, caching: CacheManager, settings):
         """Initialize Settings Tab UI. Everything that the tab needs to exist in the notebook-based app."""
         super().__init__(
             parent,
@@ -93,14 +74,6 @@ class SettingsTab(BaseUITab):
         )
         self.app = app
         self.settings = settings
-        self.ai_repo = ai_repo
-        # Test status is intentionally session-local; the model matrix documents
-        # repeatable results across environments and dates.
-        self.ai_test_results: dict[str, str] = {}
-        self.tested_model_ids = load_tested_model_ids()
-        self.inference_model_overrides = load_inference_model_overrides()
-        self.show_only_tested_var = tk.BooleanVar(value=True)
-        self._all_ai_models: list[dict] = []
         self.caching = caching
         self.page_help_text = self.default_help_text
         # Remove redundant page_help_frame, label, and methods; now in base
@@ -119,8 +92,6 @@ class SettingsTab(BaseUITab):
         self.context_help_var = tk.BooleanVar(value=self.settings.get('context_help', True))
         # ----- NEW: Load All Users Option -----
         self.load_all_users_var = tk.BooleanVar(value=self.settings.get('load_all_users', True))
-        self.ai_compartment_var = tk.StringVar(value=self.settings.get('ai_compartment_ocid', ''))
-        self.format_var = tk.StringVar(value=self.settings.get('result_format', 'Markdown'))
         self.mcp_port_var = tk.StringVar(value=str(self.settings.get('mcp_port', '8765')))
         self.mcp_host_var = tk.StringVar(value=self.settings.get('mcp_host', '127.0.0.1'))
         allowed_pct = {0, 25, 50, 75, 90}
@@ -474,6 +445,32 @@ class SettingsTab(BaseUITab):
             'Level 1 is root only (recommended for most tenancies). Selecting higher levels increases search depth, but can significantly slow load times (many more API calls in large hierarchies).',
         )
 
+        self.policy_loading_controls = ttk.Frame(self)
+        ttk.Label(self.policy_loading_controls, text='Policy loading:').pack(side='left')
+        policy_methods = {'Resource Search': 'resource_search', 'Compartment-based Policy Get': 'compartment'}
+        selected_method = next(
+            (title for title, value in policy_methods.items() if value == self.settings.get('policy_load_method')),
+            'Resource Search',
+        )
+        self.policy_load_method_var = tk.StringVar(value=selected_method)
+        method = ttk.Combobox(
+            self.policy_loading_controls,
+            textvariable=self.policy_load_method_var,
+            values=list(policy_methods),
+            state='readonly',
+            width=22,
+        )
+        method.pack(side='left', padx=5)
+        ttk.Label(
+            self.policy_loading_controls, text='Compartment listings avoid Resource Search indexing delays.'
+        ).pack(side='left')
+
+        def save_policy_method(_event):
+            self.settings['policy_load_method'] = policy_methods[self.policy_load_method_var.get()]
+            self.app.settings_service.save()
+
+        method.bind('<<ComboboxSelected>>', save_policy_method)
+
         # When profile_var is changed, optionally auto-update tenancy OCID from settings (if your app does this)
         def _on_profile_changed(*_args):
             # This logic assumes a mapping from profile name to tenancy_ocid in settings
@@ -711,146 +708,6 @@ class SettingsTab(BaseUITab):
             )
             cb.pack(side='left', padx=(0, 16), pady=4)
 
-        if not self.is_genai_feature_enabled():
-            logger.debug('OCI GenAI settings are hidden because the preview feature is disabled.')
-            return
-
-        # Label Frame for AI Connection
-        self.label_frm_ai_config = ttk.Labelframe(self, text='OCI GenAI')
-        self.label_frm_ai_config.pack(fill='x', padx=5, pady=5)
-
-        # --- Page Help context for OCI GenAI ---
-        def _show_genai_help(_event=None):
-            self.set_page_help_text(CONTEXT_HELP['OCI_GENAI'])
-
-        self.label_frm_ai_config.bind('<Enter>', _show_genai_help)
-        self.label_frm_ai_config.bind('<Leave>', lambda e=None: self.set_page_help_text(self.default_help_text))
-
-        # AI Toggle
-        self.ai_toggle_btn = ttk.Button(
-            self.label_frm_ai_config, state=tk.DISABLED, text='(3) Toggle AI Pane', command=self.app.toggle_bottom
-        )
-        self.ai_toggle_btn.grid(row=0, column=0, padx=3, pady=3, sticky='w')
-
-        def populate_model_tree():
-            """Populate the model Treeview with available models from list_models."""
-            logger.info('Populating model tree')
-            # Check and initialize AI client if needed
-            if not self.ai_repo.initialized:
-                logger.info(
-                    f'Creating AI Clients from selected Profile: {self.profile_var.get()} or IP:{self.ip_var.get()}.'
-                )
-                self.ai_repo.initialize_client(use_instance_principal=self.ip_var.get(), profile=self.profile_var.get())
-                # Grab endpoint/compartment for variable
-                self.endpoint_var.set(self.ai_repo.base_endpoint)
-                self.ai_compartment_var.set(self.ai_repo.tenancy_ocid)
-                logger.debug(f'AI initialized: {self.ai_repo.initialized}')
-
-            if self.ai_repo.initialized:
-                ai_models = self.ai_repo.list_models()
-                self._all_ai_models = ai_models
-                for model in ai_models:
-                    model['Tested'] = self.ai_test_results.get(
-                        model.get('Model OCID', ''),
-                        'Yes' if model.get('Model OCID', '') in self.tested_model_ids else 'No',
-                    )
-                self._refresh_model_table()
-                logger.info(f'list_models returned {len(ai_models)} models')
-
-                # Put in Model Data Table
-            else:
-                logger.warning('AI client not initialized, cannot list models')
-
-        self.region_var = tk.StringVar(value='')
-        self.load_regions_button = ttk.Button(
-            self.label_frm_ai_config, text='Load Regions', command=self._load_subscribed_regions
-        )
-        self.load_regions_button.grid(row=0, column=1, padx=3, pady=3, sticky='w')
-        ttk.Label(self.label_frm_ai_config, text='Region:').grid(row=0, column=2, padx=(10, 2), pady=3, sticky='e')
-        self.region_combo = ttk.Combobox(
-            self.label_frm_ai_config, textvariable=self.region_var, state='readonly', width=18
-        )
-        self.region_combo.grid(row=0, column=3, padx=3, pady=3, sticky='w')
-        self.region_combo.bind('<<ComboboxSelected>>', self._on_ai_region_changed)
-
-        self.refresh_button = ttk.Button(
-            self.label_frm_ai_config, text='(1) Refresh Models (using selected profile)', command=populate_model_tree
-        )
-        self.refresh_button.grid(row=0, column=4, padx=3, pady=3, sticky='w')
-
-        ttk.Checkbutton(
-            self.label_frm_ai_config,
-            text='Show Only Tested Models',
-            variable=self.show_only_tested_var,
-            command=self._refresh_model_table,
-        ).grid(row=0, column=5, padx=12, pady=3, sticky='w')
-
-        self.ai_progress_var = tk.StringVar(value='')
-        self.ai_progress_label = ttk.Label(
-            self.label_frm_ai_config, textvariable=self.ai_progress_var, foreground='blue'
-        )
-        self.ai_progress_label.grid(row=0, column=6, columnspan=2, padx=3, pady=3, sticky='we')
-
-        def update_model_ocid(selected_items):
-            if selected_items:
-                model_ocid = selected_items[0].get('Model OCID', '')
-                inference_model_id = self.inference_model_overrides.get(model_ocid, model_ocid)
-                self.model_id_var.set(inference_model_id)
-                logger.info('Selected model OCID=%s; inference model ID=%s', model_ocid, inference_model_id)
-
-        # Data Table for models
-        self.ai_model_table = DataTable(
-            parent=self.label_frm_ai_config,
-            columns=AI_MODEL_COLUMNS,
-            display_columns=AI_MODEL_COLUMNS,
-            column_widths=AI_MODEL_COLUMN_WIDTHS,
-            data=[],
-            selection_callback=update_model_ocid,
-            # row_context_menu_callback=model_ocid_right_click,
-            multi_select=False,
-        )
-        self.ai_model_table.grid(row=1, column=0, columnspan=8, padx=3, pady=3, sticky='nsew')
-
-        self.create_doc_link_label(
-            self.label_frm_ai_config,
-            'Open AI model test matrix and troubleshooting notes',
-            self.DOCROOT + '/ai_model_testing.html',
-            row=2,
-            column=0,
-            columnspan=8,
-            padx=3,
-            pady=3,
-            sticky='w',
-        )
-
-        self.model_id_var = tk.StringVar()
-
-        ttk.Label(self.label_frm_ai_config, text='Regional Endpoint:').grid(row=3, column=0, padx=2, pady=3, sticky='w')
-        self.endpoint_var = tk.StringVar()
-        self.endpoint_entry = ttk.Entry(self.label_frm_ai_config, textvariable=self.endpoint_var, width=80)
-        self.endpoint_entry.grid(row=3, column=1, columnspan=6, padx=3, pady=3, sticky='ew')
-
-        ttk.Label(self.label_frm_ai_config, text='Compartment (for GenAI):').grid(
-            row=4, column=0, padx=2, pady=3, sticky='w'
-        )
-        self.ai_compartment_var = tk.StringVar()
-        self.ai_compartment_entry = ttk.Entry(self.label_frm_ai_config, textvariable=self.ai_compartment_var, width=80)
-        self.ai_compartment_entry.grid(row=4, column=1, columnspan=6, padx=3, pady=3, sticky='ew')
-
-        apply_button = ttk.Button(
-            self.label_frm_ai_config, text='(2) Apply and Test GenAI Settings', command=self.apply_config
-        )
-        apply_button.grid(row=3, column=7, rowspan=2, padx=3, pady=3, sticky='ew')
-        for column in range(1, 6):
-            self.label_frm_ai_config.columnconfigure(column, weight=1)
-        self.label_frm_ai_config.rowconfigure(1, weight=1)
-        logger.debug('Apply button created')
-
-        # (Moved MCP block to top and made autosave; original section removed)
-
-    # -------------------------
-    # Context Help Handlers
-    # -------------------------
     def _on_context_help_changed(self):
         """
         Callback when Context Help checkbox is toggled.
@@ -934,7 +791,6 @@ class SettingsTab(BaseUITab):
         self.settings['recursive'] = self.recursive_var.get()
         self.settings['instance_principal'] = self.ip_var.get()
         self.settings['named_profile'] = self.profile_var.get()
-        self.settings['ai_compartment_ocid'] = self.profile_var.get()
         self.settings['load_all_users'] = self.load_all_users_var.get()
         # Remove persistence, save, and variable harvesting for Additional Identity Domain Compartment OCIDs.
         # (Entire block deleted.)
@@ -1041,155 +897,6 @@ class SettingsTab(BaseUITab):
         ):
             self.app.simulation_tab.on_load_all_users_setting_changed(self.load_all_users_var.get())
 
-    # -------------------------
-    # AI Enablement
-    # -------------------------
-    def _refresh_model_table(self) -> None:
-        """Apply the model-list filters without making another OCI request."""
-        if not self.is_genai_feature_enabled():
-            return
-        rows = []
-        for model in self._all_ai_models:
-            model_id = model.get('Model OCID', '')
-            model['Tested'] = self.ai_test_results.get(model_id, 'Yes' if model_id in self.tested_model_ids else 'No')
-            if self.show_only_tested_var.get() and model['Tested'] != 'Yes':
-                continue
-            rows.append(model)
-        self.ai_model_table.update_data(new_data=rows)
-
-    def _on_ai_region_changed(self, _event=None) -> None:
-        """Switch GenAI clients to the selected subscribed region."""
-        if not self.is_genai_feature_enabled():
-            return
-        region = self.region_var.get().strip()
-        if not region or not self.ai_repo.initialized:
-            return
-        try:
-            self.ai_repo.set_region(region)
-            self.endpoint_var.set(self.ai_repo.base_endpoint)
-            self._all_ai_models = []
-            self.ai_model_table.update_data(new_data=[])
-            self.ai_progress_var.set(f'Region set to {region}; refresh models to continue')
-        except Exception as exc:
-            logger.error('Failed to change AI region to %s', region, exc_info=True)
-            self.ai_progress_var.set(f'Unable to change region: {exc}')
-
-    def _load_subscribed_regions(self) -> None:
-        """Load tenancy regions on explicit user request."""
-        if not self.is_genai_feature_enabled():
-            return
-        try:
-            if not self.ai_repo.initialized:
-                self.ai_repo.initialize_client(use_instance_principal=self.ip_var.get(), profile=self.profile_var.get())
-            if not self.ai_repo.initialized:
-                raise RuntimeError('AI client could not be initialized')
-            regions = self.ai_repo.list_subscribed_regions()
-            self.region_combo['values'] = regions
-            if self.ai_repo.region in regions:
-                self.region_var.set(self.ai_repo.region)
-            self.ai_progress_var.set(f'Loaded {len(regions)} subscribed regions')
-        except Exception as exc:
-            logger.error('Unable to load subscribed AI regions', exc_info=True)
-            self.ai_progress_var.set(f'Unable to load subscribed regions: {exc}')
-
-    def apply_config(self):
-        """
-        Apply changes to Model ID and Endpoint in AI client.
-        """
-        if not self.is_genai_feature_enabled():
-            logger.warning('Ignoring GenAI configuration because the preview feature is disabled.')
-            return
-        start_time = time.perf_counter()
-        model_id = self.model_id_var.get().strip()
-        endpoint = self.endpoint_var.get().strip()
-        compartment_ocid = self.ai_compartment_var.get().strip() or getattr(self.ai_repo, 'tenancy_ocid', '')
-        if compartment_ocid:
-            self.ai_compartment_var.set(compartment_ocid)
-        logger.info('Applying config changes: Model ID=%s, Endpoint=%s', model_id, endpoint)
-        self.ai_progress_var.set('[-] Running AI test call…')
-
-        try:
-            self.ai_repo.update_config(model_ocid=model_id, endpoint=endpoint, compartment_ocid=compartment_ocid)
-            logger.info(f'Configuration updated successfully in {time.perf_counter() - start_time:.2f} seconds')
-
-            # Make AI Call to test with callback
-            self.app.ask_genai_async(
-                prompt='What is the meaning of life?',
-                additional_instruction='TEST',
-                callback=self._on_ai_enablement_finished,
-                test_call=True,  # Flag to indicate this is just a test call for enablement purposes
-            )
-
-        except Exception as e:
-            logger.error('Failed to update configuration: %s', e)
-
-    def _on_ai_enablement_finished(self, success: bool, message: str, clear: bool = False):  # noqa: C901
-        """
-        Callback from App once AI loading completes. Used to enable AI toggle button if successful.
-
-        Args:
-            success (bool): Whether the AI call was successful.
-            message (str): Message to display.
-            clear (bool): Whether to clear the message after a delay.
-        """
-        if not self.is_genai_feature_enabled():
-            return
-        model_id = self.model_id_var.get().strip()
-        if model_id:
-            self.ai_test_results[model_id] = 'Yes' if success else 'No'
-            for row in self.ai_model_table.data:
-                if row.get('Model OCID') == model_id:
-                    row['Tested'] = self.ai_test_results[model_id]
-            self.ai_model_table.update_data(new_data=self.ai_model_table.data)
-
-        if success:
-            self.ai_progress_var.set(f'[OK] {message}')
-            # Enable the toggle button
-            self.ai_toggle_btn.config(state=tk.NORMAL)
-            # Enable AI Assist button on PoliciesTab after AI enablement success
-            if hasattr(self.app, 'policies_tab') and hasattr(self.app.policies_tab, 'ai_assist_btn'):
-                self.app.policies_tab.ai_assist_btn.config(state=tk.NORMAL)
-                logger.info('AI Assist button on PoliciesTab enabled')
-            # Enable AI Assist button on PolicyBrowserTab after AI enablement success
-            if hasattr(self.app, 'policy_browser_tab') and hasattr(self.app.policy_browser_tab, 'ai_assist_btn'):
-                self.app.policy_browser_tab.ai_assist_btn.config(state=tk.NORMAL)
-                logger.info('AI Assist button on PolicyBrowserTab enabled')
-            # Enable AI Assist button on DynamicGroupTab after AI enablement success
-            if hasattr(self.app, 'dynamic_groups_tab') and hasattr(self.app.dynamic_groups_tab, 'ai_assist_btn'):
-                self.app.dynamic_groups_tab.ai_assist_btn.config(state=tk.NORMAL)
-                logger.info('AI Assist button on DynamicGroupsTab enabled')
-            # Enable UsersTab (and other tabs in the future) to show the AI Assist button
-            if hasattr(self.app, 'users_tab') and hasattr(self.app.users_tab, 'ai_assist_btn'):
-                self.app.users_tab.ai_assist_btn.config(state=tk.NORMAL)
-                logger.info('AI Assist button on UsersTab enabled')
-            # Enable WorkloadPrincipalsTab (and other tabs in the future) to show the AI Assist button
-            if hasattr(self.app, 'resource_principals_tab') and hasattr(
-                self.app.resource_principals_tab, 'ai_assist_btn'
-            ):
-                self.app.resource_principals_tab.ai_assist_btn.config(state=tk.NORMAL)
-                logger.info('AI Assist button on WorkloadPrincipalsTab enabled')
-            # Clear previous AI Assistant search and results after enablement
-            if hasattr(self.app, 'policy_query_var'):
-                self.app.policy_query_var.set('')
-            # if hasattr(self.app, "policy_query_label_text"):
-            #     self.app.policy_query_label_text.set('')
-            self.app.output_text.delete('1.0', tk.END)
-            # Common for result/response variable: ai_output_var or genai_response_var or similar
-            if hasattr(self.app, 'ai_output_var'):
-                self.app.ai_output_var.set('')
-            if hasattr(self.app, 'genai_response_var'):
-                self.app.genai_response_var.set('')
-        else:
-            self.ai_progress_var.set(f'[X] {message}')
-
-        # Schedule it to go away if clear was set
-        if clear:
-            self.after(2000, lambda: self.ai_progress_var.set(''))
-
-    # -------------------------
-    # Console/ Debug Tab Toggle
-    # -------------------------
-
     def _toggle_console_tab(self):
         """Toggle the visibility of the console and debug tab in the notebook."""
         notebook = self.app.notebook
@@ -1254,6 +961,7 @@ class SettingsTab(BaseUITab):
                 notebook.forget(tab)
             self.advanced_btn_var.set('Show Advanced Tabs')
             self.app.advanced_tabs_visible = False
+            self.policy_loading_controls.pack_forget()
             logger.info('Advanced tabs hidden')
         else:
             notebook.add(self.app.mcp_tab, text='Embedded MCP\n(Advanced)')
@@ -1265,6 +973,7 @@ class SettingsTab(BaseUITab):
                 notebook.add(self.app.consolidation_tab, text='Consolidation Workbench\n(Preview)')
             self.advanced_btn_var.set('Hide Advanced Tabs')
             self.app.advanced_tabs_visible = True
+            self.policy_loading_controls.pack(fill='x', padx=8, pady=4)
             logger.info('Advanced tabs shown')
 
         # Reapply dataset-specific availability after tabs are added back to

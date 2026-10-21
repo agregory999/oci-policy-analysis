@@ -7,6 +7,7 @@ import threading
 from PySide6.QtCore import QThread, Signal
 
 from oci_policy_analysis.application.core.support.logger import get_logger
+from oci_policy_analysis.application.core.support.mcp_warnings import configure_mcp_dependency_warnings
 
 logger = get_logger(component='qt.mcp')
 
@@ -46,6 +47,7 @@ class SnapshotMcpHost(QThread):
             self.failed.emit(f'{type(exc).__name__}: {exc}')
 
     async def _serve(self) -> None:
+        configure_mcp_dependency_warnings()
         import uvicorn
         from fastmcp import Client
 

@@ -129,6 +129,23 @@ class PrincipalAnalysisService:
         """
         return self.by_groups_users(groups=groups, users=users)
 
+    def filter_groups_by_user(self, groups: list[Group], search: list[str]) -> list[Group]:
+        """Keep groups with a known member matching a username or display name.
+
+        Args:
+            groups: Already filtered group inventory from the current snapshot.
+            search: Case-insensitive alternatives accepted by the user repository search.
+
+        Returns:
+            list[Group]: Matching source groups. Missing membership evidence does
+            not establish membership; no live lookup or stored-data change occurs.
+        """
+        if not search:
+            return groups
+        users = self.context.policy_repo.filter_users({'search': search})
+        memberships = {ocid for user in users for ocid in user.get('groups') or []}
+        return [group for group in groups if group.get('group_ocid') in memberships]
+
     def user_group_rows(self, users: list[User]) -> list[dict]:
         """Describe each selected user's memberships from the current snapshot.
 

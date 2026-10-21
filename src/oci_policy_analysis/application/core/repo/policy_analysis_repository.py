@@ -72,6 +72,8 @@ from oci_policy_analysis.application.core.parser.condition_structure import (
     parse_condition_structure,
 )
 from oci_policy_analysis.application.core.parser.policy_statement_normalizer import PolicyStatementNormalizer
+from oci_policy_analysis.application.core.repo.policy_loading import LivePolicyLoader, validate_policy_load_method
+from oci_policy_analysis.application.core.support.api_calls import ApiCallObservation, api_error_summary
 from oci_policy_analysis.application.core.support.logger import get_logger
 from oci_policy_analysis.application.services.tag_based_policy_service import (
     POLICY_TAG_FILTER_FIELDS,
@@ -228,15 +230,17 @@ class PolicyAnalysisRepository:
         except Exception:
             pass
         level_func = logger.critical if log_critical else logger.info
+        if getattr(self, 'api_calls_separate_view', False):
+            level_func = logger.debug
 
         t0 = time.perf_counter()
+        observation = ApiCallObservation(label, fn, args, kwargs, getattr(self, 'tenancy_ocid', ''))
+        result, call_error = None, None
         try:
             result = fn(*args, **kwargs)
             elapsed = time.perf_counter() - t0
             # Print more details about the API call on success
-            level_func(
-                f'[API] {label} ({getattr(fn, "__name__", repr(fn))}) succeeded in {elapsed:.2f}s — args={args} kwargs={kwargs}'
-            )
+            level_func(f'[API] {label} succeeded in {elapsed:.2f}s')
             self._record_iam_api_diagnostic(
                 label,
                 context=_iam_diagnostics_context,
@@ -246,12 +250,20 @@ class PolicyAnalysisRepository:
             )
             return result
         except ServiceError as se:
+            call_error = se
             if getattr(self, '_cleanup_reload_api_errors', None) is not None:
                 self._cleanup_reload_api_errors.append(label)
             elapsed = time.perf_counter() - t0
             # Print detailed ServiceError info
             logger.error(
-                f'[API] {label} ({getattr(fn, "__name__", repr(fn))}) ServiceError after {elapsed:.2f}s: code={se.code} status={se.status} message={se.message} args={args}, kwargs={kwargs}'
+                '[API] %s failed in %.2fs · HTTP %s · %s · %s · target=%s · request=%s',
+                label,
+                elapsed,
+                se.status,
+                se.code,
+                se.message,
+                observation.target,
+                se.request_id,
             )
             self._record_iam_api_diagnostic(
                 label,
@@ -262,12 +274,17 @@ class PolicyAnalysisRepository:
             )
             raise
         except Exception as e:
+            call_error = e
             if getattr(self, '_cleanup_reload_api_errors', None) is not None:
                 self._cleanup_reload_api_errors.append(label)
             elapsed = time.perf_counter() - t0
             # Print more details on generic exception
             logger.error(
-                f'[API] {label} ({getattr(fn, "__name__", repr(fn))}) failed after {elapsed:.2f}s: {e} args={args}, kwargs={kwargs}'
+                '[API] %s failed in %.2fs · %s: %s',
+                label,
+                elapsed,
+                type(e).__name__,
+                str(e),
             )
             self._record_iam_api_diagnostic(
                 label,
@@ -277,6 +294,8 @@ class PolicyAnalysisRepository:
                 error=e,
             )
             raise
+        finally:
+            observation.finish(response=result, error=call_error)
 
     @staticmethod
     def _json_for_iam_api_diagnostics(value: object) -> str:
@@ -1222,6 +1241,7 @@ class PolicyAnalysisRepository:
         self.limits_client = None
         self.identity_loaded_from_tenancy = False
         self.policies_loaded_from_tenancy = False
+        self.policy_load_method = None
         self.version = 2
         self.load_all_users = True
         self.compliance_capabilities: dict[str, bool] = {}
@@ -1308,6 +1328,10 @@ class PolicyAnalysisRepository:
         self.limits_client = None
         self.identity_loaded_from_tenancy = False
         self.policies_loaded_from_tenancy = False
+        self.policy_load_method = None
+        self.current_cache_name = ''
+        self.tenancy_policy_limits = {}
+        self.tenancy_policy_statement_limit = None
         self.version = 1
         self.load_all_users = True
         self.snapshot_kind = None
@@ -1426,7 +1450,7 @@ class PolicyAnalysisRepository:
             logger.info(f'Initialized client for tenancy: {self.tenancy_name} ({self.tenancy_ocid})')
             return True
         except (ConfigFileNotFound, Exception) as exc:
-            logger.fatal(f'Authentication failed: {exc}')
+            logger.fatal(f'Authentication failed: {api_error_summary(exc)}')
             return False
 
     def check_statement_location_validity(self, st):
@@ -1454,7 +1478,9 @@ class PolicyAnalysisRepository:
         Called from Policy IntelligenceEngine.find_invalid_statements() - only doing this now because of the OCI Client needed
         """
         try:
-            comp: Compartment = self.identity_client.get_compartment(compartment_id=compartment_ocid).data
+            comp: Compartment = self._api_call_with_logging(
+                'IdentityClient.get_compartment', self.identity_client.get_compartment, compartment_id=compartment_ocid
+            ).data
             if comp.lifecycle_state == Compartment.LIFECYCLE_STATE_ACTIVE:
                 return True
             else:
@@ -1938,13 +1964,23 @@ class PolicyAnalysisRepository:
             logger.info(f'Loaded {len(self.compartments)} compartments in {total_time:.2f}s')
             return True
         except Exception as e:
-            logger.error(f'Failed to load compartments: {e}')
+            logger.error(f'Failed to load compartments: {api_error_summary(e)}')
             return False
 
-    def load_policies_only(self) -> bool:
+    def load_policies_only(self, *, policy_load_method: str | None = None) -> bool:
+        """Load policies through a selected discovery strategy and shared parsers.
+
+        Args:
+            policy_load_method: Optional ``resource_search`` (default) or
+                ``compartment`` override. Otherwise reuse the current live-load
+                method, then the application setting, then Resource Search.
+
+        Returns:
+            bool: Whether collection completed with usable or legitimately empty
+            discovery results. Individual API failures remain recorded; success
+            does not establish complete tenancy coverage.
         """
-        Loads policies/statements only, assuming compartments are already loaded.
-        """
+        self.policies_loaded_from_tenancy = False
         self.policies = []
         self.regular_statements = []
         self.cross_tenancy_statements = []
@@ -1954,124 +1990,11 @@ class PolicyAnalysisRepository:
         self.loaded_from_compliance_output = False
         start_time = time.perf_counter()
         try:
-            logger.info('Bulk fetching all policies for all compartments...')
-            if self.recursive:
-                policy_query = 'query policy resources'
-            else:
-                policy_query = f"query policy resources where compartmentId = '{self.tenancy_ocid}'"
-            # Run policy search and then for each result, fetch the full policy details and statements - do this in threads for speed
-            policy_search_results = self._api_call_with_logging(
-                'ResourceSearchClient.search_resources',
-                self.resource_search_client.search_resources,
-                search_details=StructuredSearchDetails(type='Structured', query=policy_query),
-                limit=1000,
-            )
-            if policy_search_results and policy_search_results.data and policy_search_results.data.items:
-                logger.info(
-                    f'Found {len(policy_search_results.data.items)} policies via Resource Search (recursive={self.recursive}).'
-                )
-                total_policies = len(policy_search_results.data.items)
-
-                def _process_policy_resource(item, position, total_policies):
-                    policy_ocid = item.identifier
-                    compartment_ocid = item.compartment_id
-                    try:
-                        policy_response = self._api_call_with_logging(
-                            'IdentityClient.get_policy', self.identity_client.get_policy, policy_id=policy_ocid
-                        )
-                        if policy_response and policy_response.data:
-                            # Extract tags (keep original structure for round-trip)
-                            freeform_tags = {}
-                            defined_tags = {}
-                            if hasattr(policy_response.data, 'freeform_tags') and policy_response.data.freeform_tags:
-                                freeform_tags = dict(policy_response.data.freeform_tags)
-                            if hasattr(policy_response.data, 'defined_tags') and policy_response.data.defined_tags:
-                                try:
-                                    defined_tags = dict(policy_response.data.defined_tags)
-                                except Exception:
-                                    defined_tags = {}
-                            # Flatten tags for UI display (namespace:key for defined tags)
-                            tags = {}
-                            if freeform_tags:
-                                tags.update(freeform_tags)
-                            if defined_tags:
-                                for ns, val in defined_tags.items():
-                                    if isinstance(val, dict):
-                                        for k, v in val.items():
-                                            tags[f'{ns}:{k}'] = v
-                                    else:
-                                        tags[str(ns)] = str(val)
-                            comp_path = next(
-                                (
-                                    comp['hierarchy_path']
-                                    for comp in self.compartments
-                                    if comp['id'] == policy_response.data.compartment_id
-                                ),
-                                'ROOT',
-                            )
-                            policy_obj = BasePolicy(
-                                policy_ocid=policy_response.data.id,
-                                policy_name=policy_response.data.name,
-                                description=policy_response.data.description or '',
-                                compartment_ocid=policy_response.data.compartment_id,
-                                compartment_path=comp_path,
-                                creation_time=policy_response.data.time_created,
-                                tags=tags if tags else None,
-                                freeform_tags=freeform_tags if freeform_tags else None,
-                                defined_tags=defined_tags if defined_tags else None,
-                            )
-                            self.policies.append(policy_obj)
-                            for statement in policy_response.data.statements:
-                                hierarchy_path = next(
-                                    (
-                                        comp['hierarchy_path']
-                                        for comp in self.compartments
-                                        if comp['id'] == compartment_ocid
-                                    ),
-                                    'UNKNOWN_PATH',
-                                )
-                                base_policy_statement: BasePolicyStatement = BasePolicyStatement(
-                                    policy_name=policy_response.data.name,
-                                    policy_ocid=policy_response.data.id,
-                                    compartment_ocid=policy_response.data.compartment_id,
-                                    compartment_path=hierarchy_path,
-                                    statement_text=statement,
-                                    creation_time=str(policy_response.data.time_created),
-                                    internal_id=hashlib.md5((statement + policy_response.data.id).encode()).hexdigest(),
-                                    parsed=False,
-                                )
-                                st_text_lower = statement.strip().lower()
-                                if st_text_lower.startswith('define'):
-                                    define_statement: DefineStatement = DefineStatement(**base_policy_statement)
-                                    self._parse_define_statement(policy_obj, define_statement)
-                                elif (
-                                    st_text_lower.startswith('admit')
-                                    or st_text_lower.startswith('endorse')
-                                    or st_text_lower.startswith('deny admit')
-                                    or st_text_lower.startswith('deny endorse')
-                                ):
-                                    if st_text_lower.startswith('admit') or st_text_lower.startswith('deny admit'):
-                                        admit_statement: AdmitStatement = AdmitStatement(**base_policy_statement)
-                                        self._parse_admit_statement(policy_obj, admit_statement)
-                                    elif st_text_lower.startswith('endorse') or st_text_lower.startswith(
-                                        'deny endorse'
-                                    ):
-                                        endorse_statement: EndorseStatement = EndorseStatement(**base_policy_statement)
-                                        self._parse_endorse_statement(policy_obj, endorse_statement)
-                                else:
-                                    policy_statement: RegularPolicyStatement = RegularPolicyStatement(
-                                        **base_policy_statement
-                                    )
-                                    self._parse_statement(policy_obj, policy_statement)
-                    except Exception as e:
-                        logger.warning(
-                            f'Failed to get policy {policy_ocid}: {e}. '
-                            'This may be expected if the policy was deleted as part of a consolidation plan execution.'
-                        )
-
-                with ThreadPoolExecutor(max_workers=THREADS) as executor:
-                    for idx, item in enumerate(policy_search_results.data.items):
-                        executor.submit(_process_policy_resource, item, idx, total_policies)
+            method = policy_load_method if policy_load_method is not None else getattr(self, 'policy_load_method', None)
+            if method is None:
+                method = (self.settings or {}).get('policy_load_method', 'resource_search')
+            self.policy_load_method = validate_policy_load_method(method)
+            LivePolicyLoader(self).load(self.policy_load_method)
 
             # Build the defined tag namespace/key catalog from a dedicated
             # resource query so UI consumers can display current namespaces
@@ -2085,7 +2008,7 @@ class PolicyAnalysisRepository:
             self.policies_loaded_from_tenancy = True
             return True
         except Exception as e:
-            logger.error(f'Failed to load policies: {e}')
+            logger.error(f'Failed to load policies: {api_error_summary(e)}')
             return False
 
     def get_compartment_path_for_ocid(self, compartment_ocid: str | None) -> str:
@@ -2326,14 +2249,20 @@ class PolicyAnalysisRepository:
         return True
 
     def fetch_tenancy_policy_statement_limits(self):
-        """
-        Fetch two key limits from OCI Limits service ("Identity"):
-        - policies-count (max policies in tenancy)
-        - policy-statements-per-compartment-chain-count (max statements in a compartment hierarchy)
-        Uses _api_call_with_logging to time/log the call.
-        Returns a tuple: (policies_count_limit, chain_limit) or (None, None) if unavailable or error.
+        """Refresh tenancy policy limits from every Identity Limits API page.
+
+        Returns:
+            tuple[int | None, int | None]: Policy-object and compartment-hierarchy
+            statement limits. Missing values remain unknown; no default is used.
+
+        Notes:
+            Requires an initialized Limits client and tenancy OCID. Replaces both
+            in-memory limit representations, logs API diagnostics, and returns
+            missing values for unavailable data or API errors. No cache is written.
         """
         logger = get_logger(component='limits_fetch')
+        self.tenancy_policy_limits = {}
+        self.tenancy_policy_statement_limit = (None, None)
         policies_count = None
         chain_count = None
 
@@ -2348,6 +2277,7 @@ class PolicyAnalysisRepository:
 
             result = self._api_call_with_logging(
                 'LimitsClient.list_limit_values (identity)',
+                pagination.list_call_get_all_results,
                 limits_client.list_limit_values,
                 service_name='identity',
                 compartment_id=self.tenancy_ocid,
@@ -2356,6 +2286,7 @@ class PolicyAnalysisRepository:
             if not limits:
                 logger.error('No limits returned from OCI API for identity service.')
                 self.tenancy_policy_statement_limit = (None, None)
+                self.tenancy_policy_limits = {}
                 return (None, None)
 
             for limit in limits:
@@ -2378,7 +2309,7 @@ class PolicyAnalysisRepository:
                 )
             return (policies_count, chain_count)
         except Exception as e:
-            logger.error(f'[API] list_limit_values failed: {e}')
+            logger.error(f'[API] list_limit_values failed: {api_error_summary(e)}')
             self.tenancy_policy_statement_limit = (None, None)
             self.tenancy_policy_limits = {}
             return (None, None)
@@ -2452,10 +2383,10 @@ class PolicyAnalysisRepository:
                         self.dynamic_groups.append(parsed)
                     return parsed
                 except Exception as e:
-                    logger.error(f'Failed to fetch dynamic group details for: {_dg.id}: {e}')
+                    logger.error(f'Failed to fetch dynamic group details for: {_dg.id}: {api_error_summary(e)}')
                     return None
 
-            from concurrent.futures import ThreadPoolExecutor, as_completed
+            from concurrent.futures import ThreadPoolExecutor
 
             start_index = 1
             limit = 1000
@@ -2489,7 +2420,9 @@ class PolicyAnalysisRepository:
 
                 with ThreadPoolExecutor(max_workers=self.identity_api_workers) as executor:
                     futures = [executor.submit(fetch_full_dg, _dg) for _dg in dg_response.data.resources]
-                    for f in as_completed(futures):
+                    # All calls remain concurrent; materialize the page in its
+                    # requested order, not scheduler-dependent completion order.
+                    for f in futures:
                         result = f.result()
                         if result:
                             dg_list.append(result)
@@ -2499,7 +2432,7 @@ class PolicyAnalysisRepository:
                     break
                 start_index += limit
         except Exception as e:
-            logger.error(f'Exception during dynamic group fetch: {e}')
+            logger.error(f'Exception during dynamic group fetch: {api_error_summary(e)}')
             return []
         logger.info(f'Fetched {len(dg_list)} dynamic groups for domain: {domain.display_name}')
         return dg_list
@@ -2542,7 +2475,9 @@ class PolicyAnalysisRepository:
                     )
                     return group_obj
                 except Exception as e:
-                    logger.error(f'Failed to process group details for: {getattr(g, "id", None)}: {e}')
+                    logger.error(
+                        f'Failed to process group details for: {getattr(g, "id", None)}: {api_error_summary(e)}'
+                    )
                     return None
 
             from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -2578,7 +2513,7 @@ class PolicyAnalysisRepository:
             logger.info(f'Fetched {len(group_list)} groups for domain: {domain.display_name}')
             return group_list
         except Exception as e:
-            logger.error(f'Exception during group fetch: {e}')
+            logger.error(f'Exception during group fetch: {api_error_summary(e)}')
             return []
 
     def _fetch_users_for_domain(self, domain, domain_client):
@@ -2659,7 +2594,7 @@ class PolicyAnalysisRepository:
                     groups=groups_list,
                 )
             except Exception as exc:
-                logger.error(f'Failed to fetch user detail for {u.display_name}: {exc}')
+                logger.error(f'Failed to fetch user detail for {u.display_name}: {api_error_summary(exc)}')
                 return None
 
         # Thread pool for get_user calls, incrementally append to self.users
@@ -2681,7 +2616,7 @@ class PolicyAnalysisRepository:
                         user_list.append(result)
             logger.info(f'Fetched {len(user_list)} users for domain: {domain.display_name}')
         except Exception as e:
-            logger.error(f'Exception during user fetch: {e}')
+            logger.error(f'Exception during user fetch: {api_error_summary(e)}')
 
         return user_list
 
@@ -2856,7 +2791,13 @@ class PolicyAnalysisRepository:
                             log_critical = self.settings.get('always_log_api_calls', False)
                     except Exception:
                         pass
-                    timing_logger = logger.critical if log_critical else logger.info
+                    timing_logger = (
+                        logger.debug
+                        if getattr(self, 'api_calls_separate_view', False)
+                        else logger.critical
+                        if log_critical
+                        else logger.info
+                    )
 
                     # Fetch and aggregate Dynamic Groups
                     t0 = time.perf_counter()
@@ -2891,7 +2832,7 @@ class PolicyAnalysisRepository:
                     self.data_as_of = str(datetime.now(UTC))
 
                 except Exception as e:
-                    logger.error(f'Failed to load groups/users for domain {domain.id}: {e}')
+                    logger.error(f'Failed to load groups/users for domain {domain.id}: {api_error_summary(e)}')
                     raise
             logger.info(
                 f'Loaded {len(self.groups)} groups, {len(self.users)} users, {len(self.dynamic_groups)} dynamic groups across all domains'
@@ -2902,7 +2843,7 @@ class PolicyAnalysisRepository:
 
             return True
         except Exception as e:
-            logger.error(f'Failed to load identity domains: {e}')
+            logger.error(f'Failed to load identity domains: {api_error_summary(e)}')
             # return False
             raise e
 
@@ -3014,6 +2955,11 @@ class PolicyAnalysisRepository:
                 elif key in POLICY_TAG_FILTER_FIELDS:
                     if not TagBasedPolicyService.matches_policy_metadata_tags(stmt, key, values):
                         logger.debug(f'Rejecting {stmt.get("policy_name")} due to policy metadata tag mismatch')
+                        match = False
+                        break
+                elif key == 'policy_ocid':
+                    expected = values if isinstance(values, list) else [values]
+                    if stmt.get('policy_ocid') not in expected:
                         match = False
                         break
                 elif key == 'principal_key':

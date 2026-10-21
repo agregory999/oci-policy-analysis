@@ -546,6 +546,11 @@ class HistoricalAnalysisService:
                 'target': self.describe_snapshot(right),
                 'tenancy': right.get('tenancy_name') or left.get('tenancy_name') or '',
                 'tenancy_verified': bool(left.get('tenancy_ocid') and right.get('tenancy_ocid')),
+                'audit_context': {
+                    'compartment_id': right.get('tenancy_ocid') or left.get('tenancy_ocid') or '',
+                    'start_time': left.get('data_as_of') or left.get('captured_at') or '',
+                    'end_time': right.get('data_as_of') or right.get('captured_at') or '',
+                },
                 'meaningful_only': meaningful_only,
                 'include_incomplete': include_incomplete,
             },

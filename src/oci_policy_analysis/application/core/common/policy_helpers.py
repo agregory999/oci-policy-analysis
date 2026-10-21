@@ -50,6 +50,23 @@ def canonicalize_principal_key(value: str) -> str:
     return f'{kind}:{payload}'
 
 
+def principal_display_name(principal_key: str) -> str:
+    """Format a principal key for display without changing its canonical identity.
+
+    Args:
+        principal_key: Canonical or original principal key.
+
+    Returns:
+        str: Service label without the synthetic domain; other keys unchanged.
+    """
+    kind, separator, payload = principal_key.partition(':')
+    if kind.casefold() == 'service' and separator:
+        domain, slash, name = payload.partition('/')
+        if slash and domain.casefold() == 'none':
+            return f'{kind}:{name}'
+    return principal_key
+
+
 def calculate_principal_key(subject_type: str, domain: str | None, name: str) -> str:
     """Return the canonical *principal key* string for a subject triple.
 

@@ -3,7 +3,7 @@
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QComboBox,
-    QFormLayout,
+    QGridLayout,
     QHBoxLayout,
     QLineEdit,
     QPushButton,
@@ -53,50 +53,59 @@ class ResourcePrincipalsPage(QWidget):
         row = QHBoxLayout()
         self.mode = QComboBox()
         self.mode.addItems(MODES)
-        self.mode.setFixedWidth(230)
+        self.mode.setMinimumWidth(230)
+        self.mode.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+        row.addWidget(label('Principal type', 'muted'))
         row.addWidget(self.mode)
         self.search = QLineEdit()
         self.search.setPlaceholderText('Filter displayed policy evidence…')
         self.search.setClearButtonEnabled(True)
-        row.addWidget(self.search, 1)
+        row.addStretch()
         reset = QPushButton('Reset filters')
         reset.clicked.connect(self.reset_filters)
         row.addWidget(reset)
         layout.addLayout(row)
         self.resource_options = QWidget()
-        form = QFormLayout(self.resource_options)
+        form = QHBoxLayout(self.resource_options)
         form.setContentsMargins(0, 0, 0, 0)
-        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.FieldsStayAtSizeHint)
         self.resource_type = QComboBox()
         self.resource_type.addItem('Any')
         self.resource_type.setFixedWidth(230)
         self.compartment = QLineEdit()
-        self.compartment.setMinimumWidth(450)
+        self.compartment.setMinimumWidth(240)
         self.compartment.setPlaceholderText('Resource compartment OCID · optional')
         self.compartment.setClearButtonEnabled(True)
-        form.addRow('Resource type', self.resource_type)
-        form.addRow('Principal compartment', self.compartment)
+        form.addWidget(label('Resource type', 'muted'))
+        form.addWidget(self.resource_type)
+        form.addWidget(label('Principal compartment', 'muted'))
+        form.addWidget(self.compartment, 1)
         layout.addWidget(self.resource_options)
         self.oke_options = QWidget()
-        oke = QFormLayout(self.oke_options)
+        oke = QGridLayout(self.oke_options)
         oke.setContentsMargins(0, 0, 0, 0)
-        oke.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.FieldsStayAtSizeHint)
         self.oke = {}
-        for key, title in [
-            ('namespaces', 'Namespace'),
-            ('service_accounts', 'Service account'),
-            ('cluster_ids', 'Cluster OCID'),
-        ]:
+        for index, (key, title) in enumerate(
+            [
+                ('namespaces', 'Namespace'),
+                ('service_accounts', 'Service account'),
+                ('cluster_ids', 'Cluster OCID'),
+            ]
+        ):
             combo = QComboBox()
             combo.setEditable(True)
-            combo.setMinimumWidth(340)
+            combo.setMinimumWidth(180)
             combo.addItem('')
             combo.currentTextChanged.connect(self._schedule)
             self.oke[key] = combo
-            oke.addRow(title, combo)
+            oke.addWidget(label(title, 'muted'), index // 2, (index % 2) * 2)
+            oke.addWidget(combo, index // 2, (index % 2) * 2 + 1)
         layout.addWidget(self.oke_options)
         self.status = label('No snapshot loaded', 'muted')
-        layout.addWidget(self.status)
+        status_row = QHBoxLayout()
+        status_row.addWidget(self.status)
+        status_row.addStretch()
+        status_row.addWidget(label('Right-click a row for more details.', 'muted'))
+        layout.addLayout(status_row)
         splitter = QSplitter(Qt.Orientation.Vertical)
         self.group_section = QWidget()
         group_layout = QVBoxLayout(self.group_section)
@@ -117,27 +126,15 @@ class ResourcePrincipalsPage(QWidget):
         )
         group_layout.addWidget(self.groups)
         splitter.addWidget(self.group_section)
-        self.statements = StatementTable(
-            (
-                ('Policy', 'policy_name'),
-                ('Compartment', 'compartment_path'),
-                ('Valid', 'valid'),
-                ('Confidence', 'match_confidence'),
-                ('Original statement', 'statement_text'),
-            )
-        )
-        self.statements.setColumnWidth(2, 55)
-        self.statements.setColumnWidth(3, 100)
-        splitter.addWidget(self.statements)
+        evidence = QWidget()
+        evidence_layout = QVBoxLayout(evidence)
+        evidence_layout.setContentsMargins(0, 8, 0, 0)
+        evidence_layout.addWidget(self.search)
+        self.statements = StatementTable()
+        evidence_layout.addWidget(self.statements)
+        splitter.addWidget(evidence)
         splitter.setSizes([230, 430])
         layout.addWidget(splitter, 1)
-        layout.addWidget(
-            label(
-                'Snapshot evidence only · Conditions, residual constraints and match reasons are available in right-click details.',
-                'muted',
-                wrap=True,
-            )
-        )
         self.statements.details_requested.connect(
             lambda record: self.details_requested.emit(record, 'Resource principal statement details')
         )
@@ -221,7 +218,7 @@ class ResourcePrincipalsPage(QWidget):
 
     def _counts(self, *_args) -> None:
         self.status.setText(
-            f'{self.statements.proxy.rowCount():,} shown / {self.statements.model.rowCount():,} matching statements · Not a count of distinct resources'
+            f'{self.statements.proxy.rowCount():,} shown · {self.statements.model.rowCount():,} matching statements'
         )
 
     def reset_filters(self) -> None:

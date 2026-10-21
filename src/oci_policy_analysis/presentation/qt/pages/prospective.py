@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from oci_policy_analysis.application.core.common.policy_helpers import principal_display_name
 from oci_policy_analysis.application.services.prospective_builder_service import ProspectiveBuilderService
 from oci_policy_analysis.application.services.prospective_workbench_service import ProspectiveWorkbenchService
 from oci_policy_analysis.presentation.qt.tables import RecordTable
@@ -90,7 +91,8 @@ class ProspectiveEditorDialog(QDialog):
             ('operator', 'Tag operator', 'operators'),
         ):
             combo = QComboBox()
-            combo.addItems(self.metadata[choices])
+            for value in self.metadata[choices]:
+                combo.addItem(principal_display_name(value) if key == 'principal_key' else value, value)
             combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
             combo.setMinimumContentsLength(16)
             combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -179,6 +181,7 @@ class ProspectiveEditorDialog(QDialog):
             key: field.currentText() if isinstance(field, QComboBox) else field.text()
             for key, field in self.fields.items()
         }
+        payload['principal_key'] = self.fields['principal_key'].currentData()
         payload.update(
             location=self.compartment.currentText(),
             include_default=self.include_default.isChecked(),

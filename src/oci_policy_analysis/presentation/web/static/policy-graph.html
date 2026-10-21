@@ -119,7 +119,7 @@
       const fields = [
         ['Policy', grant.policy_name], ['Policy OCID', grant.policy_ocid],
         ['Statement', grant.statement_text], ['Statement ID', grant.statement_id],
-        ['Principal', grant.principal], ['Effect', grant.effect], ['Resource', grant.resource],
+        ['Principal', grant.principal_display || grant.principal], ['Effect', grant.effect], ['Resource', grant.resource],
         ['Effective path', grant.path], ['Condition', grant.condition_clause || 'None'],
         [`Permissions (${grant.permissions.length})`, grant.permissions.join('\n')],
       ];
@@ -162,7 +162,7 @@
         return;
       }
       const paths = result.paths || [];
-      $('principals').replaceChildren(...principals.map((item) => node(item.principal, `${item.grant_count} matching grant(s) across all pages · click to filter`, 'principal', item.principal)));
+      $('principals').replaceChildren(...principals.map((item) => node(item.principal_display || item.principal, `${item.grant_count} matching grant(s) across all pages · click to filter`, 'principal', item.principal)));
       $('principalCount').textContent = principals.length ? `(${principals.length})` : '';
       $('scopes').replaceChildren(...paths.map((item) => node(item.path, `${item.grant_count} matching grant(s) across all pages · click to focus`, 'scope', item.path)));
       $('pathCount').textContent = paths.length ? `(${paths.length})` : '';
@@ -220,7 +220,7 @@
       const body = $('grantRows'); body.replaceChildren();
       for (const row of result.grants || []) {
         const tr = document.createElement('tr'); tr.tabIndex = 0; tr.dataset.value = row.id;
-        for (const value of [row.principal, row.effect, row.resource, row.path, row.policy_name, (row.condition_clause || '').trim() ? 'Yes' : 'No', row.permissions.length]) {
+        for (const value of [row.principal_display || row.principal, row.effect, row.resource, row.path, row.policy_name, (row.condition_clause || '').trim() ? 'Yes' : 'No', row.permissions.length]) {
           const td = document.createElement('td'); td.textContent = display(value); tr.append(td);
         }
         tr.addEventListener('click', () => selectGrant(row));
@@ -258,7 +258,7 @@
           const option = document.createElement('option'); option.value = item.path; return option;
         }));
         $('principalOptions').replaceChildren(...(next.principals || []).map((item) => {
-          const option = document.createElement('option'); option.value = item.principal; return option;
+          const option = document.createElement('option'); option.value = item.principal_display || item.principal; return option;
         }));
         $('status').textContent = next.loaded ? '' : 'No policy corpus is loaded yet.';
         renderGraph(); renderTable();

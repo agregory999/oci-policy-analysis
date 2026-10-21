@@ -17,20 +17,20 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from oci_policy_analysis.presentation.qt.json_view import JsonTree
 from oci_policy_analysis.presentation.qt.widgets import CollapsibleSection, label
 
 _GROUPS = [
     (
-        'Source',
+        'Basic Details',
         (
             'statement_text',
             'policy_name',
             'policy_ocid',
             'compartment_path',
             'compartment_ocid',
-            'internal_id',
             'creation_time',
-            'policy_tags',
+            'effective_path',
         ),
     ),
     (
@@ -61,11 +61,71 @@ _GROUPS = [
             'permission',
             'location_type',
             'location',
-            'effective_path',
             'effective_compartment_ocid',
             'comments',
         ),
     ),
+    (
+        'Cross-tenancy',
+        (
+            'kind',
+            'direction',
+            'tenancy_aliases',
+            'resolved_aliases',
+            'aliases_resolved',
+            'principal_identity',
+            'external_tenancies',
+            'participants',
+            'association',
+            'tenancy_associations',
+            'reciprocal_guidance',
+        ),
+    ),
+    (
+        'Define details',
+        ('defined_type', 'defined_name', 'ocid_alias', 'definition_status', 'reference_status', 'reference_count'),
+    ),
+    (
+        'Admit details',
+        (
+            'admitted_principal_type',
+            'admitted_principal',
+            'admitted_tenancy',
+            'admitted_principal_tenancy',
+            'admit_action',
+            'admit_resource',
+            'admit_permissions_original',
+            'admit_permissions',
+            'admit_location_type',
+            'admit_location',
+            'admit_associate_resource',
+            'admit_associate_tenancy',
+            'admit_associate_with_resource',
+            'admit_associate_with_tenancy',
+            'associate_clause_raw',
+        ),
+    ),
+    (
+        'Endorse details',
+        (
+            'endorsed_principal_type',
+            'endorsed_principal',
+            'endorsed_principal_tenancy',
+            'endorse_action',
+            'endorse_resource',
+            'endorse_permissions_original',
+            'endorse_permissions',
+            'endorse_tenancy',
+            'endorse_location_type',
+            'endorse_location',
+            'endorse_associate_resource',
+            'endorse_associate_tenancy',
+            'endorse_associate_with_resource',
+            'endorse_associate_with_tenancy',
+            'associate_clause_raw',
+        ),
+    ),
+    ('Statement comment and condition', ('comment', 'where_clause')),
     (
         'Permission facts',
         ('graph_selection', 'permission_facts'),
@@ -182,9 +242,12 @@ class DetailsDrawer(QFrame):
                 reasons = [record['parsing_notes']]
             summary = (
                 '\n'.join(
-                    json.dumps(reason, indent=2, ensure_ascii=False, default=str)
-                    if isinstance(reason, (list, dict, tuple))
-                    else str(reason)
+                    '• '
+                    + (
+                        json.dumps(reason, ensure_ascii=False, default=str)
+                        if isinstance(reason, (list, dict, tuple))
+                        else str(reason)
+                    )
                     for value in reasons
                     for reason in (value if isinstance(value, (list, tuple)) else [value])
                 )
@@ -229,18 +292,51 @@ class DetailsDrawer(QFrame):
                 ),
             ]
         )
+        if record.get('user_name'):
+            identity_name, identity_keys = groups[0]
+            identity_keys = tuple(identity_keys) + tuple(
+                key for key in record if key not in {item for _, keys in groups for item in keys}
+            )
+            groups[0] = (identity_name, identity_keys)
         if valid is False and 'statement_text' in record:
             groups = [group for group in groups if group[0] == 'Validity'] + [
                 group for group in groups if group[0] != 'Validity'
             ]
-        for name, keys in [
-            *groups,
-            (
-                'Additional fields',
-                tuple(key for key in record if key not in {key for _, keys in groups for key in keys}),
-            ),
-        ]:
-            selected = [key for key in keys if key in record and key not in seen]
+        cross_tenancy_finding = title == 'Cross-tenancy finding details'
+        if cross_tenancy_finding:
+            groups = [
+                (
+                    'Finding',
+                    ('Type', 'Severity', 'Policy Name', 'Issue', 'Statement Text', 'source_ids', 'related_statements'),
+                )
+            ]
+        consolidation_finding = 'Opportunity ID' in record and 'Evidence' in record
+        if consolidation_finding:
+            groups = [('Recommendation', tuple(record))]
+        display_groups = list(groups)
+        if not cross_tenancy_finding and not consolidation_finding:
+            display_groups.append(
+                (
+                    'Additional Details',
+                    tuple(
+                        key
+                        for key in record
+                        if key != 'parsed_fields' and key not in {key for _, keys in groups for key in keys}
+                    ),
+                )
+            )
+        for name, keys in display_groups:
+            selected = [
+                key
+                for key in keys
+                if key in record
+                and key not in seen
+                and record[key] is not None
+                and record[key] != ''
+                and record[key] != []
+                and record[key] != {}
+                and record[key] != ()
+            ]
             if not selected:
                 continue
             group = QWidget()
@@ -249,7 +345,42 @@ class DetailsDrawer(QFrame):
                 seen.add(key)
                 values.addWidget(label(key.replace('_', ' ').title(), 'eyebrow'))
                 value = record[key]
-                if isinstance(value, list | dict | tuple):
+                if consolidation_finding and key == 'Evidence':
+                    text = JsonTree()
+                    text.set_json(value)
+                    text.expandToDepth(2)
+                    text.setMinimumHeight(340)
+                elif key in {'invalid_reasons', 'invalid_reason', 'parse_errors'}:
+                    reasons = value if isinstance(value, (list, tuple)) else [value]
+                    text = label(
+                        '\n'.join(
+                            '• '
+                            + (
+                                json.dumps(reason, ensure_ascii=False, default=str)
+                                if isinstance(reason, (dict, list, tuple))
+                                else str(reason)
+                            )
+                            for reason in reasons
+                        ),
+                        wrap=True,
+                    )
+                    text.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+                elif isinstance(value, list | tuple):
+                    text = label(
+                        '\n'.join(
+                            '• '
+                            + (
+                                json.dumps(item, ensure_ascii=False, default=str)
+                                if isinstance(item, dict | list | tuple)
+                                else str(item)
+                            )
+                            for item in value
+                        )
+                        or 'None recorded',
+                        wrap=True,
+                    )
+                    text.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+                elif isinstance(value, dict):
                     text = QPlainTextEdit()
                     text.setReadOnly(True)
                     text.setPlainText(json.dumps(value, indent=2, ensure_ascii=False, default=str))
@@ -260,7 +391,17 @@ class DetailsDrawer(QFrame):
                 values.addWidget(text)
             section = CollapsibleSection(name, group)
             section.button.setChecked(
-                name in {'Source', 'Validity', 'Parsed statement', 'Permission facts', 'Identity', 'Matching rule'}
+                name
+                in {
+                    'Recommendation',
+                    'Basic Details',
+                    'Parsed statement',
+                    'Cross-tenancy',
+                    'Permission facts',
+                    'Identity',
+                    'Matching rule',
+                }
+                or (name == 'Validity' and valid is False)
             )
             fields.addWidget(section)
         fields.addStretch()

@@ -8,6 +8,7 @@ from PySide6.QtCore import QPointF, Qt, QTimer, Signal
 from PySide6.QtGui import QBrush, QColor, QPainter, QPainterPath, QPen, QPolygonF
 from PySide6.QtWidgets import (
     QComboBox,
+    QCompleter,
     QGraphicsItem,
     QGraphicsScene,
     QGraphicsView,
@@ -22,10 +23,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from oci_policy_analysis.application.core.common.policy_helpers import calculate_principal_key, principal_display_name
 from oci_policy_analysis.application.core.support.logger import get_logger
 from oci_policy_analysis.application.services.policy_graph_service import PolicyGraphService
 from oci_policy_analysis.application.services.prospective_workbench_service import ProspectiveWorkbenchService
-from oci_policy_analysis.presentation.qt.tables import StatementTable
+from oci_policy_analysis.presentation import format_compartment_policy_name
+from oci_policy_analysis.presentation.qt.tables import STATEMENT_COLUMNS, StatementTable
 from oci_policy_analysis.presentation.qt.themes import theme_color
 from oci_policy_analysis.presentation.qt.widgets import label
 
@@ -41,8 +44,8 @@ class PolicyGraphPage(QWidget):
         focus_dynamic_group: Request to focus a selected statement's dynamic group.
 
     Notes:
-        Uses PolicyGraphService over the current corpus. Shows at most twelve
-        grants per page, with explicit pagination. Edges represent direct source
+        Uses PolicyGraphService over the current corpus with all matching grants
+        in a scrollable canvas and table. Edges represent direct source
         contributions, not inheritance, evaluated conditions, or OCI decisions.
     """
 
@@ -56,11 +59,14 @@ class PolicyGraphPage(QWidget):
         self.color_theme = 'Forest'
         self.context = None
         self.include_prospective = False
-        self.page = 1
         self.result = {'total': 0, 'grants': []}
         self.visible_grants = []
         self._corpus = None
         self._graph_query = {}
+        self.search_timer = QTimer(self)
+        self.search_timer.setSingleShot(True)
+        self.search_timer.setInterval(200)
+        self.search_timer.timeout.connect(self.search)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         fields = QGridLayout()
@@ -76,16 +82,16 @@ class PolicyGraphPage(QWidget):
             field = QLineEdit()
             field.setPlaceholderText(title)
             field.returnPressed.connect(self.search)
+            field.textChanged.connect(lambda *_: self.search_timer.start())
+            field.setClearButtonEnabled(True)
             self.filters[key] = field
             fields.addWidget(field, index // 2, index % 2)
         layout.addLayout(fields)
         controls = QHBoxLayout()
         self.effect = QComboBox()
         self.effect.addItems(['All effects', 'allow', 'deny'])
+        self.effect.currentIndexChanged.connect(lambda *_: self.search_timer.start())
         controls.addWidget(self.effect)
-        search = QPushButton('Search graph')
-        search.clicked.connect(self.search)
-        controls.addWidget(search)
         reset = QPushButton('Reset')
         reset.clicked.connect(self.reset_filters)
         controls.addWidget(reset)
@@ -123,7 +129,10 @@ class PolicyGraphPage(QWidget):
         related_layout.setContentsMargins(0, 8, 0, 0)
         self.selection_summary = label('Select a graph node to see related statements.', 'muted', wrap=True)
         related_layout.addWidget(self.selection_summary)
-        self.statements = StatementTable()
+        self.statements = StatementTable((*STATEMENT_COLUMNS[:2], ('Conditional', 'conditional'), STATEMENT_COLUMNS[2]))
+        self.statements.setColumnWidth(0, 260)
+        self.statements.setColumnWidth(1, 220)
+        self.statements.setColumnWidth(2, 110)
         self.statements.details_requested.connect(self.details_requested.emit)
         self.statements.focus_dynamic_group.connect(self.focus_dynamic_group.emit)
         related_layout.addWidget(self.statements)
@@ -138,17 +147,6 @@ class PolicyGraphPage(QWidget):
         split.addWidget(tabs)
         split.setSizes([380, 260])
         layout.addWidget(split, 1)
-        pager = QHBoxLayout()
-        self.previous = QPushButton('← Previous')
-        self.previous.clicked.connect(lambda: self._turn_page(-1))
-        self.next = QPushButton('Next →')
-        self.next.clicked.connect(lambda: self._turn_page(1))
-        pager.addWidget(self.previous)
-        self.page_label = label('No snapshot', 'muted')
-        pager.addWidget(self.page_label)
-        pager.addStretch()
-        pager.addWidget(self.next)
-        layout.addLayout(pager)
         layout.addWidget(
             label(
                 'Direct grants · Conditions retained · Excluded statements available in the source browser.',
@@ -156,8 +154,6 @@ class PolicyGraphPage(QWidget):
                 wrap=True,
             )
         )
-        self.previous.setEnabled(False)
-        self.next.setEnabled(False)
 
     def set_theme(self, theme: str, color_theme: str = 'Forest') -> None:
         """Recolor the canvas and graph nodes without querying or reloading data."""
@@ -172,8 +168,8 @@ class PolicyGraphPage(QWidget):
         self.search()
 
     def search(self) -> None:
-        """Search a fresh service bound to the current snapshot and reset pagination."""
-        self.page = 1
+        """Search all matches in the current snapshot after a short typing debounce."""
+        self.search_timer.stop()
         self._refresh()
 
     def reset_filters(self) -> None:
@@ -183,15 +179,24 @@ class PolicyGraphPage(QWidget):
         self.effect.setCurrentIndex(0)
         self.search()
 
-    def _turn_page(self, delta: int) -> None:
-        self.page = max(1, self.page + delta)
-        self._refresh()
-
     def _refresh(self) -> None:
         try:
             corpus = self.context.corpus if self.context else None
             if self.context and self.include_prospective:
                 corpus = self.context.simulation.get_corpus(include_prospective=True)
+            if corpus is not self._corpus:
+                principals = sorted(
+                    {
+                        principal_display_name(key)
+                        for fact in (corpus.facts if corpus else [])
+                        for key in (fact.principal_key, fact.original_principal_key)
+                        if key
+                    }
+                )
+                completer = QCompleter(principals, self.filters['principal'])
+                completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+                completer.setFilterMode(Qt.MatchFlag.MatchContains)
+                self.filters['principal'].setCompleter(completer)
             self._corpus = corpus
             self.statements.model.replace([])
             self.selection_summary.setText('Select a graph node to see related statements.')
@@ -202,24 +207,18 @@ class PolicyGraphPage(QWidget):
             )
             self._graph_query = {key: field.text().strip() for key, field in self.filters.items()}
             self._graph_query['effect'] = self.effect.currentText() if self.effect.currentIndex() else ''
-            self.result = PolicyGraphService(corpus).get_page(**self._graph_query, page=self.page)
+            self.result = PolicyGraphService(corpus).get_page(**self._graph_query, all_results=True)
             self.visible_grants = self.result['grants']
             self.detail.clear()
             self._draw()
             total = self.result['total']
-            self.previous.setEnabled(self.page > 1)
-            self.next.setEnabled(self.page * 12 < total)
-            self.page_label.setText(
-                f'Page {self.page} of {max(1, (total + 11) // 12)} · {len(self.visible_grants)} visible grants'
-            )
             summary = self.result['summary']
             self.summary.setText(
                 f'{total:,} matching grants · {summary["direct_facts"]:,} direct permission facts · {summary["exclusions"]:,} source exclusions. Direct contributions from this snapshot.'
                 + (' Prospective what-if grants included.' if self.include_prospective else '')
             )
             logger.info(
-                'Graph rendered: page=%d grants=%d matches=%d exclusions=%d',
-                self.page,
+                'Graph rendered: grants=%d matches=%d exclusions=%d',
                 len(self.visible_grants),
                 total,
                 summary['exclusions'],
@@ -229,10 +228,8 @@ class PolicyGraphPage(QWidget):
             self.scene.clear()
             self.visible_grants = []
             self.summary.setText('Graph could not be built. See Qt logging for details.')
-            self.previous.setEnabled(False)
-            self.next.setEnabled(False)
 
-    def _node(self, x: float, y: float, title: str, subtitle: str, color: str, evidence: dict):
+    def _node(self, x: float, y: float, title: str, subtitle: str, color: str, evidence: dict, third_line=None):
         path = QPainterPath()
         path.addRoundedRect(x, y, 265, 84, 9, 9)
         node = self.scene.addPath(
@@ -242,8 +239,9 @@ class PolicyGraphPage(QWidget):
         )
         node.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
         node.setData(0, evidence)
-        node.setToolTip(escape(title + '\n' + subtitle))
-        for offset, text in [(15, title), (45, subtitle)]:
+        lines = [(10, title), (34, subtitle), (58, third_line)] if third_line else [(15, title), (45, subtitle)]
+        node.setToolTip(escape('\n'.join(value for _, value in lines)))
+        for offset, text in lines:
             item = self.scene.addSimpleText(text[:33] + ('…' if len(text) > 33 else ''))
             item.setBrush(QColor(theme_color('#243d39', self.theme, self.color_theme)))
             item.setPos(x + 12, y + offset)
@@ -269,6 +267,22 @@ class PolicyGraphPage(QWidget):
             text.setBrush(QColor(theme_color('#243d39', self.theme, self.color_theme)))
             self.fit_graph()
             return
+        sources = list(self.context.policy_repo.regular_statements)
+        if self.include_prospective and self.context.policy_repo.tenancy_ocid:
+            sources.extend(ProspectiveWorkbenchService(self.context).statement_views())
+        source_by_id = {
+            (row.get('internal_id'), row.get('policy_ocid'), bool(row.get('is_prospective'))): row for row in sources
+        }
+        principal_names = {}
+        for source in sources:
+            if source.get('subject_type') not in {'group', 'dynamic-group', 'user'}:
+                continue
+            for subject in source.get('subject') or []:
+                if isinstance(subject, (tuple, list)) and len(subject) >= 2:
+                    domain, name = subject[:2]
+                    principal_names[calculate_principal_key(source['subject_type'], domain, name)] = (
+                        f'{domain or "Default"}/{name}'
+                    )
         principals = {}
         paths = {}
         for index, grant in enumerate(self.visible_grants):
@@ -281,8 +295,8 @@ class PolicyGraphPage(QWidget):
             self._node(
                 0,
                 principal_y[key],
-                key,
-                f'{len(indexes)} visible source grants',
+                key.partition(':')[0].replace('-', ' ').title(),
+                principal_names.get(key) or principal_display_name(key).partition(':')[2] or key,
                 '#d8ebe1',
                 {'principal': key, 'grants': [self.visible_grants[i] for i in indexes]},
             )
@@ -298,16 +312,17 @@ class PolicyGraphPage(QWidget):
         for index, grant in enumerate(self.visible_grants):
             y = index * 125
             color = '#f0dfd8' if grant['effect'] == 'deny' else '#f4edda'
-            suffix = ' · conditional' if grant['condition_clause'] else ''
+            source = source_by_id.get((grant['statement_id'], grant['policy_ocid'], bool(grant.get('prospective'))), {})
             self._node(
                 360,
                 y,
                 ('[Prospective] ' if grant.get('prospective') else '')
-                + ('Conditional · ' if grant['condition_clause'] else '')
-                + (grant['policy_name'] or grant['statement_id']),
-                f'{grant["effect"]} {grant["resource"]} · {len(grant["permissions"])} permissions{suffix}',
+                + format_compartment_policy_name(source.get('compartment_path'), grant['policy_name']),
+                f'{grant["effect"]} {source.get("verb") or ""} {grant["resource"]}'
+                + (' · conditional' if grant['condition_clause'] else ''),
                 color,
                 grant,
+                f'{len(grant["permissions"]):,} total permissions',
             )
             self._edge(265, principal_y[grant['principal']] + 42, 360, y + 42)
             self._edge(625, y + 42, 720, path_y[grant['path']] + 42)
@@ -327,7 +342,7 @@ class PolicyGraphPage(QWidget):
         self.view.verticalScrollBar().setValue(self.view.verticalScrollBar().minimum())
 
     def fit_graph(self) -> None:
-        """Fit the current page of nodes while retaining native pan and zoom controls."""
+        """Fit all matching nodes while retaining native pan and zoom controls."""
         bounds = self.scene.itemsBoundingRect().adjusted(-20, -20, 20, 20)
         self.scene.setSceneRect(bounds)
         self.view.fitInView(bounds, Qt.AspectRatioMode.KeepAspectRatio)
@@ -340,9 +355,21 @@ class PolicyGraphPage(QWidget):
             self.selection_summary.setText('Select a graph node to see related statements.')
             return
         evidence = selected[0].data(0)
+        selection_query = dict(self._graph_query)
+        selection_query.update(
+            {key: evidence[key] for key in ('principal', 'path', 'resource', 'effect') if key in evidence}
+        )
+        for key, field in self.filters.items():
+            field.blockSignals(True)
+            value = str(selection_query.get(key) or '')
+            field.setText(principal_display_name(value) if key == 'principal' else value)
+            field.blockSignals(False)
+        self.effect.blockSignals(True)
+        self.effect.setCurrentIndex(max(0, self.effect.findText(selection_query.get('effect') or 'All effects')))
+        self.effect.blockSignals(False)
+        self.search_timer.stop()
         service = PolicyGraphService(self._corpus)
-        # Retrieve matches across pages so one visible node can reveal every
-        # statement contributing to its principal/resource/action/path combination.
+        # Retain every source contributing to the selected graph combination.
         grants = service.get_page(**self._graph_query, all_results=True)['grants']
         keys = ('principal', 'path', 'resource', 'effect') if 'statement_id' in evidence else ('principal', 'path')
         grants = [row for row in grants if all(row[key] == evidence[key] for key in keys if key in evidence)]
@@ -354,6 +381,6 @@ class PolicyGraphPage(QWidget):
         selection = ' · '.join(str(evidence[key]) for key in keys if key in evidence)
         fact_count = sum(len(row['permission_facts']) for row in rows)
         self.selection_summary.setText(
-            f'{selection}\n{len(rows):,} related statements · {fact_count:,} direct permission facts across all pages. '
+            f'{selection}\n{len(rows):,} related statements · {fact_count:,} direct permission facts. '
             'Right-click a statement for details and complete facts. Conditions remain unevaluated.'
         )

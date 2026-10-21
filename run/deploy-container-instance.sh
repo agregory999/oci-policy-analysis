@@ -85,14 +85,14 @@ else
   jq -n --arg subnet "${OCI_SUBNET_ID}" --arg nsg "${OCI_NSG_ID}" '[{subnetId:$subnet,nsgIds:[$nsg],isPublicIpAssigned:false}]' >"${tmp_dir}/vnics.json"
 fi
 if [[ "${OCI_DRY_RUN:-false}" == true ]]; then
-  echo "Dry run: mode=$kind, instance=$OCI_INSTANCE_NAME, replace=${old_id:-none}, requested IP=${target_ip:-automatic}, domain depth=${MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH:-1}. Load Balancer remains operator-managed."
+  echo "Dry run: mode=$kind, instance=$OCI_INSTANCE_NAME, replace=${old_id:-none}, requested IP=${target_ip:-automatic}, domain depth=${OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH:-1}. Load Balancer remains operator-managed."
   exit 0
 fi
 if [[ -n "${old_id}" ]]; then
   echo "Deleting ${old_id}; service will be unavailable until the new instance and Load Balancer backends are healthy."
   oci container-instances container-instance delete "${profile_args[@]}" --container-instance-id "${old_id}" --force --wait-for-state SUCCEEDED --wait-interval-seconds 10 --max-wait-seconds 1200 >/dev/null
 fi
-echo "Creating ${OCI_INSTANCE_NAME} ($kind), domain discovery depth ${MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH:-1}."
+echo "Creating ${OCI_INSTANCE_NAME} ($kind), domain discovery depth ${OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH:-1}."
 oci container-instances container-instance create "${profile_args[@]}" --compartment-id "${OCI_COMPARTMENT_ID}" --availability-domain "${OCI_AVAILABILITY_DOMAIN}" --shape "${OCI_SHAPE:-CI.Standard.E4.Flex}" --shape-config "{\"ocpus\":${OCI_OCPUS:-1},\"memoryInGBs\":${OCI_MEMORY_GB:-8}}" --containers "file://${tmp_dir}/containers.json" --vnics "file://${tmp_dir}/vnics.json" --display-name "${OCI_INSTANCE_NAME}" --container-restart-policy ALWAYS --wait-for-state SUCCEEDED --wait-interval-seconds 10 --max-wait-seconds 1200 >/dev/null
 new_instances="$(oci container-instances container-instance list "${profile_args[@]}" --compartment-id "${OCI_COMPARTMENT_ID}" --all --output json)"
 new_id="$(jq -r --arg name "${OCI_INSTANCE_NAME}" '.data.items[]? | select(."display-name"==$name and ."lifecycle-state"!="DELETED") | .id' <<<"${new_instances}" | head -n 1)"

@@ -27,7 +27,9 @@ from oci_policy_analysis.application.core.models.models import (
     UserSearch,
 )
 from oci_policy_analysis.application.core.parser.condition_structure import format_condition_structure_summary
+from oci_policy_analysis.application.core.repo.policy_loading import validate_policy_load_method
 from oci_policy_analysis.application.core.support import config
+from oci_policy_analysis.application.core.support.api_calls import API_CALLS
 from oci_policy_analysis.application.core.support.helpers import (
     for_display_dynamic_group,
     for_display_group,
@@ -37,6 +39,7 @@ from oci_policy_analysis.application.core.support.helpers import (
 from oci_policy_analysis.application.core.support.logger import get_logger
 from oci_policy_analysis.application.core.support.usage_tracking import get_usage_tracker, init_usage_tracker
 from oci_policy_analysis.application.services.analysis_service import AnalysisService
+from oci_policy_analysis.application.services.audit_command_service import AuditCommandService
 from oci_policy_analysis.application.services.condition_tester_service import ConditionTesterService
 from oci_policy_analysis.application.services.consolidation_workbench_service import (
     ConsolidationWorkbenchService,
@@ -49,6 +52,7 @@ from oci_policy_analysis.application.services.logging_service import LoggingServ
 from oci_policy_analysis.application.services.permissions_report_service import PermissionsReportService
 from oci_policy_analysis.application.services.policy_browser_service import PolicyBrowserService
 from oci_policy_analysis.application.services.policy_graph_service import PolicyGraphService
+from oci_policy_analysis.application.services.policy_limits_service import PolicyLimitsService
 from oci_policy_analysis.application.services.principal_analysis_service import PrincipalAnalysisService
 from oci_policy_analysis.application.services.prospective_builder_service import ProspectiveBuilderService
 from oci_policy_analysis.application.services.prospective_statements_service import ProspectiveStatementsService
@@ -924,12 +928,31 @@ def download_cache(cache_name: str, export_name: str | None = None) -> FileRespo
     return FileResponse(path=file_path, media_type='application/json', filename=download_name)
 
 
+def _environment_domain_search_depth() -> int | None:
+    """Read the deployment override without changing saved UI preferences."""
+    raw = os.environ.get('OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH')
+    if raw is None:
+        return None
+    raw = raw.strip()
+    if not raw.isdigit() or not 1 <= int(raw) <= 6:
+        raise HTTPException(status_code=503, detail='OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH must be 1 through 6')
+    return int(raw)
+
+
+def _web_settings_payload(settings: dict) -> dict[str, object]:
+    """Present the effective depth while retaining the saved preference."""
+    depth = _environment_domain_search_depth()
+    if depth is None:
+        return {'settings': settings}
+    return {'settings': {**settings, 'domain_compartment_depth': depth}, 'domain_compartment_depth_locked': True}
+
+
 @router.get('/settings')
 def get_settings_api() -> dict[str, object]:
     """Return persisted settings used by the web app."""
     logger.info('GET /settings')
     settings = get_settings()
-    return {'settings': settings}
+    return _web_settings_payload(settings)
 
 
 @router.post('/settings')
@@ -939,9 +962,12 @@ def update_settings_api(payload: dict[str, object]) -> dict[str, object]:
     settings = get_settings()
     updates = payload.get('settings') if isinstance(payload, dict) else None
     if isinstance(updates, dict):
+        updates = dict(updates)
+        if _environment_domain_search_depth() is not None:
+            updates.pop('domain_compartment_depth', None)
         settings.update(updates)
     config.save_settings(settings)
-    return {'settings': settings}
+    return _web_settings_payload(settings)
 
 
 @router.post('/load/cache/{cache_name}')
@@ -1010,6 +1036,41 @@ def list_intelligence_strategies() -> dict[str, object]:
     return {'strategies': strategies}
 
 
+@router.get('/logging/api-calls')
+def list_api_calls(request: Request) -> dict:
+    """List bounded process-wide metadata for authenticated administrators."""
+    _require_authenticated(request)
+    _require_not_limited(request)
+    revision, rows, dropped = API_CALLS.snapshot()
+    return {'revision': revision, 'rows': rows, 'dropped': dropped}
+
+
+@router.post('/logging/api-calls/clear')
+def clear_api_calls(request: Request) -> dict:
+    """Discard current process API metadata; log files and snapshots are unchanged."""
+    _require_authenticated(request)
+    _require_not_limited(request)
+    API_CALLS.clear()
+    return {'success': True}
+
+
+@router.post('/analysis/audit-command-defaults')
+def audit_command_defaults(request: Request, payload: dict[str, object]) -> dict:
+    """Suggest editable Audit search fields from submitted historical evidence."""
+    _require_authenticated(request)
+    return AuditCommandService.defaults(payload.get('change') or {}, payload.get('metadata') or {})
+
+
+@router.post('/analysis/audit-commands')
+def generate_audit_commands(request: Request, payload: dict[str, object]) -> dict:
+    """Generate quoted OCI Audit commands without issuing any OCI API calls."""
+    _require_authenticated(request)
+    try:
+        return AuditCommandService.generate(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
 @router.post('/analysis/historical-compare')
 def historical_compare(payload: dict[str, object]) -> dict[str, object]:
     """Compare two named caches and return normalized sectioned diff results."""
@@ -1022,7 +1083,12 @@ def historical_compare(payload: dict[str, object]) -> dict[str, object]:
     ctx = get_context()
     service = HistoricalAnalysisService(ctx.cache)
     try:
-        result = service.compare_caches(left_cache=left_cache, right_cache=right_cache)
+        result = service.compare_caches(
+            left_cache=left_cache,
+            right_cache=right_cache,
+            meaningful_only=payload.get('meaningful_only', True) is True,
+            include_incomplete=payload.get('include_incomplete', True) is True,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -1054,6 +1120,8 @@ def historical_compare(payload: dict[str, object]) -> dict[str, object]:
         'identity_sections': [_section_to_dict(s) for s in result.identity_sections],
         'identity_comparable': result.identity_comparable,
         'skipped_sections': result.skipped_sections,
+        'section_warnings': result.section_warnings,
+        'metadata': result.metadata,
     }
 
 
@@ -1099,6 +1167,63 @@ def filter_policies(request: Request, payload: dict[str, object]) -> dict[str, o
         'matched': len(statements),
         'statements': statements,
     }
+
+
+@router.get('/analysis/policy-inventory')
+def get_policy_inventory(request: Request) -> dict:
+    """Return hierarchical inventory source records and snapshot-scoped limits."""
+    _require_authenticated(request)
+    _require_not_limited(request)
+    context = get_context()
+    repo = context.policy_repo
+    service = PolicyLimitsService(context)
+    return {
+        'tenancy_name': repo.tenancy_name,
+        'tenancy_ocid': repo.tenancy_ocid,
+        'compartments': repo.compartments,
+        'policies': repo.policies,
+        'statements': repo.regular_statements,
+        'limits': getattr(repo, 'tenancy_policy_limits', {}) or {},
+        'offline_editable': not service.is_live_loaded,
+        'can_fetch_live': service.can_fetch_live,
+    }
+
+
+@router.post('/analysis/tenancy-policy-limits/fetch')
+def fetch_live_policy_limits(request: Request) -> dict:
+    """Refresh OCI limit metadata only for a live-loaded tenancy with a client."""
+    _require_authenticated(request)
+    _require_not_limited(request)
+    context = get_context()
+    if not PolicyLimitsService(context).can_fetch_live:
+        raise HTTPException(status_code=409, detail='Load a live OCI tenancy before fetching policy limits.')
+    context.policy_repo.fetch_tenancy_policy_statement_limits()
+    limits = getattr(context.policy_repo, 'tenancy_policy_limits', {}) or {}
+    if not limits:
+        raise HTTPException(
+            status_code=502, detail='OCI policy limits are unavailable. Check API Calls for access or service errors.'
+        )
+    return {'tenancy_policy_limits': limits}
+
+
+@router.get('/analysis/tag-based')
+def get_tag_based_inventory(request: Request) -> dict:
+    """Return detached tag statements, predicates and a snapshot tag catalog."""
+    _require_authenticated(request)
+    _require_not_limited(request)
+    repo = get_context().policy_repo
+    result = TagBasedPolicyService.inventory(repo.regular_statements)
+    result['catalog'] = [
+        {
+            'namespace': namespace,
+            'key': key,
+            'values': values or 'User supplied / no enumeration recorded',
+            'path': entry.get('compartment_path') or '',
+        }
+        for namespace, entry in (getattr(repo, 'defined_tag_namespace_keys', {}) or {}).items()
+        for key, values in (entry.get('keys') or {}).items()
+    ]
+    return result
 
 
 @router.post('/filter/policies/tag-based')
@@ -1527,11 +1652,14 @@ def get_cross_tenancy_basic() -> dict[str, object]:
     logger.info('GET /analysis/cross-tenancy')
     ctx = get_context()
     overlay = getattr(ctx.intelligence, 'overlay', {}) or {}
-    return CrossTenancyAnalysisService(
+    service = CrossTenancyAnalysisService(
         ctx.policy_repo,
         overlay.get('cross_tenancy_findings', []) or [],
         corpus=ctx.cross_tenancy_corpus,
-    ).get_analysis_payload()
+    )
+    payload = service.get_analysis_payload()
+    payload['single_policy'] = service.generate_single_policy(payload)
+    return payload
 
 
 @router.get('/analysis/policy-graph')
@@ -1681,21 +1809,17 @@ def set_tenancy_policy_limits(payload: dict[str, object]) -> dict[str, object]:
     """Save operator-supplied limits only with the active cache/CIS snapshot."""
     logger.info('POST /analysis/tenancy-policy-limits')
     ctx = get_context()
-    repo = ctx.policy_repo
-    offline_snapshot = bool(
-        getattr(repo, 'current_cache_name', '') or getattr(repo, 'loaded_from_compliance_output', False)
-    )
-    if not offline_snapshot:
+    service = PolicyLimitsService(ctx)
+    if service.is_live_loaded:
         raise HTTPException(status_code=409, detail='Live tenancy limits are read from OCI and cannot be overridden.')
     try:
-        limits = repo.set_user_supplied_tenancy_policy_limits(
+        service.apply_manual(
             payload.get('policies_count'), payload.get('policy_statements_per_compartment_chain_count')
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    cache_name = str(getattr(repo, 'current_cache_name', '') or '')
-    if cache_name:
-        ctx.cache.update_tenancy_policy_limits(cache_name, limits)
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
     return {'tenancy_policy_limits': RecommendationsService(ctx)._tenancy_policy_limits_payload()}
 
 
@@ -1998,11 +2122,23 @@ def load_tenancy(payload: dict[str, object]) -> dict[str, object]:
     except (TypeError, ValueError):
         depth = 1
 
+    environment_depth = _environment_domain_search_depth()
+    if environment_depth is not None:
+        depth = environment_depth
+
+    try:
+        policy_method = validate_policy_load_method(
+            payload.get('policy_load_method') or ctx.settings.get('policy_load_method', 'resource_search')
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
     stages, on_stage = _build_stage_collector()
     started = time.perf_counter()
     result = service.load_from_tenancy(
         use_instance_principal=use_instance_principal,
         use_resource_principal=use_resource_principal,
+        policy_load_method=policy_method,
         profile=profile,
         session_token=session_token,
         recursive=recursive,

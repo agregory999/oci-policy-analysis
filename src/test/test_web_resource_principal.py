@@ -84,3 +84,39 @@ def test_web_load_uses_configured_depth_unless_request_overrides(monkeypatch):
     assert calls[0]['recursive'] is True
     assert calls[0]['load_all_users'] is False
     assert calls[1]['compartment_domain_search_depth'] == 3
+
+
+def test_shared_environment_depth_overrides_web_request_without_mutating_preferences(monkeypatch):
+    saved = {'domain_compartment_depth': 3}
+    calls = []
+
+    class FakeLoadService:
+        def __init__(self, _ctx):
+            pass
+
+        def load_from_tenancy(self, **kwargs):
+            calls.append(kwargs)
+            return SimpleNamespace(success=True, message='Loaded', summary={})
+
+    monkeypatch.setenv('OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH', '2')
+    monkeypatch.setattr(routes_core, 'get_context', lambda: SimpleNamespace(status={}, settings=saved))
+    monkeypatch.setattr(routes_core, 'get_settings', lambda: saved)
+    monkeypatch.setattr(routes_core, 'LoadService', FakeLoadService)
+    monkeypatch.setattr(routes_core, '_track_web_operation', lambda *_args, **_kwargs: None)
+    routes_core.load_tenancy({'compartment_domain_search_depth': 1})
+    assert calls[0]['compartment_domain_search_depth'] == 2
+    effective = routes_core.get_settings_api()
+    assert effective['settings']['domain_compartment_depth'] == 2
+    assert effective['domain_compartment_depth_locked'] is True
+    assert saved['domain_compartment_depth'] == 3
+
+
+def test_saving_other_web_preferences_does_not_persist_depth_override(monkeypatch):
+    saved = {'domain_compartment_depth': 3}
+    persisted = []
+    monkeypatch.setenv('OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH', '2')
+    monkeypatch.setattr(routes_core, 'get_settings', lambda: saved)
+    monkeypatch.setattr(routes_core.config, 'save_settings', lambda settings: persisted.append(dict(settings)))
+    result = routes_core.update_settings_api({'settings': {'domain_compartment_depth': 2, 'font_size': 'Large'}})
+    assert result['settings']['domain_compartment_depth'] == 2
+    assert persisted == [{'domain_compartment_depth': 3, 'font_size': 'Large'}]

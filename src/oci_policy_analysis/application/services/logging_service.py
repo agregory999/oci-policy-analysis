@@ -10,7 +10,6 @@ CANONICAL_COMPONENT_ALIASES: dict[str, tuple[str, ...]] = {
     # Core repo
     'data_repo': ('core.repo.policy_analysis_repository',),
     'reference_data_repo': ('core.repo.reference_data_repo',),
-    'ai_repo': ('core.repo.ai_repo',),
     # Core engines/parsers
     'policy_intelligence': ('core.engine.policy_intelligence_engine',),
     'policy_simulation_engine': ('core.engine.policy_simulation_engine',),

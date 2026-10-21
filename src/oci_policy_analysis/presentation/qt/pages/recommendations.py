@@ -21,21 +21,23 @@ from PySide6.QtWidgets import (
 )
 
 from oci_policy_analysis.application.core.support.logger import get_logger
+from oci_policy_analysis.application.services.policy_limits_service import PolicyLimitsService
 from oci_policy_analysis.application.services.recommendations_service import RecommendationsService
+from oci_policy_analysis.presentation import format_compartment_policy_name
 from oci_policy_analysis.presentation.qt.tables import RecordModel, RecordTable
 from oci_policy_analysis.presentation.qt.widgets import CollapsibleSection, label
 
 logger = get_logger(component='qt.recommendations')
 
 SECTIONS = (
-    ('summary', 'Summary', ('Priority', 'Category', 'Recommendation', 'Notes', 'Action', 'Action Detail')),
+    ('summary', 'Summary', ('Priority', 'Category', 'Recommendation', 'Notes', 'Action')),
     (
         'risk_policy',
         'Policy risk',
         ('Policy Path', 'Max Statement Risk (Global %)', 'Total Statements', 'Total Raw Risk', 'Example Statement'),
     ),
     ('risk_statement', 'Statement risk', ('Policy Path', 'Relative Risk', 'Score', 'Effective Path', 'Statement Text')),
-    ('supersession', 'Superseded', ('Policy Name', 'Effective Path', 'Classification', 'Superseded By')),
+    ('supersession', 'Superseded', ('Policy', 'Effective Path', 'Classification', 'Superseded By', 'Statement Text')),
     ('cross_tenancy', 'Cross-tenancy', ('Type', 'Severity', 'Policy Name', 'Issue', 'Statement Text')),
     ('consolidation', 'Consolidation', ('Type', 'Policies', 'Statements', 'Scope', 'Summary', 'Recommended Action')),
     ('cleanup', 'Cleanup / Fix', ('Type', 'Name', 'Reason', 'Action')),
@@ -52,6 +54,13 @@ class FindingModel(RecordModel):
 
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
         """Return typed sort values while preserving original display evidence."""
+        if index.isValid() and self.columns[index.column()][1] == 'Policy':
+            row = self.records[index.row()]
+            return (
+                format_compartment_policy_name(row.get('Policy Compartment'), row.get('Policy Name'))
+                if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ToolTipRole, Qt.ItemDataRole.UserRole)
+                else None
+            )
         if index.isValid() and role == Qt.ItemDataRole.UserRole:
             field = self.columns[index.column()][1]
             value = self.records[index.row()].get(field)
@@ -59,6 +68,19 @@ class FindingModel(RecordModel):
                 return {'critical': 0, 'high': 1, 'medium': 2, 'low': 3}.get(str(value).casefold(), 4)
             return value if isinstance(value, (int, float)) else str(value or '').casefold()
         return super().data(index, role)
+
+
+class ConsolidationOpportunityTable(RecordTable):
+    """Offer a reviewed handoff for supported consolidation recommendations."""
+
+    consolidation_requested = Signal(dict)
+
+    def context_menu(self, record):
+        """Add planning only when shared evidence identifies supported source IDs."""
+        menu = super().context_menu(record)
+        if record.get('Handoff Mode') == 'supported' and record.get('Statement Internal IDs'):
+            menu.addAction('Create consolidation plan…', lambda: self.consolidation_requested.emit(record))
+        return menu
 
 
 class RecommendationWorker(QThread):
@@ -120,8 +142,10 @@ class SupersessionDialog(QDialog):
             sections,
             'Candidate statement',
             [
-                ('Policy', candidate.get('policy_name')),
-                ('Policy compartment', candidate.get('compartment_path')),
+                (
+                    'Policy',
+                    format_compartment_policy_name(candidate.get('compartment_path'), candidate.get('policy_name')),
+                ),
                 ('Effective scope', candidate.get('effective_path')),
                 ('Original statement', candidate.get('statement_text')),
                 (
@@ -156,7 +180,7 @@ class SupersessionDialog(QDialog):
             )
         sections.addStretch()
         scroll.setWidget(content)
-        self.tabs.addTab(scroll, 'Candidate & evidence')
+        self.tabs.addTab(scroll, 'Candidate Evidence')
         columns = tuple(
             (key, key) for key in ('Permission', 'Unconditional coverage', 'Conditional evidence (review only)')
         )
@@ -164,7 +188,7 @@ class SupersessionDialog(QDialog):
         self.coverage.setWordWrap(True)
         self.coverage.setTextElideMode(Qt.TextElideMode.ElideNone)
         self.coverage.setColumnWidth(0, 240)
-        self.coverage.setColumnWidth(1, 360)
+        self.coverage.setColumnWidth(1, 420)
         self.coverage.model.replace(details['coverage'])
         self.coverage.resizeRowsToContents()
         self.coverage.details_requested.connect(self._coverage_details)
@@ -230,6 +254,8 @@ class RecommendationsPage(QWidget):
     busy_changed = Signal(bool)
     analysis_finished = Signal(object)
     details_requested = Signal(object)
+    consolidation_requested = Signal(dict)
+    limits_requested = Signal()
 
     def __init__(self, settings: dict) -> None:
         super().__init__()
@@ -288,15 +314,37 @@ class RecommendationsPage(QWidget):
                 filters.addWidget(self.compartment)
             elif key == 'limits':
                 filters.addWidget(self.limit_status)
+                self.manage_limits_button = QPushButton('Enter known limits…')
+                self.manage_limits_button.clicked.connect(self.limits_requested.emit)
+                filters.addWidget(self.manage_limits_button)
             rows.addLayout(filters)
+            if key == 'limits':
+                self.limits_summary = label('Limits not supplied.', 'notice', wrap=True)
+                rows.addWidget(self.limits_summary)
+                self.limits_feedback = label('', 'muted', wrap=True)
+                self.limits_feedback.hide()
+                rows.addWidget(self.limits_feedback)
             columns = tuple((field, field) for field in fields)
-            table = RecordTable(
+            table_class = ConsolidationOpportunityTable if key == 'consolidation' else RecordTable
+            table = table_class(
                 columns,
                 source_model=FindingModel(columns, None),
                 details_title='Supersession details' if key == 'supersession' else 'Finding details',
             )
-            table.horizontalHeader().setSectionResizeMode(len(fields) - 1, QHeaderView.ResizeMode.Interactive)
-            table.setColumnWidth(len(fields) - 1, 320)
+            if key == 'consolidation':
+                table.consolidation_requested.connect(self.consolidation_requested.emit)
+            expanding_field = {'summary': 'Recommendation', 'cleanup': 'Reason', 'consolidation': 'Summary'}.get(
+                key, fields[-1]
+            )
+            for column, field in enumerate(fields):
+                table.horizontalHeader().setSectionResizeMode(
+                    column,
+                    QHeaderView.ResizeMode.Stretch if field == expanding_field else QHeaderView.ResizeMode.Interactive,
+                )
+                if field != expanding_field:
+                    table.setColumnWidth(
+                        column, 260 if field in {'Notes', 'Superseded By', 'Recommended Action'} else 150
+                    )
             table.proxy.setSortRole(Qt.ItemDataRole.UserRole)
             if key in {'risk_policy', 'risk_statement'}:
                 table.sortByColumn(1, Qt.SortOrder.DescendingOrder)
@@ -323,11 +371,24 @@ class RecommendationsPage(QWidget):
     def set_context(self, context) -> None:
         """Replace snapshot findings without running analytics or fetching OCI data."""
         self.context = context
+        self.set_limits_feedback('')
         self._clear_dialog()
         self.details_requested.emit(None)
         self.payload = RecommendationsService(context).get_dashboard_payload(fetch_limits=False) if context else {}
         self._publish_payload()
         self._controls()
+
+    def refresh_snapshot_data(self) -> None:
+        """Refresh displayed snapshot reports after inventory limits change."""
+        if self.context:
+            self.payload = RecommendationsService(self.context).get_dashboard_payload(fetch_limits=False)
+            self._publish_payload()
+            self._controls()
+
+    def set_limits_feedback(self, message: str) -> None:
+        """Display shared inventory fetch progress and completion messages."""
+        self.limits_feedback.setText(message)
+        self.limits_feedback.setVisible(bool(message))
 
     def set_block_reason(self, reason: str) -> None:
         """Prevent analysis while loading, simulation, reports or MCP own the data."""
@@ -360,6 +421,23 @@ class RecommendationsPage(QWidget):
 
     def _controls(self) -> None:
         busy = self.worker is not None
+        limits = PolicyLimitsService(self.context) if self.context is not None else None
+        self.manage_limits_button.setText(
+            'Fetch limits from OCI' if limits and limits.is_live_loaded else 'Enter known limits…'
+        )
+        self.manage_limits_button.setEnabled(
+            bool(limits and (not limits.is_live_loaded or limits.can_fetch_live) and not busy and not self.block_reason)
+        )
+        self.manage_limits_button.setToolTip(
+            self.block_reason
+            or (
+                'Fetch the current tenancy limits using its live OCI session.'
+                if limits and limits.can_fetch_live
+                else 'Enter verified limits for this snapshot. The dialog explains how to obtain them in OCI Console or CLI.'
+                if limits and not limits.is_live_loaded
+                else 'Live OCI Limits client is unavailable; reload the tenancy to fetch limits.'
+            )
+        )
         self.run_button.setEnabled(self.context is not None and not busy and not self.block_reason)
         self.tabs.setEnabled(not busy)
         self.where_reduction.setEnabled(not busy)
@@ -407,6 +485,7 @@ class RecommendationsPage(QWidget):
         if not self.context:
             self.status.setText('Load a snapshot to review recommendations.')
             self.summary.clear()
+            self.limits_summary.setText('Load a snapshot to view policy limits.')
             return
         permissions_ready = bool(getattr(self.context.intelligence, 'permissions_report', {}))
         self.status.setText(
@@ -417,6 +496,9 @@ class RecommendationsPage(QWidget):
         meta = self.payload.get('meta', {})
         enabled = self.context.settings.get('enabled_intelligence_checks') or ['All default checks']
         limits = self.payload.get('tenancy_policy_limits') or {}
+        self.limits_summary.setText(
+            f'Policies: {limits.get("policy_count", 0):,} loaded / {limits.get("policies_count") or "not supplied"} limit · Maximum compartment statement chain: {limits.get("max_chain_count", 0):,} / {limits.get("policy_statements_per_compartment_chain_count") or "not supplied"} limit · Source: {limits.get("source") or "not supplied"}'
+        )
         self.summary.setText(
             f'{meta.get("tenancy_name") or "Snapshot"} · Data as of {meta.get("data_as_of") or "not recorded"} · Configured checks: {", ".join(enabled)}\n'
             f'Policy chain statement limit: {limits.get("policy_statements_per_compartment_chain_count") or "not supplied"}. Counts reflect loaded inventory. Full analysis resets simulation results; no policies are changed.'

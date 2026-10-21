@@ -250,7 +250,7 @@ class LoggingPanel(QFrame):
             if runtime:
                 self.runtime.add(name)
             full_name = name if runtime else prefix + name
-            combo = QComboBox()
+            combo = QComboBox(self.content)
             combo.setObjectName('logLevel')
             combo.addItems(LEVELS)
             saved = self.settings.get('qt_runtime_log_levels', {}) if runtime else canonical
@@ -260,6 +260,7 @@ class LoggingPanel(QFrame):
             )
             combo.setEnabled(not self.verbose)
             title = label(name)
+            title.setParent(self.content)
             title.setToolTip(full_name)
             combo.setAccessibleName(f'{name} log level')
             self.levels[name] = combo

@@ -202,6 +202,29 @@ class CacheManager:
             if os.path.exists(temporary):
                 os.unlink(temporary)
 
+    def read_consolidation_state(self, tenancy_ocid: str) -> dict:
+        """Read saved consolidation state without creating or repairing a file.
+
+        Args:
+            tenancy_ocid: Saved tenancy identifier.
+
+        Returns:
+            dict: Existing state, with absent optional sections left absent.
+
+        Raises:
+            OSError: If the state file cannot be read.
+            ValueError: If JSON or section types are invalid.
+        """
+        with self._consolidation_state_path(tenancy_ocid).open(encoding='utf-8') as source:
+            state = json.load(source)
+        if not isinstance(state, dict):
+            raise ValueError('Consolidation state must be a JSON object.')
+        if not isinstance(state.get('history') or [], list) or not isinstance(state.get('protected_set') or {}, dict):
+            raise ValueError('Consolidation history/protection has an invalid format.')
+        if not isinstance((state.get('protected_set') or {}).get('protected') or [], list):
+            raise ValueError('Protected statements must be a list.')
+        return state
+
     def get_or_create_consolidation_state(self, tenancy_ocid) -> dict:
         """
         Load the canonical consolidation state file for this tenancy_ocid.

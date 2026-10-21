@@ -51,6 +51,10 @@ from functools import lru_cache  # noqa: E402
 from typing import Annotated, Any, Literal  # noqa: E402
 from urllib.parse import urlsplit  # noqa: E402
 
+from oci_policy_analysis.application.core.support.mcp_warnings import configure_mcp_dependency_warnings  # noqa: E402
+
+configure_mcp_dependency_warnings()
+
 from fastmcp import FastMCP  # noqa: E402
 from fastmcp.exceptions import ToolError  # noqa: E402
 from fastmcp.server.auth import RemoteAuthProvider  # noqa: E402
@@ -2482,9 +2486,11 @@ async def create_snapshot_server(context: AppContext) -> FastMCP:
 def _build_arg_parser():
     parser = argparse.ArgumentParser()
     from oci_policy_analysis.application.core.support.config import load_settings
-    from oci_policy_analysis.runtime_settings import mcp_domain_search_depth
 
     settings = load_settings()
+    depth_raw = os.environ.get('OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH', '1').strip()
+    if not depth_raw.isdigit() or not 1 <= int(depth_raw) <= 6:
+        raise ValueError('OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH must be 1 through 6')
     auth = parser.add_mutually_exclusive_group()
     auth.add_argument('--profile')
     auth.add_argument('--instance-principal', action='store_true')
@@ -2511,7 +2517,7 @@ def _build_arg_parser():
     parser.add_argument(
         '--compartment-domain-search-depth',
         type=int,
-        default=mcp_domain_search_depth(),
+        default=int(depth_raw),
         choices=range(1, 7),
         metavar='[1-6]',
         help='Depth for identity-domain compartment traversal (1=root only, 2=include direct children, max=6).',

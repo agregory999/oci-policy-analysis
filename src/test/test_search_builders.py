@@ -54,3 +54,21 @@ def test_exact_subject_type_union_preserves_fuzzy_search_compatibility():
     assert len(repo.filter_policy_statements({'subject_type': ['group']})) == 4
     assert len(repo.filter_policy_statements({'exact_subject_types': []})) == 5
     assert repo.regular_statements == original
+
+
+def test_saved_search_reader_accepts_tk_web_and_canonical_without_mutation():
+    import json
+    from copy import deepcopy
+
+    from oci_policy_analysis.application.services.search_builders import build_policy_search_from_saved_search
+
+    entries = [
+        {'filters': {'policy_ocid': ['ocid1.policy.Exact']}},
+        {'raw_json': json.dumps({'policy_ocid': ['ocid1.policy.Exact']})},
+        {'search': {'policy_ocid': 'ocid1.policy.Exact'}},
+    ]
+    originals = deepcopy(entries)
+    for entry in entries:
+        assert build_policy_search_from_saved_search(entry)['policy_ocid'] == ['ocid1.policy.Exact']
+    assert entries == originals
+    assert build_policy_search_from_saved_search({'search': {'valid': 'false'}})['valid'] is False

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any, cast
+
+import pytest
 
 from oci_policy_analysis.application.core.engine.consolidation_engine import ConsolidationEngine
 from oci_policy_analysis.application.services.consolidation_workbench_service import (
@@ -67,6 +70,105 @@ def _build_service(run_record, *, live=False):
     svc = ConsolidationWorkbenchService(cast(Any, ctx))
     svc.engine = cast(Any, _FakeEngine())
     return svc, cache
+
+
+def test_strategy_catalog_and_explicitly_invalid_candidate_exclusion(monkeypatch):
+    svc, _ = _build_service({})
+    catalog = svc.get_strategy_catalog()
+    assert [item['name'] for item in catalog] == svc.get_status()['strategy_names']
+    assert all(item['description'] for item in catalog)
+    monkeypatch.setattr(svc, 'get_protected_set', lambda: {})
+    svc.repo.regular_statements = [
+        {'internal_id': 'invalid', 'valid': False, 'statement_text': 'invalid source evidence'},
+        {'internal_id': 'valid', 'valid': True, 'statement_text': 'Allow group Admins to read buckets in tenancy'},
+    ]
+    result = svc.get_candidate_rows()
+    assert result['counts']['invalid'] == 1
+    assert [row['internal_id'] for row in result['rows']] == ['valid']
+
+
+def test_repeated_statement_sources_are_one_selection_unit_without_rewriting_source(monkeypatch):
+    from copy import deepcopy
+
+    svc, _ = _build_service({})
+    monkeypatch.setattr(svc, 'get_protected_set', lambda: {})
+    statement = {
+        'internal_id': 'same-statement-in-same-policy',
+        'policy_ocid': 'policy-a',
+        'policy_name': 'Applications',
+        'statement_text': 'Allow group Admins to read buckets in tenancy',
+        'valid': True,
+    }
+    svc.repo.regular_statements = [deepcopy(statement), deepcopy(statement)]
+    original = deepcopy(svc.repo.regular_statements)
+
+    protection = svc.get_protection_rows()
+    candidates = svc.get_candidate_rows()['rows']
+    assert len(protection) == len(candidates) == 1
+    assert protection[0]['internal_id'] == candidates[0]['internal_id'] == statement['internal_id']
+    assert protection[0]['source_occurrences'] == candidates[0]['source_occurrences'] == 2
+    assert svc.repo.regular_statements == original
+
+
+def test_conflicting_source_ids_can_be_protected_but_never_planned(monkeypatch):
+    svc, _ = _build_service({})
+    monkeypatch.setattr(svc, 'get_protected_set', lambda: {})
+    svc.repo.regular_statements = [
+        {
+            'internal_id': 'collision',
+            'policy_ocid': 'policy-a',
+            'statement_text': 'Allow group Admins to read buckets in tenancy',
+        },
+        {
+            'internal_id': 'collision',
+            'policy_ocid': 'policy-b',
+            'statement_text': 'Allow group Admins to manage all-resources in tenancy',
+        },
+    ]
+    protection = svc.get_protection_rows()
+    assert len(protection) == 1 and protection[0]['selection_conflict']
+    assert len(protection[0]['source_records']) == 2
+    assert protection[0]['source_occurrences'] == 2
+    candidates = svc.get_candidate_rows()
+    assert candidates['rows'] == [] and candidates['counts']['ambiguous'] == 1
+    with pytest.raises(ValueError, match='share a selected internal ID'):
+        svc.create_proposal(['collision'], 'Statement Density (Pack Policies)')
+
+
+def test_rapid_proposals_get_distinct_history_and_marker_ids(monkeypatch):
+    svc, _ = _build_service({})
+    engine = ConsolidationEngine(
+        cache_mgr=svc.cache, reference_data_repo=svc.context.reference_data, policy_repo=svc.repo
+    )
+    fixed_time = datetime(2026, 10, 20, tzinfo=UTC)
+    monkeypatch.setattr(
+        'oci_policy_analysis.application.core.engine.consolidation_engine.datetime',
+        SimpleNamespace(now=lambda _tz: fixed_time),
+    )
+    first = engine._new_plan_id('tenancy', {'a'}, 'Move to Root Compartment')
+    second = engine._new_plan_id('tenancy', {'b'}, 'Move to Root Compartment')
+    assert first != second
+
+
+def test_progress_with_refresh_rebuilds_live_analysis_even_after_partial_reload_failure(monkeypatch):
+    svc, _ = _build_service({'consolidation_effort_id': 'E1', 'plan': {'plan_steps': []}}, live=True)
+    svc.context.intelligence = SimpleNamespace(permissions_report={})
+    refreshed = []
+    monkeypatch.setattr('oci_policy_analysis.application.post_load.run_minimal_post_load_enrichment', refreshed.append)
+
+    def fail_reload(_effort):
+        raise ValueError('partial reload failure')
+
+    monkeypatch.setattr(svc, 'check_progress', fail_reload)
+    with pytest.raises(ValueError, match='partial reload failure'):
+        svc.check_progress_with_refresh('E1')
+    assert refreshed == [svc.context]
+
+    # Offline datasets retain their stored progress and never rebuild analysis.
+    svc.repo.policies_loaded_from_tenancy = False
+    monkeypatch.setattr(svc, 'check_progress', lambda _effort: {'reload_status': 'noop'})
+    assert svc.check_progress_with_refresh('E1') == {'reload_status': 'noop'}
+    assert refreshed == [svc.context]
 
 
 def test_check_progress_noop_uses_persisted_progress_counts() -> None:

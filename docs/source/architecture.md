@@ -121,7 +121,6 @@ Cache management includes import, export, snapshotting, refreshing, and selectio
 
 A robust and extensible settings system governs configuration for all areas of the application. Settings management covers:
 - Tenancy/OCI configuration (profile, session token, compartment selection, recursion, MCP server config)
-- Desktop-only preview controls, including [Optional AI Assist](optional_ai_assist.md)
 - UI preferences (font size, tab visibility, context help, advanced tab enablement)
 - Cache import/export, refresh, and selection
 - Application-wide toggles for maintenance/debug features
@@ -472,3 +471,33 @@ CLI verbosity lock; omitted arguments retain legacy behavior. Qt passes this
 choice explicitly so component overrides remain stable through context creation.
 The Policy Browser formats policy identity and invalid-row roles in its view model
 without adding display fields to repository statements or changing cached evidence.
+
+### Live policy discovery strategies
+
+`application/core/repo/policy_loading.py` separates policy discovery from the shared
+policy-detail and statement-parsing pipeline. Resource Search remains the default
+and now follows every page. Compartment discovery lists active policies per
+accessible compartment (root only for nonrecursive loads), then uses the same
+`get_policy` fetches and existing repository parsers. Bounded API workers return
+results to serial parsing, preserving policy tags, invalid evidence, and stable
+statement IDs. Paths come from the fetched policy compartment rather than a
+potentially stale search summary. The repository retains the selected strategy
+for live policy refreshes; reset discards it. `LoadService` resolves explicit
+arguments over the application setting and validates before resetting data.
+Both paths use the existing API journal and collection-error tracking. Individual
+failures can leave partial evidence; total listing/detail failure is rejected.
+This does not change snapshot serialization or derive completeness from success.
+
+
+## Tag-qualified policy evidence
+
+The Qt Preview advanced **Tag-Based Policies** page uses `TagBasedPolicyService.inventory`
+to project detached statement and predicate records from the current snapshot. It preserves
+complete conditions, invalid evidence and unparsed tag references. The defined-tag catalog
+is snapshot reference data, not a complete inventory of tag assignments. Selected predicates
+or complete conditions can populate the existing condition tester without running an evaluation.
+Tag-based consolidation is outside this view.
+
+The legacy desktop OCI Generative AI repository, model settings and query pane were removed
+in 7.0. `AppContext` no longer creates or exposes an AI backend. MCP/Assistant support and
+analysis of policies granting access to OCI Generative AI resources remain available.

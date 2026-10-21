@@ -39,6 +39,10 @@ standalone `.app` supplies Finder integration and high-resolution app metadata.
 The pinned compiler's `app` mode creates a normal macOS bundle, not a compressed
 onefile payload. Windows onefile uses the native GUI executable mode.
 
-`publish_release.py` attaches verified archives by release ID. It prefers an
+GitHub Actions builds macOS standalone plus Windows standalone and onefile. The
+Windows onefile executable is attached directly as `oci-policy-analysis-qt-onefile.exe`
+alongside its archive, so users can download it without extracting a ZIP.
+
+`publish_release.py` attaches verified archives and the Windows onefile executable by release ID. It prefers an
 already published tag over duplicate drafts, retains existing assets on reruns,
 and finalizes the same release record rather than creating another one.

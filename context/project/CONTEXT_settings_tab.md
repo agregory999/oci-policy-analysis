@@ -1,6 +1,6 @@
 # Project-Specific Context: Settings Tab
 
-The Settings tab centralizes all project configuration for OCI Policy Analysis, including environment details, cache controls, GenAI features, and import/export of tenancy data.
+The Settings tab centralizes all project configuration for OCI Policy Analysis, including environment details, cache controls, and import/export of tenancy data.
 
 ---
 
@@ -12,7 +12,6 @@ The Settings tab centralizes all project configuration for OCI Policy Analysis, 
 - **Recursive**: Loads all compartments/subcompartments if checked.
 - **Profile**: Choose named CLI profile (from ~/.oci/config); disabled if OCI config not found.
 - **Session Token**: Entry & load button for use with ephemeral session tokens.
-- **Compartment for GenAI**: Used when testing GenAI/AI features.
 
 ### B. Display and UI Controls
 - **Font Size**: Small, Medium, Large, Extra Large; controls UI font.
@@ -26,12 +25,6 @@ The Settings tab centralizes all project configuration for OCI Policy Analysis, 
 - **Cache List**: Shows available local tenancy data caches.
 - **Load from Cache**: Reloads the UI with cached tenancy data as selected.
 - **Refresh Caches**: Cache dropdown is refreshed automatically after load/import operations.
-
-### E. GenAI / Model Configuration
-- **Regional Endpoint**: Service endpoint for OCI GenAI API.
-- **Compartment OCID**: Target for GenAI queries.
-- **Select Model**: Table of available models, selection updates current model OCID.
-- **Apply & Test**: Updates and validates GenAI settings; disables/enables AI UI.
 
 ---
 

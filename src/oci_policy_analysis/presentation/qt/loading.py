@@ -32,7 +32,10 @@ class LoadWorker(QThread):
     def run(self) -> None:
         """Load a fresh context and emit either a successful snapshot or an error."""
         try:
+            if self.source == 'oci' and self.options.get('auth') not in {'profile', 'instance_principal'}:
+                raise ValueError('Desktop tenancy loading supports OCI config profiles or instance principal only.')
             context = AppContext.from_settings(self.settings, verbose_override=False)
+            context.policy_repo.api_calls_separate_view = True
             for name, level in self.settings.get('qt_runtime_log_levels', {}).items():
                 logging.getLogger(name).setLevel(level)
             profile = self.settings.get('qt_post_load_profile', 'minimal')
@@ -42,9 +45,9 @@ class LoadWorker(QThread):
             if self.source == 'oci':
                 result = loader.load_from_tenancy(
                     use_instance_principal=self.options.get('auth') == 'instance_principal',
-                    use_resource_principal=self.options.get('auth') == 'resource_principal',
                     profile=self.options['profile'],
                     recursive=self.options['recursive'],
+                    policy_load_method=self.options.get('policy_load_method'),
                     load_all_users=self.options.get('load_all_users', True),
                     compartment_domain_search_depth=self.options['depth'],
                     save_cache_after_load=True,

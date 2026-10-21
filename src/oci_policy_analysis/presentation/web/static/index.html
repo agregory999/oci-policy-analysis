@@ -103,6 +103,7 @@
 
           <hr class="section-separator" />
 
+          <details><summary>Advanced loading options</summary><label>Policy loading <select id="policyLoadMethod"><option value="resource_search">Resource Search</option><option value="compartment">Compartment-based Policy Get</option></select></label><p class="helper-text">Compartment listings avoid search-index delays. This preference remains active when these options are collapsed.</p></details>
           <!-- Compliance import: load artifacts from compliance output directory -->
           <div>
             <div class="section-kicker">From Compliance</div>
@@ -153,13 +154,14 @@
           <p class="card-title">Analysis</p>
           <p>Run initial policy filtering queries.</p>
           <div class="icon-button-grid">
-            <a href="/policy-analysis.html" class="icon-button"><span class="icon-button-mark">PA</span><span class="icon-button-label">Policy Analysis</span></a>
+            <a href="/policy-inventory.html" class="icon-button"><span class="icon-button-mark">PI</span><span class="icon-button-label">Policy Inventory</span></a>
+            <a href="/policy-analysis.html" class="icon-button"><span class="icon-button-mark">PA</span><span class="icon-button-label">Policy Browser</span></a>
             <a href="/policy-graph.html" class="icon-button"><span class="icon-button-mark">PG</span><span class="icon-button-label">Policy Graph</span></a>
             <a href="/cross-tenancy-analysis.html" class="icon-button"><span class="icon-button-mark">XT</span><span class="icon-button-label">Cross-Tenancy Analysis</span></a>
             <a href="/historical-analysis.html" class="icon-button"><span class="icon-button-mark">HI</span><span class="icon-button-label">Historical Analysis</span></a>
             <a href="/users-groups-analysis.html" class="icon-button"><span class="icon-button-mark">UG</span><span class="icon-button-label">User/Group Analysis</span></a>
             <a href="/dynamic-group-analysis.html" class="icon-button"><span class="icon-button-mark">DG</span><span class="icon-button-label">Dynamic Group Analysis</span></a>
-            <a href="/workload-principals-analysis.html" class="icon-button"><span class="icon-button-mark">WP</span><span class="icon-button-label">Workload Principals Analysis</span></a>
+            <a href="/workload-principals-analysis.html" class="icon-button"><span class="icon-button-mark">WP</span><span class="icon-button-label">Resource Principals</span></a>
           </div>
         </section>
 
@@ -180,6 +182,7 @@
           <p class="card-title">Utilities</p>
           <p>Reference data lookups, settings, diagnostics, and tenancy utility views.</p>
           <div class="icon-button-grid">
+            <a href="/tag-based-policies.html" class="icon-button"><span class="icon-button-mark">TB</span><span class="icon-button-label">Tag-Based Policies (Advanced)</span></a>
             <a href="/tag-namespaces.html" class="icon-button"><span class="icon-button-mark">TN</span><span class="icon-button-label">Tag Namespaces</span></a>
             <a href="/compartment-hierarchy.html" class="icon-button"><span class="icon-button-mark">CH</span><span class="icon-button-label">Compartment Hierarchy</span></a>
             <a href="/condition-tester.html" class="icon-button"><span class="icon-button-mark">CT</span><span class="icon-button-label">Condition Tester</span></a>
@@ -501,6 +504,8 @@
           const response = await fetch('/settings');
           const payload = await response.json();
           appSettings = payload.settings || {};
+          document.getElementById('policyLoadMethod').value = appSettings.policy_load_method || 'resource_search';
+          compartmentDepth.disabled = Boolean(payload.domain_compartment_depth_locked);
           const depth = Number(appSettings.domain_compartment_depth || 1);
           if (Number.isFinite(depth) && depth >= 1 && depth <= 6) {
             compartmentDepth.value = String(depth);
@@ -561,6 +566,7 @@
               profile: resourcePrincipalOnly ? null : profileSelect.value,
               instance_principal: !resourcePrincipalOnly && instancePrincipal.checked,
               recursive: recursiveLoad.checked,
+              policy_load_method: document.getElementById('policyLoadMethod').value,
               load_all_users: commonLoadAllUsers.checked,
               compartment_domain_search_depth: Number(compartmentDepth.value || 1),
             }),
@@ -677,6 +683,7 @@
       if (loadCacheBtn) loadCacheBtn.addEventListener('click', loadCache);
       if (loadCacheStandaloneBtn) loadCacheStandaloneBtn.addEventListener('click', loadCache);
       instancePrincipal.addEventListener('change', syncProfileState);
+      document.getElementById('policyLoadMethod').addEventListener('change', async event => { const response = await fetch('/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({settings:{policy_load_method:event.target.value}})}); if(!response.ok) tenancyStatus.textContent = 'Could not save policy loading preference.'; });
       loadTenancyBtn.addEventListener('click', loadTenancy);
       loadComplianceBtn.addEventListener('click', loadCompliance);
       loadExportBtn.addEventListener('click', loadExport);

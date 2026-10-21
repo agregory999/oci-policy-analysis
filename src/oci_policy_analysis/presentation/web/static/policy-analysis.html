@@ -426,7 +426,7 @@
         <div class="masthead-brand">
           <span class="masthead-badge">OCI</span>
           <div>
-            <h1>Policy Analysis</h1>
+            <h1>Policy Browser</h1>
             <p>Basic Filter • Advanced Filter • Inspector • Prospective Editor</p>
           </div>
         </div>
@@ -916,6 +916,7 @@
         rows.forEach((row) => {
           const tr = document.createElement('tr');
           tr.dataset.rowId = String(row._row_id);
+          tr.classList.toggle('invalid-statement-row', row.valid === false);
           const policyHybrid = window.SharedFormatters?.formatPolicyCompartmentName
             ? window.SharedFormatters.formatPolicyCompartmentName(row, { separator: ' :: ', empty: '-' })
             : `${getRowValue(row, 'compartment_path') || '-'} :: ${getRowValue(row, 'policy_name') || '-'}`;
@@ -1302,7 +1303,7 @@
         const response = await fetch('/settings', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ settings: appSettings }),
+          body: JSON.stringify({ settings: { saved_policy_searches: appSettings.saved_policy_searches } }),
         });
         if (!response.ok) throw new Error(`Failed to save settings (${response.status})`);
       }
@@ -1315,16 +1316,26 @@
           return;
         }
 
+        try {
+          const response = await fetch('/settings');
+          if(!response.ok) throw new Error('Could not read saved searches.');
+          appSettings = (await response.json()).settings || {};
+        } catch(error) { setStatusError(error.message); return; }
         const existing = getSavedSearches();
         const idx = existing.findIndex((entry) => String(entry?.name || '') === name);
         if (idx >= 0 && !window.confirm(`A saved search named "${name}" exists. Overwrite?`)) {
           return;
         }
 
+        let sharedFilters;
+        try { sharedFilters = jsonOverrideArmed && String(filters.value || '').trim() ? JSON.parse(filters.value) : buildPayloadFromFields(); } catch(error) { setStatusError('Fix the JSON override before saving.'); return; }
+        if(!sharedFilters || Array.isArray(sharedFilters) || typeof sharedFilters !== 'object') { setStatusError('Search filters must be an object.'); return; }
         const updatedEntry = {
+          ...(idx >= 0 ? existing[idx] : {}),
           name,
+          filters: sharedFilters,
           search: getCurrentSearchSnapshot(),
-          raw_json: String(filters.value || '').trim(),
+          raw_json: JSON.stringify(sharedFilters),
         };
 
         const next = [...existing];
@@ -1352,9 +1363,9 @@
           status.className = 'status error';
           return;
         }
-        applySearchSnapshot(found.search || {});
-        setFiltersJsonValue(String(found.raw_json || ''));
-        jsonOverrideArmed = String(found.raw_json || '').trim().length > 0;
+        applySearchSnapshot(found.search || found.filters || {});
+        setFiltersJsonValue(found.filters ? JSON.stringify(found.filters) : String(found.raw_json || ''));
+        jsonOverrideArmed = Boolean(found.filters) || String(found.raw_json || '').trim().length > 0;
         savedSearchName.value = selected;
         status.textContent = `Loaded saved search "${selected}".`;
         status.className = 'status success';

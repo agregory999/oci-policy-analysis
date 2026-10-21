@@ -60,6 +60,23 @@ def test_rename_collision_never_overwrites_unindexed_file(saved):
     assert cache.get_available_cache(None) == [name]
 
 
+def test_listing_consolidation_state_never_repairs_or_overwrites_corrupt_data(tmp_path):
+    from oci_policy_analysis.application.services.cache_service import CacheService
+
+    cache = CacheManager(cache_dir=tmp_path)
+    state_path = cache._consolidation_state_path('tenant-a')
+    original = b'{invalid json: keep original bytes for inspection}'
+    state_path.write_bytes(original)
+    service = CacheService(cache)
+    rows = service.consolidation_records()
+    assert len(rows) == 1 and rows[0]['tenancy_ocid'] == 'tenant-a'
+    assert rows[0]['plans'] == 'Unknown' and rows[0]['error']
+    assert state_path.read_bytes() == original
+    # Only the explicitly requested reset is allowed to overwrite the state.
+    service.reset_consolidation('tenant-a')
+    assert cache.read_consolidation_state('tenant-a') == {'protected_set': {}, 'history': []}
+
+
 def test_index_failure_retains_original_and_removes_temporary_target(saved, monkeypatch):
     cache, name, path = saved
 

@@ -146,6 +146,12 @@ class ConsoleTab(BaseUITab):
         )
         show_loggers_chk.pack(side=tk.LEFT, padx=10)
 
+        from oci_policy_analysis.presentation.desktop.api_calls_window import ApiCallsWindow
+
+        ttk.Button(self, text='API Calls · Current Session…', command=lambda: ApiCallsWindow(self)).pack(
+            anchor='w', padx=10, pady=4
+        )
+
         # --- Extra Logging Settings: Always Log Timings / API Calls ---
         from oci_policy_analysis.application.core.support import config as opa_config
 
@@ -196,7 +202,6 @@ class ConsoleTab(BaseUITab):
             'Core Repo / Engine / Parser': [
                 'core.repo.policy_analysis_repository',
                 'core.repo.reference_data_repo',
-                'core.repo.ai_repo',
                 'core.engine.policy_intelligence_engine',
                 'core.engine.policy_simulation_engine',
                 'core.engine.consolidation_engine',

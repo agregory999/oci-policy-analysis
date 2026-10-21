@@ -7,6 +7,7 @@ from dataclasses import asdict
 from time import perf_counter
 from typing import Any
 
+from oci_policy_analysis.application.core.common.policy_helpers import principal_display_name
 from oci_policy_analysis.application.core.policy_corpus import PolicyCorpus
 from oci_policy_analysis.application.core.support.logger import get_logger
 from oci_policy_analysis.application.services.condition_tester_service import extract_condition_clause
@@ -48,7 +49,7 @@ class PolicyGraphService:
         """Search source grants and return complete facets with selected rows.
 
         Args:
-            principal: Case-insensitive substring of the canonical principal key.
+            principal: Case-insensitive substring of canonical or declared principal keys.
             path: Case-insensitive substring of the original grant path.
             resource: Substring of a resource name or expanded permission name.
             query: Substring of policy name, original statement text, or statement ID.
@@ -92,7 +93,13 @@ class PolicyGraphService:
         for fact in corpus.facts:
             source = fact.provenance
             all_statements.add(source.statement_id)
-            if principal and principal not in fact.principal_key.casefold():
+            principal_text = f'{fact.principal_key} {principal_display_name(fact.principal_key)}'.casefold()
+            # A declared any-user/group key remains searchable after workload
+            # specialization. Other multi-subject facts must match their own key.
+            if fact.principal_key.startswith(('resource-principal:', 'oke-workload-identity:')):
+                principal_text += ' ' + fact.original_principal_key.casefold()
+            principal_text += ' ' + principal_text.replace('-', ' ')
+            if principal and principal not in principal_text:
                 continue
             if path and path not in fact.grant_path.casefold():
                 continue
@@ -114,6 +121,7 @@ class PolicyGraphService:
                     'id': '|'.join(key),
                     'prospective': fact.prospective,
                     'principal': fact.principal_key,
+                    'principal_display': principal_display_name(fact.principal_key),
                     'path': fact.grant_path,
                     'resource': fact.resource,
                     'effect': fact.effect,
@@ -151,7 +159,8 @@ class PolicyGraphService:
             item = path_counts.setdefault(token, {'path': grant['path'], 'grant_count': 0})
             item['grant_count'] += 1
             principal_item = principal_counts.setdefault(
-                grant['principal'].casefold(), {'principal': grant['principal'], 'grant_count': 0}
+                grant['principal'].casefold(),
+                {'principal': grant['principal'], 'principal_display': grant['principal_display'], 'grant_count': 0},
             )
             principal_item['grant_count'] += 1
         paths = sorted(path_counts.values(), key=lambda item: item['path'].casefold())
@@ -258,6 +267,9 @@ class PolicyGraphService:
                 }
                 if fact.prospective and not str(row.get('policy_name') or '').startswith('[Prospective]'):
                     row['policy_name'] = '[Prospective] ' + str(row.get('policy_name') or 'What-if')
+                row['conditional'] = bool(
+                    extract_condition_clause(row.get('conditions') or '', row.get('statement_text') or '')
+                )
                 row['is_prospective'] = fact.prospective
                 row['permission_facts'] = []
                 row['graph_selection'] = []

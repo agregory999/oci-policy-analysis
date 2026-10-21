@@ -26,7 +26,6 @@ Full documentation
    tag_based
    limited_modes
    oke_workload_identity
-   optional_ai_assist
 
 .. toctree::
    :maxdepth: 1

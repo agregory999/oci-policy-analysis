@@ -18,6 +18,34 @@ after a dataset has been loaded.
 The web application has a **Consolidation Workbench** page. It follows the same
 four-stage flow: protection, candidates, proposal, and history.
 
+In Qt, enable **Advanced** on **Overview & settings**, load a dataset, and select
+**Consolidation** in the left navigation. The numbered stages describe the workflow:
+
+1. **Protect / Lock**: filter statements, check those that must stay in place, and
+   save protection. **Continue to statements** also saves pending protection changes.
+2. **Statements & strategy**: select eligible statements and read the selected
+   strategy's description. **Select displayed** and **Clear displayed** act on the
+   filtered rows; checked statements remain selected when hidden by a filter.
+   The count shows the total selection and how many selected statements are hidden.
+3. **Review plan**: inspect the ordered steps, original and proposed statements,
+   rollback for the selected step, skipped statements, and editable plan notes.
+   Generating a plan saves it in the existing tenancy history.
+4. **Execution / History**: reopen saved plans, select Console instructions or
+   OCI CLI commands, and copy or export execution, rollback, or both. Apply changes
+   outside the application. Live progress checks refresh policies and derived
+   analysis; cache and compliance datasets show the last saved progress.
+
+Qt uses the same protected sets, plan records, notes, and execution history as the
+web and Tkinter interfaces. Reloading or changing tenancy clears transient selections
+and restores the selected tenancy's saved state. Deleting a local history record
+also deletes its rollback snapshot; it does not undo changes in OCI.
+
+To start over in Qt, open **Tools → Maintenance → Reset consolidation data by
+tenancy**. Select the tenancy and choose **Delete all consolidation data for
+selected tenancy**. Confirmation clears its protected set and complete plan history,
+including notes, progress, and rollback snapshots. Other tenancies, inventory caches,
+and OCI policies are unchanged. Saved tenancies can be reset without loading them.
+
 ## Start with a recommendation or start directly
 
 There are two sensible entry points:

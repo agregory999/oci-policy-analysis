@@ -29,9 +29,9 @@ def boolean(name, default):
 
 
 def containers(kind):
-    depth = os.environ.get('MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH', '1')
-    if kind != 'web' and (not depth.isdigit() or not 1 <= int(depth) <= 6):
-        raise ValueError('MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH must be 1 through 6')
+    depth = os.environ.get('OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH', '1')
+    if not depth.isdigit() or not 1 <= int(depth) <= 6:
+        raise ValueError('OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH must be 1 through 6')
     oauth = {}
     if kind != 'web' and boolean('MCP_OAUTH_ENABLED', 'false') == 'true':
         oauth = {key: os.environ[key] for key in OAUTH if os.environ.get(key)}
@@ -54,7 +54,7 @@ def containers(kind):
         port = int(os.environ.get(f'{mode.upper()}_PORT', '8000' if mode == 'web' else '8765'))
         if not 1 <= port <= 65535:
             raise ValueError(f'{mode.upper()}_PORT must be 1 through 65535')
-        env = {}
+        env = {'OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH': depth}
         if mode == 'web':
             env.update(
                 WEB_RESOURCE_PRINCIPAL_ONLY=os.environ.get('WEB_RESOURCE_PRINCIPAL_ONLY', 'true'),
@@ -67,7 +67,6 @@ def containers(kind):
                 MCP_TRANSPORT='streamable-http',
                 MCP_HOST='0.0.0.0',
                 MCP_PORT=str(port),
-                MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH=depth,
                 MCP_LOG_LEVEL=level,
             )
             # Only explicitly selected optional MCP settings enter its container.

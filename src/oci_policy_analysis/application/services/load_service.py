@@ -9,6 +9,7 @@ from typing import Any
 
 from oci_policy_analysis.application.context import AppContext
 from oci_policy_analysis.application.core.engine import PolicyIntelligenceEngine, PolicySimulationEngine
+from oci_policy_analysis.application.core.repo.policy_loading import validate_policy_load_method
 from oci_policy_analysis.application.core.support.logger import get_logger
 from oci_policy_analysis.application.post_load import run_minimal_post_load_enrichment, run_post_load_pipeline
 
@@ -247,6 +248,7 @@ class LoadService:
         profile: str | None = None,
         session_token: str | None = None,
         recursive: bool = False,
+        policy_load_method: str | None = None,
         load_all_users: bool = True,
         compartment_domain_search_depth: int = 1,
         run_post_load_intelligence: bool = True,
@@ -262,6 +264,9 @@ class LoadService:
             profile: Optional OCI profile name.
             session_token: Optional session token for auth.
             recursive: Whether tenancy traversal should be recursive.
+            policy_load_method: Optional ``resource_search`` or ``compartment``
+                discovery override; otherwise use the saved application setting
+                with Resource Search as the default.
             load_all_users: Whether to load all users for identity domains.
             compartment_domain_search_depth: Identity domain search depth.
             run_post_load_intelligence: Whether to run post-load processing.
@@ -271,7 +276,22 @@ class LoadService:
 
         Returns:
             LoadResult: Load status and data summary.
+
+        Notes:
+            Attempts to retrieve policy limits after policy collection, before
+            enrichment and cache saving, for every post-load profile. Unavailable
+            limits produce a warning without failing the policy load. Offline load
+            methods do not make this request.
+
+        Raises:
+            ValueError: If the policy discovery method is unsupported. Validation
+                happens before resetting the current snapshot.
         """
+        method = validate_policy_load_method(
+            policy_load_method
+            if policy_load_method is not None
+            else (getattr(self.context, 'settings', None) or {}).get('policy_load_method', 'resource_search')
+        )
         self.logger.info(
             'Loading tenancy via LoadService: instance_principal=%s resource_principal=%s profile=%s recursive=%s',
             use_instance_principal,
@@ -282,6 +302,7 @@ class LoadService:
         self._emit_stage(stage='Initializing', detail='Configuring OCI client', on_stage=on_stage)
         repo = self.context.policy_repo
         self._reset_repo_state_before_load()
+        repo.policy_load_method = method
         self.logger.info(
             'Starting tenancy client initialization: auth_mode=%s profile=%s session_token=%s recursive=%s',
             (
@@ -337,11 +358,27 @@ class LoadService:
             self._emit_stage(stage='Failed', detail='Failed to load identity domains', state='error', on_stage=on_stage)
             return LoadResult(success=False, message='Failed to load identity domains')
 
-        self._emit_stage(stage='Loading Policies', detail='Fetching policy statements', on_stage=on_stage)
+        self._emit_stage(stage='Loading Policies', detail=f'Fetching policy statements ({method})', on_stage=on_stage)
         if not repo.load_policies_only():
             self.logger.error('Tenancy load failed while loading policies')
             self._emit_stage(stage='Failed', detail='Failed to load policies', state='error', on_stage=on_stage)
             return LoadResult(success=False, message='Failed to load policies')
+
+        # Fetch snapshot metadata independently of the enrichment profile so
+        # minimal/none loads and their saved caches contain the same live limits.
+        self._emit_stage(stage='Loading Policy Limits', detail='Fetching tenancy policy limits', on_stage=on_stage)
+        try:
+            repo.fetch_tenancy_policy_statement_limits()
+        except Exception as exc:
+            self.logger.warning('Policy collection succeeded but limit retrieval failed: %s', exc)
+        limits = getattr(repo, 'tenancy_policy_limits', {}) or {}
+        if not limits.get('policies_count') or not limits.get('policy_statements_per_compartment_chain_count'):
+            self._emit_stage(
+                stage='Policy Limits Unavailable',
+                detail='Some policy limits could not be retrieved. Review API Calls or retry from Limits.',
+                state='warning',
+                on_stage=on_stage,
+            )
 
         if run_post_load_intelligence:
             self._run_post_load_with_stage(post_load_profile=post_load_profile, on_stage=on_stage)

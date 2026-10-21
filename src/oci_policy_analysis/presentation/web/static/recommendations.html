@@ -219,13 +219,14 @@
         <article id="cardLimits" class="card compact-card" data-help-title="Limits" data-help-body="Compartment policy statement limits across hierarchy paths.">
           <div class="card-title-row"><p class="card-title">Limits</p><button type="button" class="ghost back-to-top-btn" data-back-to-top>Back to top ↑</button></div>
           <p id="tenancyPolicyLimitsSummary" class="helper-text">Tenancy policy limits have not been loaded.</p>
-          <div id="tenancyPolicyLimitsEditor" class="inline-field" hidden>
+          <button type="button" id="openPolicyLimits" class="ghost">Policy limits…</button><dialog id="policyLimitsDialog"><h2>Tenancy Policy Limits</h2><p>Console: Governance &amp; Administration → Limits, Quotas and Usage → Identity in the tenancy home region.</p><p><code>oci limits value list --service-name identity --compartment-id &lt;tenancy-ocid&gt; --all --region &lt;home-region&gt;</code></p><div id="tenancyPolicyLimitsEditor" class="inline-field" hidden>
             <label for="policiesCountLimit" class="no-margin-label">policies-count</label>
             <input id="policiesCountLimit" type="number" min="1" step="1" inputmode="numeric" />
             <label for="chainCountLimit" class="no-margin-label">policy-statements-per-compartment-chain-count</label>
             <input id="chainCountLimit" type="number" min="1" step="1" inputmode="numeric" />
             <button id="saveTenancyPolicyLimits" type="button" class="ghost">Apply limits</button>
           </div>
+          <button type="button" id="closePolicyLimits">Close</button></dialog>
           <div class="table-shell"><div class="table-scroll custom-scrollbar" style="max-height: 220px"><table class="analysis-table" id="limitsTable"><thead><tr><th>Compartment Hierarchy Path</th><th>Direct</th><th>Cumulative</th><th>Status</th><th>Recommendation</th></tr></thead><tbody></tbody></table></div></div>
         </article>
       </section>
@@ -864,6 +865,8 @@
         policiesInput.value = policiesLimit || '';
         chainInput.value = chainLimit || '';
         editor.hidden = !limits.offline_editable;
+        document.getElementById('openPolicyLimits').onclick = () => { if(limits.offline_editable) document.getElementById('policyLimitsDialog').showModal(); else location.href='/policy-inventory.html'; };
+        document.getElementById('closePolicyLimits').onclick = () => document.getElementById('policyLimitsDialog').close();
       }
 
       async function saveTenancyPolicyLimits() {
@@ -880,6 +883,7 @@
           window.alert(error.detail || 'Unable to save tenancy policy limits.');
           return;
         }
+        document.getElementById('policyLimitsDialog').close();
         await loadDashboard();
       }
 

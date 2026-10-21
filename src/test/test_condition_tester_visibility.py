@@ -33,7 +33,6 @@ def test_workload_principals_filters_place_text_search_above_oke_controls():
 
     assert "Text Filter:'" in source
     assert 'grid(row=0, column=2' in source
-    assert 'grid(row=0, column=5' in source
     assert "OKE Service Account:'" in source
     assert 'grid(row=2, column=2' in source
     assert "OKE Cluster OCID:'" in source

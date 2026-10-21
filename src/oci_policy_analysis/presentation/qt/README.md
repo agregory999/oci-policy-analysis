@@ -51,9 +51,10 @@ framework merely to reduce a few repeated widget layouts.
 
 | Page or shared feature | Scope |
 | --- | --- |
-| Overview & settings | OCI profile/instance/resource principal, recursion and identity depth; named cache/export/CIS imports; grouped counts and data timestamp; collapsed settings sections. |
+| Overview & settings | OCI profile/instance principal, recursion and identity depth; named cache/export/CIS imports; grouped counts and data timestamp; collapsed settings sections. |
+| Policy inventory | Non-advanced compartment, policy, tag and tenancy-limit inventory. |
 | Policy browser | Live core filters and local text search; retained invalid statements; right-click details/copy/DG focus. |
-| Policy graph | Native principal → source grant → compartment graph; core search, pagination, conditions, exclusions and evidence inspector. Graph search uses its Search button or Enter. |
+| Policy graph | Native principal → source grant → compartment graph; live debounced search over all canonical and declared principals, conditions, exclusions and evidence inspector. All matching grants and related statements scroll without pagination; node selection fills the principal/path filters. |
 | Users / Groups | Group-based and user-based subtabs; live domain/name/OCID filters, multi-selection, per-user membership evidence (including unresolved group IDs), selected group members, related policy statements and right-click details. |
 | Dynamic groups | Known inventory, All/In Use/Not Used, exact domain/ID matching, multi-selection and related statements. |
 | Resource principals | any-user/any-group modes, resource type and principal-compartment selectors, exact DG multi-selection, OKE selectors, confidence and full evidence details. |
@@ -143,8 +144,20 @@ owned by the page so future draft editors need not lose unsaved work.
 - Tools is one left-nav destination with native `QTabWidget` tabs for Condition
   Tester, Reports, Maintenance and Logging. Logging opens the existing dock and
   Overview settings rather than creating another handler or settings copy.
-- Consolidation remains a planned destination. Maintenance implements only saved-cache
-  rename, lock/unlock and explicitly confirmed deletion.
+- Consolidation implements a four-stage workbench: Protect / Lock, Statements &
+  Strategy, Review plan, and Execution / History. Shared services persist protection,
+  plans, notes, and progress; checkbox IDs survive filtering. Console/CLI instructions
+  and rollback can be copied or exported. Live progress checks run in a retained worker,
+  gate competing tasks, and rebuild derived snapshot analysis after policy refresh.
+  OCI policy changes remain manual. Maintenance supports saved-cache rename,
+  lock/unlock and confirmed deletion, plus tenancy-specific consolidation reset.
+  Reset removes local protection/history/rollback snapshots and refreshes the active
+  workbench without changing OCI or inventory caches.
+- The Logs dock includes API Calls, a bounded, process-local journal independent of
+  log levels. The repository observes SDK HTTP attempts (including pagination and
+  retries) and retains timing, status, reason, and request IDs without bodies or
+  credentials. Collection errors remain errors; policy 404s explain possible stale
+  search results or insufficient authorization. Clear/restart discards the journal.
 
 For future controls, call `experience.bind_advanced(widget)` or
 `experience.bind_advanced_tab(tab_widget, index)` during page construction.
@@ -614,7 +627,7 @@ are in `docs/source/usage_tracking.md`.
 
 Overview restores the shared `named_profile`, `instance_principal`, `recursive`,
 `load_all_users` and `domain_compartment_depth` preferences at startup. Qt retains
-resource-principal selection in `qt_auth_mode`. Changes save after a short debounce;
+profile/instance-principal selection in `qt_auth_mode`. Changes save after a short debounce;
 an explicit OCI load or orderly close flushes pending edits. Unchanged controls do
 not overwrite newer settings written by another interface. All saves merge only
 the affected keys. No authentication or collection happens while restoring them.
@@ -637,3 +650,80 @@ and right-click inspection. Invalid reasons appear in a bounded, scrollable plai
 text summary above the fly-in tabs, with Validity expanded before Source. Records,
 conditions, invalid evidence and raw JSON are retained unchanged. No cache migration
 is needed.
+
+
+## Shared policy evidence and cross-tenancy
+
+Statement tables share combined compartment/policy labels, effective paths, and
+red italic styling for explicitly invalid rows. Right-click opens the retained
+source record. The drawer groups source evidence under Basic Details, keeps
+internal IDs and tags under Additional Details, hides empty optional fields, and
+opens Validity with bulleted reasons for invalid statements. Raw JSON remains
+complete, including fields omitted from the formatted display.
+
+The group-based Users / Groups view can filter groups by a known member's
+username or display name. Alternatives separated by `|` are ORed; other inventory
+filters are ANDed. Missing user or membership inventory cannot establish membership.
+This query lives in `PrincipalAnalysisService.filter_groups_by_user` for reuse.
+
+Cross-tenancy uses `CrossTenancyAnalysisService` and the current immutable corpus,
+matching the web and Tk interpretation. Select tenancy nodes, directed links,
+relationships, entities, or findings to narrow parsed source evidence. Graph
+selection filters without opening the details drawer. The combined Define, Admit,
+and Endorse table opens source details from its right-click menu; unresolved
+statements appear in Findings. The Entities / definitions tab labels local
+ownership with the tenancy name. **Generate single Cross-Tenancy Policy** orders
+valid, resolved statements as Define, Admit, then Endorse and reports omitted
+invalid, unresolved, and unclassified statements. Duplicate source occurrences
+remain separate. Local relationships do not establish that remote reciprocal
+policies exist.
+Local relationships do not establish that remote reciprocal policies exist.
+Recommendations' Cross-tenancy tab reads the same corpus findings; run analysis
+there to build findings when loading only query foundations. No cache schema
+migration is needed; these views do not rewrite source caches.
+
+
+The non-advanced Policy Inventory page shows compartment hierarchy counts,
+policies, source statements and tag values from the active snapshot. Select a
+compartment or policy to narrow the linked evidence; text search applies across
+all inventory tabs. Live OCI tenancy limits are fetched only when requested.
+Cached and CIS snapshots allow positive limits to be entered; applying them
+updates the active cache when one is named and refreshes Recommendations. A CIS
+load without a named cache retains that override only for the current session.
+
+Supported consolidation recommendations offer **Create consolidation plan…** on the row context menu. This opens Advanced Consolidation with currently eligible source IDs selected and the recommended strategy; protected, invalid, system, or missing IDs remain excluded. Review the selection and explicitly generate a plan to save it. Recommendation details display an expandable Evidence JSON tree.
+
+The Advanced **Live tenancy** controls include a saved **Policy loading** selector:
+Resource Search (default) or Compartment-based Policy Get. Both use the shared
+live-policy loader and identical parsing; the compartment option bypasses the
+policy search index. Recursive scope remains independent of identity-domain depth.
+The Logs dock can be resized without being constrained by the hidden pages' minimum
+heights. API Calls gives its table all available space by default; **Show details**
+or the row context menu opens a resizable details pane. Hide it again for more rows.
+
+Recommendations → Limits shares Policy Inventory's explicit live fetch. It requires
+policies live loaded in the current session and a Limits client. Offline snapshots
+instead offer Enter known limits, a validated modal with Console/CLI guidance and
+copyable commands. Both pages immediately reflect applied limits; named caches
+retain manual values, while exported/CIS files and global settings are unchanged.
+
+Live loads now fetch policy limits automatically before enrichment/cache saving
+regardless of the analysis profile; unavailable limits remain unknown with a load
+warning. Both limit views populate immediately. Inventory uses the same modal as
+Recommendations for manual entry, with no separate inline editors. Recommendations
+shows one summary; its extra feedback row is reserved for progress or errors.
+
+
+### Tag-Based Policies (Advanced)
+
+The application window is titled **OCI Policy Analysis · Preview**. Advanced navigation
+includes **Tag-Based Policies**, with searchable statements, parsed tag predicates and a
+snapshot defined-tag catalog. Scope, namespace, key and value filters apply to the same
+predicate. Invalid statements and unparsed references remain visible; details retain the
+complete source condition. Select a row to populate the Condition Tester with the full
+condition or a selected tag predicate. Evaluation requires user-supplied values and does
+not establish OCI authorization. Tag-based consolidation is deferred.
+
+Desktop loading offers profiles/session tokens and Instance Principal. Stale saved Resource
+Principal selections fall back to profiles. Container web/MCP authentication is unchanged.
+The legacy desktop OCI GenAI query pane and configuration were removed in 7.0.

@@ -36,6 +36,7 @@ def build_policy_search_from_filters(
     compartment_path: str | None = None,
     statement_text: str | None = None,
     policy_name: str | None = None,
+    policy_ocid: str | None = None,
     effective_path: str | None = None,
     conditions: str | None = None,
     valid: bool | None = None,
@@ -53,6 +54,7 @@ def build_policy_search_from_filters(
         compartment_path: Compartment path filter value.
         statement_text: Statement text filter value.
         policy_name: Policy name filter value.
+        policy_ocid: Exact opaque policy identifiers; pipe-delimited alternatives.
         effective_path: Effective path filter value.
         conditions: Conditions filter value.
         valid: Optional validity filter.
@@ -92,6 +94,8 @@ def build_policy_search_from_filters(
         filters['compartment_path'] = _split_pipe(compartment_path)
     if statement_text:
         filters['statement_text'] = _split_pipe(statement_text)
+    if policy_ocid:
+        filters['policy_ocid'] = _split_pipe(policy_ocid)
     if policy_name:
         filters['policy_name'] = _split_pipe(policy_name)
     if effective_path:
@@ -149,6 +153,10 @@ def build_policy_search_from_dict(payload: dict[str, object]) -> PolicySearch:
         valid=payload.get('valid') if isinstance(payload.get('valid'), bool) else None,
     )
 
+    policy_ids = _as_str_list(payload.get('policy_ocid'))
+    if policy_ids:
+        filters['policy_ocid'] = policy_ids
+
     principal = payload.get('principal')
     if isinstance(principal, dict):
         filters['principal'] = principal
@@ -184,3 +192,34 @@ def build_policy_search_from_dict(payload: dict[str, object]) -> PolicySearch:
             filters[field] = values  # type: ignore[literal-required]
 
     return filters
+
+
+def build_policy_search_from_saved_search(record: dict[str, object]) -> PolicySearch:
+    """Read canonical, legacy Tkinter or legacy web saved-search records.
+
+    Args:
+        record: A saved entry with filters, raw_json or search fields.
+
+    Returns:
+        PolicySearch: Normalized shared filters. The original record is unchanged.
+
+    Raises:
+        ValueError: A legacy JSON override is malformed or is not an object.
+    """
+    import json
+
+    payload = record.get('filters')
+    if not isinstance(payload, dict):
+        raw = record.get('raw_json')
+        if isinstance(raw, str) and raw.strip():
+            payload = json.loads(raw)
+            if not isinstance(payload, dict):
+                raise ValueError('Saved JSON search must contain an object.')
+        else:
+            payload = record.get('search') or {}
+    if not isinstance(payload, dict):
+        raise ValueError('Saved search filters must contain an object.')
+    payload = dict(payload)
+    if payload.get('valid') in ('true', 'false'):
+        payload['valid'] = payload['valid'] == 'true'
+    return build_policy_search_from_dict(payload)

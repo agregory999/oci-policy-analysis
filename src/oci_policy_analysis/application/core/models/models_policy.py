@@ -103,6 +103,7 @@ class PolicySearch(TypedDict, total=False):
     ]
     statement_text: Annotated[list[str], 'Statement text substrings.']
     policy_name: Annotated[list[str], 'Policy names.']
+    policy_ocid: Annotated[list[str], 'Exact, opaque policy identifiers.']
     compartment_path: Annotated[list[str], "Policy compartment paths; 'ROOTONLY' means root policies."]
     resource: Annotated[list[str], 'Policy resource types.']
     location: Annotated[

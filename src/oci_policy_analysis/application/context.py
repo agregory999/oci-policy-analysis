@@ -12,7 +12,7 @@ from oci_policy_analysis.application.core.engine import (
     PolicyIntelligenceEngine,
     PolicySimulationEngine,
 )
-from oci_policy_analysis.application.core.repo import AI, PolicyAnalysisRepository, ReferenceDataRepo
+from oci_policy_analysis.application.core.repo import PolicyAnalysisRepository, ReferenceDataRepo
 from oci_policy_analysis.application.core.support.caching import CacheManager
 from oci_policy_analysis.application.core.support.logger import set_component_level, set_log_level
 from oci_policy_analysis.application.services.cache_service import CacheService
@@ -36,7 +36,6 @@ class AppContext:
         intelligence: Engine holding validation findings and intelligence overlays.
         simulation: Engine for request-context analysis and prospective statements.
         cache: Persistent repository snapshot manager.
-        ai: Optional AI integration repository.
         cache_service: Cache import/export operations over the snapshot manager.
         settings_service: Settings access and persistence facade.
         reference_data_service: Query facade for bundled reference mappings.
@@ -58,7 +57,6 @@ class AppContext:
     intelligence: PolicyIntelligenceEngine
     simulation: PolicySimulationEngine
     cache: CacheManager
-    ai: AI
     cache_service: CacheService
     settings_service: SettingsService
     reference_data_service: ReferenceDataService
@@ -122,7 +120,6 @@ class AppContext:
         cast(Any, policy_repo).settings = settings
         cast(Any, policy_repo).permission_reference_repo = reference_data
 
-        ai = AI()
         simulation = PolicySimulationEngine(policy_repo=policy_repo, ref_data_repo=reference_data)
         intelligence = PolicyIntelligenceEngine(policy_repo)
 
@@ -139,7 +136,6 @@ class AppContext:
             intelligence=intelligence,
             simulation=simulation,
             cache=cache,
-            ai=ai,
             cache_service=cache_service,
             settings_service=settings_service,
             reference_data_service=reference_data_service,

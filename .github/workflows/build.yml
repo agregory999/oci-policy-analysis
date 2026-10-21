@@ -386,9 +386,18 @@ jobs:
           - os: macos-latest
             platform: macos
             architecture: arm64
+            mode: standalone
+            nuitka_mode: app-dist
           - os: windows-latest
             platform: windows
             architecture: x64
+            mode: standalone
+            nuitka_mode: app-dist
+          - os: windows-latest
+            platform: windows
+            architecture: x64
+            mode: onefile
+            nuitka_mode: onefile
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
@@ -412,34 +421,35 @@ jobs:
           node scripts/prepare_release_version.cjs "$RELEASE_VERSION"
           python -m pip install -e '.[qt,qt-build,web,mcp]'
           python -m pip check
-          python run-build/build_qt_executable.py --prepare-only
+          python run-build/build_qt_executable.py --mode '${{ matrix.mode }}' --prepare-only
       - name: Compile Qt workbench with Nuitka
         uses: Nuitka/Nuitka-Action@bb65ca8023bef5f41a2114acd387b5f36d860145
         with:
           nuitka-version: '4.2.2'
           script-name: run-build/qt_entry.py
-          mode: app-dist
-          output-dir: build/qt/standalone/native
+          mode: ${{ matrix.nuitka_mode }}
+          output-dir: build/qt/${{ matrix.mode }}/native
           output-file: oci-policy-analysis-qt${{ runner.os == 'Windows' && '.exe' || '' }}
           jobs: 3
-          caching-key: qt-nuitka-4.2.2
+          caching-key: qt-nuitka-4.2.2${{ matrix.mode == 'onefile' && '-onefile' || '' }}
       - name: Verify native executable and archive it
-        run: python run-build/build_qt_executable.py --package-only
+        run: python run-build/build_qt_executable.py --mode '${{ matrix.mode }}' --package-only
       - name: Upload verified Qt application
         uses: actions/upload-artifact@v6
         with:
-          name: oci-policy-analysis-qt-${{ matrix.platform }}
+          name: oci-policy-analysis-qt-${{ matrix.platform }}-${{ matrix.mode }}
           path: |
             dist/qt/*.zip
             dist/qt/*.tar.gz
-            dist/qt/build-result-standalone.json
+            dist/qt/*-onefile.exe
+            dist/qt/build-result-${{ matrix.mode }}.json
           if-no-files-found: error
           retention-days: 30
       - name: Upload Nuitka diagnostic report
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: qt-nuitka-report-${{ matrix.platform }}
+          name: qt-nuitka-report-${{ matrix.platform }}-${{ matrix.mode }}
           path: build/qt/nuitka-report.xml
           if-no-files-found: ignore
           retention-days: 7

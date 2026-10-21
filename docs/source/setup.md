@@ -76,7 +76,6 @@ These policies grant read/inspect access for analysis - OCI Policy Analysis does
 
 An OCI administrator must grant the policy to the identity that runs the tool, in the tenancy being analyzed. Use the policy that matches your principal:
 
-**NOTE:** `generative-ai-family` is needed only for AI features in the desktop tool. Omit it when those features are not used. 
 
 ### User principal: API-key profile or session token
 
@@ -84,7 +83,6 @@ For a workstation user authenticated through an OCI API-key profile or session t
 
 ```text
 allow group <your_group> to {POLICY_READ, COMPARTMENT_INSPECT, DOMAIN_INSPECT, DYNAMIC_GROUP_INSPECT, GROUP_INSPECT, USER_INSPECT, LIMITS_VIEW_INSPECT} in tenancy
-allow group <your_group> to use generative-ai-family in tenancy
 ```
 
 ### Instance principal
@@ -93,7 +91,6 @@ For an application running on an OCI Compute VM, grant the equivalent policy to 
 
 ```text
 allow dynamic-group <your_dynamic_group> to {POLICY_READ, COMPARTMENT_INSPECT, DOMAIN_INSPECT, DYNAMIC_GROUP_INSPECT, GROUP_INSPECT, USER_INSPECT, LIMITS_VIEW_INSPECT} in tenancy
-allow dynamic-group <your_dynamic_group> to use generative-ai-family in tenancy
 ```
 You must have or create a dynamic group, based on the OCI Instance OCID or Compartment OCID of the instance.  This dynamic group then receives the permission above.
 
@@ -128,9 +125,7 @@ The downloadable macOS and Windows applications are available from the [Releases
 
 For a source checkout, optional helpers create or reuse the environment and run desktop mode: `./local-build.sh --mode desktop` and `./local-run.sh --mode desktop` on macOS/Linux, or `./local-build.ps1 --mode desktop` and `./local-run.ps1 --mode desktop` in PowerShell.
 
-### Optional AI Assist
-
-OCI GenAI assistance is an optional desktop preview. It is disabled by default and is not needed for policy analysis. See [Optional AI Assist](optional_ai_assist.md) when you want to enable and configure it.
+The legacy desktop OCI Generative AI integration was removed in 7.0. Desktop analysis requires no model configuration or Generative AI permissions. MCP and Assistant integrations remain available.
 
 ## Web application
 
@@ -193,13 +188,13 @@ export OCI_AD=<availability-domain>
 ./local-deploy-mcp-container-instance.sh
 ```
 
-The image listens on port `8765` using streamable HTTP. Its environment variables are `MCP_AUTH_MODE` (`resource_principal`, `instance_principal`, `profile`, `cache`, or `session_token`), `MCP_TRANSPORT`, `MCP_HOST`, `MCP_PORT`, `MCP_LOG_LEVEL`, `MCP_RECURSIVE`, `MCP_SAVE_CACHE_AFTER_LOAD`, and `MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH`. The deployment defaults to live data, resource-principal authentication, no cache save, and identity-domain search depth `1`; set `MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH=2` when identity domains exist in child compartments. Confirm startup in the logs, then validate from a reachable host:
+The image listens on port `8765` using streamable HTTP. Its environment variables are `MCP_AUTH_MODE` (`resource_principal`, `instance_principal`, `profile`, `cache`, or `session_token`), `MCP_TRANSPORT`, `MCP_HOST`, `MCP_PORT`, `MCP_LOG_LEVEL`, `MCP_RECURSIVE`, `MCP_SAVE_CACHE_AFTER_LOAD`, and `OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH`. The deployment defaults to live data, resource-principal authentication, no cache save, and identity-domain search depth `1`; set `OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH=2` when identity domains exist in child compartments. Confirm startup in the logs, then validate from a reachable host:
 
 ```bash
 curl -sS http://<container-instance-private-ip>:8765/health
 ```
 
-For a public or team endpoint, place an OCI Load Balancer or API Gateway in front of the private instance, use HTTPS, and health-check `/health`. To test locally before push, run `docker build -f Dockerfile.mcp -t opa-mcp:local .`, then `docker run --rm -p 8765:8765 opa-mcp:local` and request `http://127.0.0.1:8765/health`. OCI Container Instances require redeployment for runtime environment-variable changes. For OAuth, see the [MCP OAuth guide](mcp_oauth.md).
+For a public or team endpoint, place an OCI Load Balancer or API Gateway in front of the private instance, use HTTPS, and health-check `/health`. To test locally before push, run `docker build --target mcp -t opa-mcp:local .`, then `docker run --rm -p 8765:8765 opa-mcp:local` and request `http://127.0.0.1:8765/health`. OCI Container Instances require redeployment for runtime environment-variable changes. For OAuth, see the [MCP OAuth guide](mcp_oauth.md).
 
 ## Troubleshooting
 

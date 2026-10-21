@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from typing import Literal
+from uuid import uuid4
 
 from oci_policy_analysis.application.core.common.consolidation_helpers import (
     flatten_defined_tags,
@@ -358,9 +359,9 @@ class ConsolidationEngine:
             )
 
     def _new_plan_id(self, tenancy_ocid: str, candidate_ids: set[str], strategy: str) -> str:
-        """Generate a stable-ish plan id from tenancy suffix, timestamp, and strategy hash."""
+        """Give every saved run a distinct opaque ID, including rapid repeated proposals."""
         ts = datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')
-        return f'{tenancy_ocid[-6:]}-{ts}-{abs(hash(strategy)) % 10000:04d}'
+        return f'{tenancy_ocid[-6:]}-{ts}-{abs(hash(strategy)) % 10000:04d}-{uuid4().hex[:12]}'
 
     # ---- Rendering (execution + rollback) ----
 

@@ -1,27 +1,22 @@
-.git
-run/.env
-run/.container-private-ip
-run/.container-instance-id
-.github
-.venv
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-*.swp
-*.log
-dist/
-build/
-docs/_build/
-node_modules/
-private/
-old/
-usage-par.txt
-OCI Policy Analysis.spec
+# Source builds need only package inputs and container launch scripts.
+# Keep operator configuration, credentials, caches and deployment state out.
+**
+!pyproject.toml
+!README.md
+!src/
+!src/**
+!docker/
+!docker/*-entrypoint.sh
 
-
-# Shared operator configuration and generated deployment state
-run-build/.env
-run-build/*.json
-env.sh
-run/container.env
+# Non-package inputs and generated/local files within src/.
+src/test/
+src/sample/
+**/__pycache__/
+**/*.py[cod]
+**/*.egg-info/
+**/.DS_Store
+**/.env
+**/.env.*
+**/.oci/
+**/.oci-policy-analysis/
+**/*.log

@@ -19,7 +19,7 @@ Choose only the workflow you need:
 | Combined deployment | Same as deployment, with both distinct image tags. |
 | OAuth | Only when enabled: the six commented identity-domain values. |
 
-Optional settings are commented out and show their defaults. The file sets just two MCP runtime choices: domain depth and log level. Choose the interface in the command instead of another mode setting. `OCI_DRY_RUN=true` and `OCI_REDEPLOY=true` are one-run actions rather than persistent configuration choices.
+Optional settings are commented out and show their defaults. The file sets a shared web/MCP domain depth and the MCP log level. Choose the interface in the command instead of another mode setting. `OCI_DRY_RUN=true` and `OCI_REDEPLOY=true` are one-run actions rather than persistent configuration choices.
 
 The file is trusted shell configuration: quote values containing spaces or shell characters. The loader exports assignments; `export` is optional. Exported one-run environment values override the file, and explicit application command flags override defaults. Web/desktop preferences stay in `~/.oci-policy-analysis/settings.json` and the application's settings screens.
 
@@ -37,14 +37,14 @@ LOCAL_MCP_TRANSPORT=streamable-http run/local.sh mcp --profile DEFAULT
 
 MCP defaults to stdio locally. Explicit authentication flags select the identity; without a flag, standalone MCP uses `MCP_AUTH_MODE` (default profile) and the local profile. Installed commands remain `oci-policy-analysis-ui`, `oci-policy-analysis-cli`, `oci-policy-analysis-web`, and `oci-policy-analysis-mcp`. Direct commands read exported environment values; they do not source `.env` automatically.
 
-`MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH=2` is the **only MCP depth variable**. It means root plus direct child compartments; 1 means root only, 3 includes grandchildren, maximum 6. The container entrypoint turns it into `--compartment-domain-search-depth`; the standalone MCP command reads the same name. An explicit command flag wins. The former `OCI_POLICY_ANALYSIS_DOMAIN_COMPARTMENT_DEPTH` is not consumed or forwarded by this workflow. Web/desktop depth is managed through their existing settings, and CLI depth can be selected with its flag.
+`OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH=2` is the single identity-domain depth variable for both web and MCP containers. It means root plus direct child compartments; 1 means root only, 3 includes grandchildren, maximum 6. Web uses it as a runtime override and shows the effective value without saving it as a UI preference. MCP uses it as its default; an explicit command flag wins. The entrypoint also translates it to the stable MCP command flag for pinned published releases. `MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH` and `OCI_POLICY_ANALYSIS_DOMAIN_COMPARTMENT_DEPTH` are no longer consumed or forwarded. Desktop preferences and the CLI flag retain their existing behavior. Published web releases must support the shared override to use it.
 
 Containers receive only their own launch settings:
 
 | Container | Runtime environment |
 | --- | --- |
-| Web | `WEB_RESOURCE_PRINCIPAL_ONLY`, `WEB_HOST`, `WEB_PORT` |
-| MCP | `MCP_AUTH_MODE`, `MCP_TRANSPORT`, `MCP_HOST`, `MCP_PORT`, `MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH`, `MCP_LOG_LEVEL` |
+| Web | `WEB_RESOURCE_PRINCIPAL_ONLY`, `WEB_HOST`, `WEB_PORT`, `OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH` |
+| MCP | `MCP_AUTH_MODE`, `MCP_TRANSPORT`, `MCP_HOST`, `MCP_PORT`, `OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH`, `MCP_LOG_LEVEL` |
 
 Authentication, transport and bind addresses are filled automatically for containers. OAuth variables enter MCP only when OAuth is enabled; optional MCP recursion/cache controls enter only when explicitly configured. No UI preferences, diagnostics paths, operator credentials or general-purpose settings bundle is forwarded.
 
@@ -97,8 +97,12 @@ with `brew install ccache` on macOS. Removing `dist/` does not clear compiler ca
 The GitHub `build_qt` matrix uses the pinned official Nuitka action, persists its
 cache, and smoke-tests macOS arm64 and Windows x64 bundles before attaching their
 archives to the same semantic-release prerelease as the Tkinter installers.
-On Windows, extract the entire Qt ZIP and run `oci-policy-analysis-qt/oci-policy-analysis-qt.exe`;
-keep its adjacent DLLs and resource folders together.
+Windows releases include both standalone and onefile Qt builds. For standalone,
+extract the entire Qt ZIP and run `oci-policy-analysis-qt/oci-policy-analysis-qt.exe`;
+keep its adjacent DLLs and resource folders together. Alternatively, download
+`oci-policy-analysis-qt-onefile.exe` directly from the release and run it. Nuitka
+extracts its embedded runtime internally; the onefile build uses the same offline
+Qt/MCP startup checks as standalone.
 
 `run/clean.sh` deliberately removes `.venv`, `dist`, `build`, `wheels`, generated dependency lists and source Python caches. It preserves configuration, signing keys and application data. Build again afterward. Root `local-run.sh`, `local-build.sh`, `local-clean.sh`, `local-build-with-pyinstaller.sh`, and MCP build/deploy shell/PowerShell names are compatibility adapters into `run/`; they use the same configuration. Native Windows commands are `run/local.ps1`, `run/build.ps1`, `run/clean.ps1`, and `run/build-executable.ps1`; they read the same literal assignments in the shared file. PowerShell container adapters require Bash. PowerShell configuration supports literal quoted values, not shell expansion/command substitution. The ignored old `env.sh` is no longer sourced by these commands.
 
@@ -114,7 +118,7 @@ run/build-push-image.sh mcp
 run/build-push-image.sh combined
 ```
 
-`Dockerfile` has web and mcp targets and installs this checkout, never a published application wheel. Dockerfile.mcp remains compatible for direct legacy builds; consolidated scripts use Dockerfile targets. `BUILD_PLATFORM` defaults to linux/amd64. OCI image lookup checks tag existence; an existing tag is refused unless `ALLOW_TAG_REPUSH=true` is intentional. Reusing tags makes rollback ambiguous and may not trigger replacement: prefer fresh tags. Build validates Docker, OCI access, and repository existence; Docker push uses the operator's existing registry login and reports authentication failures. No repository or credentials are created.
+`Dockerfile` has web and mcp targets and installs this checkout, never a published application wheel. Both source and PyPI images use Python 3.12, matching release CI. The old `Dockerfile.mcp` and `Dockerfile.web.local` have been removed; direct builds use `docker build --target mcp -t opa-mcp:local .` or `--target web`. Both paths use the launch scripts in `docker/`. `BUILD_PLATFORM` defaults to linux/amd64. OCI image lookup checks tag existence; an existing tag is refused unless `ALLOW_TAG_REPUSH=true` is intentional. Reusing tags makes rollback ambiguous and may not trigger replacement: prefer fresh tags. Build validates Docker, OCI access, and repository existence; Docker push uses the operator's existing registry login and reports authentication failures. No repository or credentials are created.
 
 ## Build and push a published PyPI release
 
@@ -169,7 +173,7 @@ Record the two prior image tags and runtime settings before replacement. To roll
 ```bash
 uv sync --extra web --extra mcp
 .venv/bin/python -m pytest -q src/test/test_runtime_environment.py src/test/test_web_resource_principal.py
-.venv/bin/ruff check src/oci_policy_analysis/runtime_settings.py run/container-config.py
+.venv/bin/ruff check run/container-config.py
 python3 scripts/check_project.py .
 ```
 
@@ -190,6 +194,19 @@ These are supported when needed but intentionally absent from the short example.
 - Advanced OAuth: `MCP_OAUTH_UPDATE_SCOPE`, `MCP_OAUTH_AUTHORIZATION_SCOPES`, `MCP_OAUTH_AUTHORIZATION_SERVER_METADATA_ISSUER`, `MCP_OAUTH_AUTHORIZATION_ENDPOINT`, `MCP_OAUTH_TOKEN_ENDPOINT`, and `MCP_OAUTH_ALGORITHM` (default RS256). These are forwarded only with OAuth enabled. See [OAuth configuration](../docs/source/mcp_oauth.md).
 
 Diagnostics and UI preferences are not part of deployment configuration. Use the existing application controls and [troubleshooting guide](../docs/source/logging_and_troubleshooting.md) for those.
+
+## Repository maintenance scripts
+
+`scripts/` contains checks and generation helpers, not run/deploy entry points:
+
+- `check_project.py`: verify the maintained project structure and ignored operator configuration.
+- `check_desktop_imports.py`: exercise desktop and embedded MCP imports before freezing installers.
+- `check_public_docstrings.py`: check public Python docstring coverage.
+- `prepare_release_version.cjs`: convert semantic-release versions to Python versions in `pyproject.toml`.
+- `regenerate_antlr_parsers.sh`: regenerate checked-in parsers from the grammars using Java and the ANTLR 4.13.2 jar. Obtain that jar separately in the grammar resources directory; it is ignored by Git. Generated parsers are excluded from Ruff and pre-commit checks.
+- `__init__.py`: allow maintenance helpers to be imported by tests.
+
+`AGENTS.md` contains the shared contributor guidance; the obsolete `.cline.yaml` template has been removed.
 
 
 ## Local packaging comparisons

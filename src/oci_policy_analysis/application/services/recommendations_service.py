@@ -14,6 +14,7 @@ from oci_policy_analysis.application.context import AppContext
 from oci_policy_analysis.application.core.common.consolidation_opportunities import build_consolidation_opportunities
 from oci_policy_analysis.application.core.engine.recommendation_actions import overly_broad_statement_guidance
 from oci_policy_analysis.application.core.support.logger import get_logger
+from oci_policy_analysis.application.services.policy_limits_service import PolicyLimitsService
 
 
 class RecommendationsService:
@@ -172,15 +173,15 @@ class RecommendationsService:
     def _cross_tenancy_rows(self) -> list[dict[str, Any]]:
         """Return cross-tenancy findings with concise display fields and full evidence."""
         overlay = getattr(self.context.intelligence, 'overlay', {}) or {}
-        return [dict(row) for row in (overlay.get('cross_tenancy_findings', []) or [])]
+        corpus = getattr(self.context, 'cross_tenancy_corpus', None)
+        findings = corpus.project().get('findings', []) if corpus else overlay.get('cross_tenancy_findings', [])
+        return [dict(row) for row in (findings or [])]
 
     def _tenancy_policy_limits_payload(self, *, fetch_limits: bool = True) -> dict[str, Any]:
         """Return snapshot-specific limits and whether this source may edit them."""
         repo = self.context.policy_repo
         limits = dict(getattr(repo, 'tenancy_policy_limits', {}) or {})
-        offline_editable = bool(
-            getattr(repo, 'current_cache_name', '') or getattr(repo, 'loaded_from_compliance_output', False)
-        )
+        offline_editable = not PolicyLimitsService(self.context).is_live_loaded
         if fetch_limits and not offline_editable and getattr(repo, 'limits_client', None) and not limits:
             repo.fetch_tenancy_policy_statement_limits()
             limits = dict(getattr(repo, 'tenancy_policy_limits', {}) or {})
@@ -457,7 +458,7 @@ class RecommendationsService:
             direct = int(comp.get('statement_count_direct', 0) or 0)
             if not chain_limit:
                 status = 'Limit Not Supplied'
-                rec = 'Enter policy-statements-per-compartment-chain-count in Policy Browser to assess this hierarchy.'
+                rec = 'Supply this tenancy’s policy-statements-per-compartment-chain-count value to assess this hierarchy.'
             elif cumulative > chain_limit:
                 status = 'Over Limit'
                 rec = 'Reduce or consolidate policy statements in this hierarchy to avoid enforcement errors.'

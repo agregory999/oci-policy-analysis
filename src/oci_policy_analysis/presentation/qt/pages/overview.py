@@ -69,14 +69,14 @@ class OverviewSettingsPage(QScrollArea):
             self.advanced_mode = QCheckBox('Advanced mode')
             self.advanced_mode.setChecked(experience.advanced)
             self.advanced_mode.setAccessibleDescription(
-                'Show MCP & assistant, prospective statements, simulation, consolidation and advanced tools.'
+                'Show MCP & assistant, prospective statements, simulation, tag-based policies, consolidation and advanced tools.'
             )
             self.advanced_mode.toggled.connect(experience.set_advanced)
             experience.changed.connect(self.advanced_mode.setChecked)
             controls.addWidget(self.advanced_mode)
             controls.addWidget(
                 _label(
-                    'Standard mode keeps everyday browsing and recommendations easy to find. Enable advanced mode for MCP & assistant, what-if policy editing, simulation, consolidation and maintenance. You can switch back without reloading data.',
+                    'Standard mode keeps everyday browsing and recommendations easy to find. Enable advanced mode for MCP & assistant, what-if policy editing, simulation, tag-based policies, consolidation and maintenance. You can switch back without reloading data.',
                     'muted',
                     wrap=True,
                 )
@@ -86,6 +86,10 @@ class OverviewSettingsPage(QScrollArea):
             controls.addWidget(self.mode_status)
             layout.addWidget(mode)
         layout.addWidget(self._load_controls())
+        if experience is not None:
+            experience.bind_advanced(self.policy_loading_controls)
+        else:
+            self.policy_loading_controls.hide()
         self.load_settings_status = _label('Connection and scope preferences are saved locally.', 'muted', wrap=True)
         layout.addWidget(self.load_settings_status)
         for signal in (
@@ -94,6 +98,7 @@ class OverviewSettingsPage(QScrollArea):
             self.recursive.toggled,
             self.load_all_users.toggled,
             self.depth.valueChanged,
+            self.policy_load_method.currentIndexChanged,
         ):
             signal.connect(self._load_preferences_changed)
         self.results = self._overview_page()
@@ -143,7 +148,6 @@ class OverviewSettingsPage(QScrollArea):
         for title, mode in [
             ('OCI config profile', 'profile'),
             ('Instance principal', 'instance_principal'),
-            ('Resource principal', 'resource_principal'),
         ]:
             self.auth.addItem(title, mode)
         row.addWidget(self.auth)
@@ -159,7 +163,7 @@ class OverviewSettingsPage(QScrollArea):
         mode = self.settings.get('qt_auth_mode')
         if self.settings.get('instance_principal', False):
             mode = 'instance_principal'
-        elif mode != 'resource_principal':
+        elif mode != 'profile':
             mode = 'profile'
         self.auth.setCurrentIndex(self.auth.findData(mode))
         self.profile.setEnabled(mode == 'profile')
@@ -194,6 +198,23 @@ class OverviewSettingsPage(QScrollArea):
         scope.addWidget(self.depth)
         scope.addStretch()
         layout.addLayout(scope)
+        self.policy_loading_controls = QWidget()
+        policy_loading = QHBoxLayout(self.policy_loading_controls)
+        policy_loading.setContentsMargins(0, 0, 0, 0)
+        self._responsive_rows.append(policy_loading)
+        policy_loading.addWidget(_label('Policy loading'))
+        self.policy_load_method = QComboBox()
+        self.policy_load_method.addItem('Resource Search', 'resource_search')
+        self.policy_load_method.addItem('Compartment-based Policy Get', 'compartment')
+        self.policy_load_method.setCurrentIndex(
+            max(0, self.policy_load_method.findData(self.settings.get('policy_load_method', 'resource_search')))
+        )
+        self.policy_load_method.setToolTip(
+            'Resource Search can lag recent changes. Compartment-based loading lists policies directly in each selected compartment, then fetches their details. The saved choice applies to live loads in either display mode.'
+        )
+        policy_loading.addWidget(self.policy_load_method)
+        policy_loading.addStretch()
+        layout.addWidget(self.policy_loading_controls)
         layout.addWidget(self._separator())
         layout.addWidget(_label('02  Saved data · Cache or exported snapshot', 'eyebrow'))
         actions = QHBoxLayout()
@@ -370,6 +391,7 @@ class OverviewSettingsPage(QScrollArea):
                 'instance_principal': self.auth.currentData() == 'instance_principal',
                 'recursive': self.recursive.isChecked(),
                 'load_all_users': self.load_all_users.isChecked(),
+                'policy_load_method': self.policy_load_method.currentData(),
                 'domain_compartment_depth': self.depth.value(),
             }
         )
@@ -383,6 +405,7 @@ class OverviewSettingsPage(QScrollArea):
                     'recursive',
                     'load_all_users',
                     'domain_compartment_depth',
+                    'policy_load_method',
                 ),
             )
             self._load_preferences_dirty = False
@@ -400,6 +423,7 @@ class OverviewSettingsPage(QScrollArea):
             'recursive': self.recursive.isChecked(),
             'depth': self.depth.value(),
             'load_all_users': self.load_all_users.isChecked(),
+            'policy_load_method': self.policy_load_method.currentData(),
         }
 
     def load_sample(self) -> None:
@@ -445,6 +469,7 @@ class OverviewSettingsPage(QScrollArea):
             self.recursive,
             self.load_all_users,
             self.depth,
+            self.policy_load_method,
             self.load_button,
             self.open_button,
             self.sample_button,
@@ -492,8 +517,10 @@ class OverviewSettingsPage(QScrollArea):
         self.coverage.setPlainText(
             f'Snapshot type: {getattr(repo, "snapshot_kind", None) or "Not recorded"}\n'
             f'Policy collection scope: {traversal}\n'
+            f'Policy loading method: {getattr(repo, "policy_load_method", None) or "Not recorded"}\n'
             f'Identity domain depth: {getattr(repo, "compartment_domain_search_depth", None) or "Not recorded"}\n'
             f'Inventory completeness: {completeness}\n'
             f'Collection errors reported: {len(warnings)} (not a completeness guarantee)\n'
+            'Detailed call results: View → Logs → API Calls (current application session only)\n'
             f'Analysis: {context.settings.get("qt_post_load_profile", "minimal")}'
         )

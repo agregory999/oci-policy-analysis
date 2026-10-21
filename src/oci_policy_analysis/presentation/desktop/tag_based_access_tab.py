@@ -40,6 +40,7 @@ visualizes tag-focused data.
 from __future__ import annotations
 
 import hashlib
+import json
 import tkinter as tk
 from dataclasses import dataclass
 from tkinter import messagebox, ttk
@@ -307,12 +308,15 @@ class TagBasedAccessTab(BaseUITab):
         for pidx, pst in enumerate(prospective_statements, start=1):
             all_statements.append((f'p{pidx}', pst))
 
-        for stmt_id, stmt in all_statements:
-            TagBasedPolicyService.enrich_statement(stmt)
+        for stmt_id, original in all_statements:
+            inventory = TagBasedPolicyService.inventory([original])
+            if not inventory['statements']:
+                continue
+            stmt = inventory['statements'][0]
             cond_text = str(stmt.get('conditions') or '').strip()
             tag_conds = [dict(cond) for cond in (stmt.get('tag_conditions') or []) if isinstance(cond, dict)]
             if not tag_conds:
-                continue
+                tag_conds = [{'access_type': 'Unparsed tag reference', 'subexpression': cond_text}]
 
             # Build a display-friendly row using the shared helper so the
             # column names remain consistent with other tabs.
@@ -336,6 +340,10 @@ class TagBasedAccessTab(BaseUITab):
                 'Raw Condition': cond_text,
                 'Parsed Condition Structure': str(stmt.get('conditions_parsed_structure') or cond_text),
                 '_Statement ID': stmt_id,
+                'Valid': stmt.get('valid'),
+                'Invalid Reasons': stmt.get('invalid_reasons') or stmt.get('invalid_reason') or [],
+                'Parse Status': 'Parsed' if stmt.get('tag_conditions') else 'Unparsed tag reference',
+                '_source_statement': stmt,
             }
             statement_rows.append(row)
 
@@ -681,6 +689,7 @@ class TagBasedAccessTab(BaseUITab):
                 return tk.Menu(self.statement_table, tearoff=0)
 
             menu = tk.Menu(self.statement_table, tearoff=0)
+            menu.add_command(label='Statement details', command=lambda r=row: self._show_source_details(r))
             menu.add_command(
                 label='Show in condition tester',
                 command=lambda r=row: self._on_statement_show_in_condition_tester(r),
@@ -690,6 +699,25 @@ class TagBasedAccessTab(BaseUITab):
         # Wire the callback onto the DataTable so its internal
         # _show_context_menu method invokes our menu provider.
         self.statement_table.row_context_menu_callback = _statement_row_menu
+
+    def _show_source_details(self, row):
+        popup = tk.Toplevel(self)
+        popup.title('Tag-Based Statement Details')
+        popup.geometry('900x620')
+        if row.get('Valid') is False:
+            reasons = row.get('Invalid Reasons') or ['No invalid reason recorded.']
+            reasons = reasons if isinstance(reasons, list) else [reasons]
+            ttk.Label(
+                popup,
+                text='Invalid statement\n' + '\n'.join('• ' + str(reason) for reason in reasons),
+                wraplength=850,
+                justify='left',
+            ).pack(fill='x', padx=12, pady=8)
+        ttk.Label(popup, text=row.get('Parse Status', ''), justify='left').pack(anchor='w', padx=12)
+        output = tk.Text(popup, wrap='word')
+        output.insert('1.0', json.dumps(row.get('_source_statement') or row, indent=2, default=str))
+        output.configure(state='disabled')
+        output.pack(fill='both', expand=True, padx=12, pady=8)
 
     def _build_condition_detail_table(self, parent: ttk.LabelFrame) -> None:
         """Create the condition-element :class:`DataTable` (Table 2).

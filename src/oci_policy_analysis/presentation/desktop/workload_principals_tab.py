@@ -265,29 +265,6 @@ class WorkloadPrincipalsTab(BaseUITab):
         self.clear_filter_btn.grid(row=0, column=4, padx=(2, 8), pady=2, sticky='w')
         self.add_context_help(self.clear_filter_btn, 'Clear text filter and show all results.')
 
-        # OCI GenAI controls are an opt-in desktop preview.
-        if self.is_genai_feature_enabled():
-
-            def ai_assist_callback():
-                self.app.policy_query_var.set('Analyze OCI Workload Principals and Dynamic Group policies.')
-                self.app.ai_additional_instructions = (
-                    'Elaborate on how workload principals and Dynamic Groups are matched to resources and policies in OCI. '
-                    'Explain important factors, provide analysis of the policy context, and describe implications for access and security.'
-                )
-                self.app.policy_query_label_text.set('Workload Principals Analysis:')
-
-            self.ai_assist_btn = ttk.Button(
-                filters_labelframe,
-                text='AI Assist',
-                command=lambda: (ai_assist_callback(), self.app.toggle_bottom()),
-                width=10,
-                state=tk.DISABLED,  # Initially disabled until AI enablement is successful
-            )
-            self.ai_assist_btn.grid(row=0, column=5, padx=(8, 8), pady=2, sticky='w')
-            self.add_context_help(
-                self.ai_assist_btn, 'Use Generative AI to analyze workload principals context and matching policies.'
-            )
-
         # refresh on text filter change
         self.text_filter_var.trace_add('write', self.update_principals_sheets)
 
@@ -313,15 +290,6 @@ class WorkloadPrincipalsTab(BaseUITab):
             self.rp_policy_table.update_data(filtered)
             self._update_policy_count(len(filtered), context='dynamic group selection')
             logger.info(f'Policies added to RP policy table: {len(filtered)}')
-
-        def rp_policy_selection_callback(selected_rows: list[dict]) -> None:
-            """When a Policy Statement is selected, update the policy statement below"""
-            if len(selected_rows) == 1:
-                selected_statement = selected_rows[0].get('Statement Text', '')
-                logger.info(f'Selected policy statement: {selected_statement}')
-                self.app.policy_query_var.set(selected_statement)
-                self.app.ai_additional_instructions = 'Analyze the selected OCI policy statement. Give additional details as to how OCI Resource principals work, and show how the statement breaks down into its components such as action, subject, verb, resource, conditions, and effective path. Explain its implications on permissions within the OCI environment.'
-                self.app.policy_query_label_text.set('RP Policy Statement\nInsights:')
 
         def policy_more_details_menu(row_index: int) -> tk.Menu:
             menu = tk.Menu(self, tearoff=0)
@@ -418,7 +386,6 @@ class WorkloadPrincipalsTab(BaseUITab):
             data=[],
             column_widths=POLICY_COLUMN_WIDTHS,
             row_context_menu_callback=policy_more_details_menu,
-            selection_callback=rp_policy_selection_callback,
             multi_select=False,
         )
         self.rp_policy_table.grid(row=1, column=0, sticky='nsew')

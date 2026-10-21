@@ -28,7 +28,7 @@
         <div class="masthead-brand">
           <span class="masthead-badge">OCI</span>
           <div>
-            <h1>Dynamic Group Analysis</h1>
+            <h1>Dynamic Groups</h1>
             <p>Filter + Dynamic Group Selection + Policy Inspector</p>
           </div>
         </div>
@@ -89,13 +89,14 @@
             <div id="summary" class="pill">Policy Statements (Filtered): 0</div>
             <div class="helper-text" data-help-title="Policy statements table" data-help-body="Policy statements are loaded for selected dynamic groups. Click a row to open statement details.">Tip: click a row to inspect details.</div>
           </div>
-          <div class="table-shell analysis-table-offset"><div class="table-scroll custom-scrollbar"><table id="resultsTable" class="analysis-table" data-help-title="Policy statement results" data-help-body="Click any policy row to inspect parsed and normalized statement fields."><thead><tr><th>Compartment / Policy</th><th>Effective Path</th><th>Statement</th><th>Verb + Resource / Permission</th></tr></thead><tbody></tbody></table></div></div>
+          <div class="table-shell analysis-table-offset"><div class="table-scroll custom-scrollbar"><table id="resultsTable" class="analysis-table" data-help-title="Policy statement results" data-help-body="Click any policy row to inspect parsed and normalized statement fields."><thead><tr><th>Policy Path</th><th>Effective Path</th><th>Statement</th><th>Verb + Resource / Permission</th></tr></thead><tbody></tbody></table></div></div>
         </div>
         <aside id="policyInspector" class="inspector-panel" aria-live="polite">
           <div class="inspector-header"><strong id="inspectorTitle">Statement Details</strong><button id="closeInspectorBtn" class="ghost" data-help-title="Close inspector" data-help-body="Close the statement details fly-in panel.">×</button></div>
           <div class="inspector-body custom-scrollbar" data-help-title="Statement details inspector" data-help-body="Displays full details for the selected policy statement row."><div id="inspectorEmpty" class="inspector-empty">No policy selected.</div><table id="inspectorTable" class="inspector-table" style="display:none;"><tbody></tbody></table></div>
           <div class="policy-inspector-footer">
             <button id="copyStatementBtn" class="ghost" disabled>Copy Statement</button>
+            <button id="testStatementCondition" class="ghost" disabled>Test condition…</button>
             <button id="copySummaryBtn" class="ghost" disabled>Copy Summary</button>
           </div>
         </aside>
@@ -211,6 +212,7 @@
         dynamicGroupInspectorTable.style.display = 'none';
       }
 
+      let selectedPolicy = null;
       const inspector = window.createPolicyStatementInspector({
         panel: policyInspector,
         titleEl: inspectorTitle,
@@ -223,6 +225,8 @@
         getRowValue,
         config: { titleWhenSelected: 'Statement Details' },
         onSelectionChange: (row) => {
+          selectedPolicy = row || null;
+          document.getElementById('testStatementCondition').disabled = !String(row?.conditions || row?.['Conditions (where clause)'] || row?.['Conditions'] || row?.conditions_where_clause || '').trim();
           const hasSelection = Boolean(row);
           copyStatementBtn.disabled = !hasSelection;
           copySummaryBtn.disabled = !hasSelection;
@@ -241,7 +245,7 @@
       }
 
       function renderPolicies(){
-        resultsBody.innerHTML = currentPolicies.map((p,i)=>`<tr data-row-id="${i+1}"><td>${esc(formatPolicyHybrid(p))}</td><td>${esc(p['Effective Path'])}</td><td>${esc(p['Statement Text'])}</td><td>${esc(formatVerbResourcePermission(p))}</td></tr>`).join('');
+        resultsBody.innerHTML = currentPolicies.map((p,i)=>`<tr data-row-id="${i+1}" class="${p.valid === false || p.Valid === false ? 'invalid-statement-row' : ''}"><td>${esc(formatPolicyHybrid(p))}</td><td>${esc(p['Effective Path'])}</td><td>${esc(p['Statement Text'])}</td><td>${esc(formatVerbResourcePermission(p))}</td></tr>`).join('');
         [...resultsBody.querySelectorAll('tr')].forEach((tr)=> tr.addEventListener('click', ()=>{ closeDynamicGroupInspector(); inspector.setInspector(currentPolicies[Number(tr.dataset.rowId)-1]); }));
       }
 
@@ -283,6 +287,11 @@
       document.getElementById('clearBtn').addEventListener('click', ()=>{ domainEl.value=''; nameEl.value=''; ruleEl.value=''; ocidEl.value=''; loadEntities(); });
       document.getElementById('closeInspectorBtn').addEventListener('click', ()=> inspector.clear());
       document.getElementById('closeDynamicGroupInspectorBtn').addEventListener('click', closeDynamicGroupInspector);
+      document.getElementById('testStatementCondition').addEventListener('click', () => {
+        const row = selectedPolicy;
+        const clause = String(row?.conditions || row?.['Conditions (where clause)'] || row?.['Conditions'] || row?.conditions_where_clause || '').trim();
+        if (clause) { sessionStorage.setItem('ociConditionTesterClause',clause); window.location.href='/condition-tester.html?from=identity-evidence'; }
+      });
       copyStatementBtn.addEventListener('click', async () => { await inspector.copyStatement(); });
       copySummaryBtn.addEventListener('click', async () => { await inspector.copySummary(); });
 

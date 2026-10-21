@@ -18,6 +18,7 @@
           </div>
         </div>
         <div class="masthead-meta">
+          <a href="/api-calls.html" class="card-link">API Calls · Current Session</a>
           <a href="/" class="card-link">← Back to home</a>
         </div>
       </header>
@@ -124,7 +125,6 @@
       const LEVELS = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'];
       const WEB_HIDDEN_COMPONENTS = new Set([
         'data_repo',
-        'ai_repo',
         'policy_parser',
         'mcp.server',
         'cli.main',
@@ -198,7 +198,6 @@
         'Core Repos': [
           'core.repo.policy_analysis_repository',
           'core.repo.reference_data_repo',
-          'core.repo.ai_repo',
         ],
         'Core Parsers': [
           'core.parser.policy_statement_normalizer',

@@ -18,6 +18,8 @@ from oci_policy_analysis.presentation.qt.widgets import label
 
 
 class _IdentityView(QWidget):
+    details_requested = Signal(object, str)
+
     def __init__(self, *, users: bool):
         super().__init__()
         self.users = users
@@ -36,6 +38,8 @@ class _IdentityView(QWidget):
             ('search' if users else 'group_name', 'Username or display name' if users else 'Group name'),
             (f'{self.kind}_ocid', f'{self.kind.title()} OCID'),
         ]
+        if not users:
+            fields.append(('user_search', 'Member username or display name'))
         for column, (key, title) in enumerate(fields):
             field = QLineEdit()
             field.setPlaceholderText(title)
@@ -47,13 +51,16 @@ class _IdentityView(QWidget):
             controls.addWidget(field, 0, column)
         reset = QPushButton('Reset filters')
         reset.clicked.connect(self.reset_filters)
-        controls.addWidget(reset, 0, 3)
         layout.addLayout(controls)
         self.inventory_status = label('No identities loaded', 'muted')
-        layout.addWidget(self.inventory_status)
-        layout.addWidget(
-            label('Select one or more rows · Ctrl/Cmd-click or Shift-click · Right-click for details', 'muted')
-        )
+        inventory_row = QHBoxLayout()
+        inventory_row.addWidget(self.inventory_status)
+        inventory_row.addWidget(reset)
+        inventory_row.addStretch()
+        selection_help = label('Select one or more rows', 'muted')
+        selection_help.setToolTip('Ctrl/Cmd-click or Shift-click selects several. Right-click for details.')
+        inventory_row.addWidget(selection_help)
+        layout.addLayout(inventory_row)
         splitter = QSplitter(Qt.Orientation.Vertical)
         columns = (
             (('Domain', 'domain_name'), ('User', 'user_name'), ('Display name', 'display_name'), ('Email', 'email'))
@@ -110,12 +117,32 @@ class _IdentityView(QWidget):
         splitter.addWidget(evidence)
         splitter.setSizes([240, 220, 300])
         layout.addWidget(splitter, 1)
-        layout.addWidget(
-            label(
-                'Snapshot evidence only. Coverage may be incomplete; policy conditions and exclusions still apply.',
-                'muted',
+
+    def show_record_details(self, table, record):
+        """Add a detached, readable group membership summary to user details."""
+        if record is None:
+            self.details_requested.emit(None, table.details_title)
+            return
+        if self.users and record.get('user_name'):
+            record = dict(record)
+            group_by_id = (
+                {group.get('group_ocid'): group for group in self.context.policy_repo.groups if group.get('group_ocid')}
+                if self.context
+                else {}
             )
-        )
+            group_ids = list(dict.fromkeys(record.get('groups') or []))
+            if record.get('group_ocid'):
+                group_ids.append(record['group_ocid'])
+            record['membership_groups_display'] = [
+                f'{group.get("domain_name") or "Default"} / {group.get("group_name")}'
+                if group
+                else f'{record.get("domain_name") or "Default"} / {record.get("group_name")}'
+                if record.get('group_name') and group_id == record.get('group_ocid')
+                else f'Unresolved group: {group_id}'
+                for group_id in dict.fromkeys(group_ids)
+                for group in [group_by_id.get(group_id)]
+            ]
+        self.details_requested.emit(record, table.details_title)
 
     def set_context(self, context):
         self.context = context
@@ -146,8 +173,11 @@ class _IdentityView(QWidget):
             for key, field in self.filters.items()
             if field.text().strip()
         }
+        user_search = filters.pop('user_search', [])
         repo = self.context.policy_repo
         records = repo.filter_users(filters) if self.users else repo.filter_groups(filters)
+        if user_search and not self.users:
+            records = PrincipalAnalysisService(self.context).filter_groups_by_user(records, user_search)
         selection = self.inventory.selectionModel()
         selection.blockSignals(True)
         try:
@@ -216,11 +246,13 @@ class UsersGroupsPage(QWidget):
         self.tabs = QTabWidget()
         self.group_view = _IdentityView(users=False)
         self.user_view = _IdentityView(users=True)
+        self.group_view.details_requested.connect(self.details_requested.emit)
+        self.user_view.details_requested.connect(self.details_requested.emit)
         for title, view in [('Group-based View', self.group_view), ('User-based View', self.user_view)]:
             self.tabs.addTab(view, title)
             for table in (view.inventory, view.memberships, view.statements):
                 table.details_requested.connect(
-                    lambda record, table=table: self.details_requested.emit(record, table.details_title)
+                    lambda record, table=table, view=view: view.show_record_details(table, record)
                 )
             view.statements.focus_dynamic_group.connect(self.focus_dynamic_group.emit)
         self.tabs.currentChanged.connect(lambda *_: self.details_requested.emit(None, ''))

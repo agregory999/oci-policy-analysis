@@ -64,6 +64,8 @@
       .finding-source { margin:.8rem 0; padding:.6rem; border:1px solid var(--oci-line); border-radius:8px; }
       .finding-source summary { font-size:.8rem; overflow-wrap:anywhere; }
       .finding-source .inspector-table { margin-top:.5rem; }
+      #singlePolicyDialog { border:0; border-radius:14px; padding:0; max-width:95vw; background:transparent; }
+      #singlePolicyDialog::backdrop { background:rgba(18,28,34,.58); }
       @media(max-width:900px) { .relationship-stage { grid-template-columns:1fr; gap:1rem; } .relationship-lines { display:none; } .home-tenancy { grid-row:1; } .relationship-lane { padding:.4rem 0; } }
     </style>
   </head>
@@ -82,7 +84,7 @@
 
     <main class="layout-single">
       <section class="card" data-help-title="Tenancy relationship graph" data-help-body="The center is the loaded tenancy. Left shows Admit statements; right shows Endorse statements. Dashed lines mark Associate statements, whose endpoint roles require review.">
-        <div class="policy-toolbar"><div><strong>Tenancy Relationships</strong><div class="helper-text">Policy direction shows who is admitted here and where our principals are endorsed. Reciprocal policies are not verified.</div></div><button id="refreshBtn" class="ghost" data-help-title="Refresh view" data-help-body="Re-fetches the current analysis from memory. It does not reload policies from OCI, and works with cached datasets too." title="Re-fetches the current analysis from memory; does not reload OCI policy data.">Refresh view</button></div>
+        <div class="policy-toolbar"><div><strong>Tenancy Relationships</strong><div class="helper-text">Policy direction shows who is admitted here and where our principals are endorsed. Reciprocal policies are not verified.</div></div><div class="pill-row"><button id="generatePolicyBtn" class="ghost">Generate single Cross-Tenancy Policy</button><button id="refreshBtn" class="ghost" data-help-title="Refresh view" data-help-body="Re-fetches the current analysis from memory. It does not reload policies from OCI, and works with cached datasets too." title="Re-fetches the current analysis from memory; does not reload OCI policy data.">Refresh view</button></div></div>
         <div class="relationship-stage" id="relationshipStage">
           <svg id="relationshipLines" class="relationship-lines" aria-hidden="true"></svg>
           <div class="relationship-lane"><h3>Admitted here</h3><p>Remote principals can act in this tenancy</p><div id="incomingNodes" class="relationship-node-list"></div></div>
@@ -106,6 +108,16 @@
 
       <section class="card" data-help-title="Cross-tenancy findings" data-help-body="Shows unresolved or ambiguous definitions and duplicate Admit or Endorse statements. Click a finding to inspect its source statements."><details class="finding-details"><summary id="findingsSummary">Findings: 0</summary><div id="findingLayout" class="analysis-layout"><div class="table-shell analysis-table-offset"><div class="table-scroll custom-scrollbar"><table id="findingsTable" class="analysis-table"><thead><tr><th>Finding</th><th>Severity</th><th>Policy</th><th>Alias</th><th>Issue</th><th>Statements</th></tr></thead><tbody></tbody></table></div></div><aside id="findingInspector" class="inspector-panel" aria-live="polite"><div class="inspector-header"><strong id="findingInspectorTitle">Finding Details</strong><button id="closeFindingInspectorBtn" class="ghost" aria-label="Close finding details">×</button></div><div id="findingInspectorBody" class="inspector-body custom-scrollbar"></div></aside></div></details></section>
     </main>
+
+    <dialog id="singlePolicyDialog" class="modal-dialog">
+      <form method="dialog" class="card" style="width:min(900px,90vw);max-height:85vh;display:flex;flex-direction:column;gap:.7rem;">
+        <div class="policy-toolbar"><strong>Single Cross-Tenancy Policy</strong><button class="ghost" value="close" aria-label="Close">Close</button></div>
+        <p id="singlePolicySummary" class="helper-text"></p>
+        <select id="singlePolicySelector" aria-label="Generated policy"></select>
+        <textarea id="singlePolicyText" readonly spellcheck="false" style="min-height:50vh;font-family:monospace;white-space:pre;overflow:auto;"></textarea>
+        <div><button id="copySinglePolicyBtn" type="button">Copy policy</button></div>
+      </form>
+    </dialog>
 
     <script>
       const $ = (id) => document.getElementById(id);
@@ -356,6 +368,24 @@
         } catch (error) { payload = {}; rows = []; selectedGraph = null; selectedEntity = ''; selectedSubnode = ''; selectedKey = ''; selectedFinding = -1; renderEntityOptions(); renderGraph(); renderTable(); renderFindings(); setStatus(`Failed to load cross-tenancy data: ${error}`, 'error'); }
       }
       $('refreshBtn').addEventListener('click', loadCrossTenancy);
+      $('generatePolicyBtn').addEventListener('click', () => {
+        const generated = payload.single_policy || { text: '', included: 0, invalid_or_unparsed: 0, unresolved_or_ambiguous: 0, unclassified: 0 };
+        $('singlePolicySummary').textContent = `Included: ${generated.included} valid, resolved Define / Admit / Endorse statements from all loaded policies. Not included: ${generated.invalid_or_unparsed} invalid or unparsed, ${generated.unresolved_or_ambiguous} unresolved or ambiguous, and ${generated.unclassified} unclassified statements.`;
+        const policies = generated.policies || [{ name: 'CrossTenancy-01', text: generated.text || '' }];
+        $('singlePolicySelector').replaceChildren(...policies.map((policy, index) => { const option = document.createElement('option'); option.value = String(index); option.textContent = `${policy.name} · ${policy.included ?? policy.text.split('\\n').length} statements`; return option; }));
+        $('singlePolicySelector').onchange = () => { $('singlePolicyText').value = policies[Number($('singlePolicySelector').value)].text; };
+        $('singlePolicyText').value = policies[0].text || 'No valid, resolved cross-tenancy statements are available.';
+        $('singlePolicyDialog').showModal();
+      });
+      $('copySinglePolicyBtn').addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText($('singlePolicyText').value);
+          setStatus('Combined cross-tenancy policy copied.', 'success');
+        } catch (error) {
+          $('singlePolicyText').focus(); $('singlePolicyText').select();
+          setStatus(`Clipboard access failed: ${error}. The policy text is selected for manual copying.`, 'error');
+        }
+      });
       $('clearFiltersBtn').addEventListener('click', () => { selectedGraph = null; selectedEntity = ''; selectedSubnode = ''; $('definedEntityFilter').value = ''; $('statementSearch').value = ''; renderGraph(); renderTable(); });
       $('definedEntityFilter').addEventListener('change', (event) => { selectedEntity = event.target.value; selectedSubnode = ''; renderGraph(); renderTable(); });
       $('statementSearch').addEventListener('input', renderTable);

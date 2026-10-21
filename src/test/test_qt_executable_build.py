@@ -106,13 +106,15 @@ def test_packaging_keeps_runtime_files_and_checks_the_distributable(monkeypatch,
     assert result['bundle_bytes'] > 0 and result['archive_bytes'] > 0
 
 
-def test_macos_true_onefile_is_a_binary_not_an_app_directory(monkeypatch, tmp_path):
+@pytest.mark.parametrize('target', ['darwin', 'win32'])
+def test_true_onefile_is_a_binary_not_an_app_directory(monkeypatch, tmp_path, target):
     import json
 
-    monkeypatch.setattr(BUILDER.sys, 'platform', 'darwin')
+    monkeypatch.setattr(BUILDER.sys, 'platform', target)
     native = tmp_path / 'compiler'
     native.mkdir()
-    (native / 'oci-policy-analysis-qt').write_text('onefile payload')
+    extension = '.exe' if target == 'win32' else ''
+    (native / f'oci-policy-analysis-qt{extension}').write_text('onefile payload')
     output = tmp_path / 'dist'
     monkeypatch.setattr(BUILDER.subprocess, 'run', lambda *args, **kwargs: None)
     assert (
@@ -121,5 +123,5 @@ def test_macos_true_onefile_is_a_binary_not_an_app_directory(monkeypatch, tmp_pa
     )
     result = json.loads((output / 'build-result-onefile.json').read_text())
     executable = Path(result['executable'])
-    assert executable.name == 'oci-policy-analysis-qt-onefile'
+    assert executable.name == f'oci-policy-analysis-qt-onefile{extension}'
     assert executable.is_file() and executable.suffix != '.app'

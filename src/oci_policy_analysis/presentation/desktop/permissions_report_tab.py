@@ -530,14 +530,6 @@ class PermissionsReportTab(BaseUITab):
             menu.add_command(label='Show Policy Statement', command=lambda: self._show_policy_statement(statement_text))
             return menu
 
-        def permission_ai_lookup(selected_rows: list[dict]):
-            permission = selected_rows[0].get('Permission', '')
-            # Here you could integrate with an AI lookup function
-            logger.info(f'AI Lookup for permission: {permission}')
-            self.app.policy_query_var.set(permission)
-            self.app.ai_additional_instructions = 'Provide detailed information about this OCI permission.'
-            self.app.policy_query_label_text.set('AI Permission Lookup:')
-
         self.allow_data_table = DataTable(
             self.allow_dt_frame,
             columns=['Permission', 'Conditional', 'Source', 'Inherited', 'Inherited From'],
@@ -545,7 +537,6 @@ class PermissionsReportTab(BaseUITab):
             column_widths={'Permission': 300, 'Conditional': 90, 'Source': 90, 'Inherited': 85, 'Inherited From': 150},
             data=self._visible_allow_rows,
             row_context_menu_callback=lambda row_idx: policy_right_click(self._visible_allow_rows, row_idx),
-            selection_callback=permission_ai_lookup,
         )
         self.allow_data_table.pack(fill='both', expand=True)
         self.deny_data_table = DataTable(

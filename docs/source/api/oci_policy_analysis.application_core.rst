@@ -61,6 +61,9 @@ Repositories and parsing
    :members:
    :show-inheritance:
 
+.. automodule:: oci_policy_analysis.application.core.repo.policy_loading
+   :members: LivePolicyLoader, validate_policy_load_method
+
 .. automodule:: oci_policy_analysis.application.core.repo.reference_data_repo
    :members:
    :show-inheritance:
@@ -100,6 +103,9 @@ Engines and services
    :members:
    :show-inheritance:
 
+.. automodule:: oci_policy_analysis.application.services.policy_limits_service
+   :members:
+
 .. automodule:: oci_policy_analysis.application.services.recommendations_service
    :members:
    :show-inheritance:
@@ -121,6 +127,10 @@ Engines and services
    :show-inheritance:
 
 .. automodule:: oci_policy_analysis.application.services.cross_tenancy_analysis_service
+   :members:
+   :show-inheritance:
+
+.. automodule:: oci_policy_analysis.application.services.consolidation_workbench_service
    :members:
    :show-inheritance:
 
@@ -173,3 +183,10 @@ Support
 
 .. automodule:: oci_policy_analysis.application.core.support.usage_tracking
    :members:
+
+.. automodule:: oci_policy_analysis.application.core.support.api_calls
+   :members:
+
+
+.. automodule:: oci_policy_analysis.application.services.tag_based_policy_service
+   :members: TagBasedPolicyService

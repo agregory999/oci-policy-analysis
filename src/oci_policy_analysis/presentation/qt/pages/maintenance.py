@@ -19,11 +19,13 @@ class MaintenancePage(QWidget):
     """
 
     changed = Signal(object)
+    consolidation_reset = Signal(str)
 
     def __init__(self, cache) -> None:
         super().__init__()
         self.service = CacheService(cache)
         self.block_reason = ''
+        self.context = None
         layout = QVBoxLayout(self)
         layout.addWidget(label('Saved caches', 'eyebrow'))
         layout.addWidget(
@@ -48,6 +50,27 @@ class MaintenancePage(QWidget):
         layout.addWidget(self.table, 1)
         self.status = label('', wrap=True)
         layout.addWidget(self.status)
+        layout.addWidget(label('Reset consolidation data by tenancy', 'eyebrow'))
+        layout.addWidget(
+            label(
+                'Start over by clearing a tenancy’s protected statements and all saved plans, notes, '
+                'execution progress, and rollback snapshots. Saved inventory caches and OCI policies are unchanged.',
+                wrap=True,
+            )
+        )
+        self.consolidation_table = RecordTable(
+            (
+                ('Tenancy', 'tenancy_name'),
+                ('Plans', 'plans'),
+                ('Protected statements', 'protected'),
+                ('Tenancy OCID', 'tenancy_ocid'),
+            )
+        )
+        layout.addWidget(self.consolidation_table, 1)
+        self.reset_consolidation_button = QPushButton('Delete all consolidation data for selected tenancy…')
+        self.reset_consolidation_button.clicked.connect(self._reset_consolidation)
+        self.consolidation_table.selectionModel().selectionChanged.connect(self._controls)
+        layout.addWidget(self.reset_consolidation_button)
         self.search.textChanged.connect(self.table.proxy.setFilterFixedString)
         self.table.selectionModel().selectionChanged.connect(self._controls)
         self.refresh_button.clicked.connect(self.refresh_caches)
@@ -63,7 +86,56 @@ class MaintenancePage(QWidget):
         except OSError as exc:
             self.table.model.replace([])
             self.status.setText(f'Could not list caches: {exc}')
+        self._refresh_consolidation()
         self._controls()
+
+    def set_context(self, context) -> None:
+        """Use the loaded tenancy's name when listing saved consolidation state."""
+        self.context = context
+        self.refresh_caches()
+
+    def showEvent(self, event) -> None:
+        """Refresh saved counts when returning from the consolidation workbench."""
+        super().showEvent(event)
+        self.refresh_caches()
+
+    def _refresh_consolidation(self):
+        try:
+            rows = self.service.consolidation_records()
+            for row in rows:
+                current = self.context and self.context.policy_repo.tenancy_ocid == row['tenancy_ocid']
+                row['tenancy_name'] = self.context.policy_repo.tenancy_name if current else 'Saved tenancy'
+            self.consolidation_table.model.replace(rows)
+        except (OSError, ValueError) as exc:
+            self.consolidation_table.model.replace([])
+            self.status.setText(f'Could not list consolidation state: {exc}')
+
+    def _reset_consolidation(self):
+        rows = self.consolidation_table.selected_records()
+        if not rows or self.block_reason or not self.isEnabled():
+            return
+        row = rows[0]
+        answer = QMessageBox.question(
+            self,
+            'Delete all consolidation data?',
+            f'Tenancy: {row["tenancy_name"]}\n{row["tenancy_ocid"]}\n\n'
+            f'Saved plans: {row["plans"]}. Protected references: {row["protected"]}.\n'
+            'Delete all consolidation state, including notes, execution history, and rollback snapshots?\n\n'
+            'This cannot be undone. This does not undo OCI changes or delete inventory caches.',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            result = self.service.reset_consolidation(row['tenancy_ocid'])
+            self.consolidation_reset.emit(row['tenancy_ocid'])
+            self.refresh_caches()
+            self.status.setText(
+                f'Consolidation reset for {row["tenancy_ocid"]}: {result["cleared_history_records"]} saved plans removed.'
+            )
+        except (OSError, ValueError) as exc:
+            self.status.setText(f'Could not reset consolidation data: {exc}')
 
     def set_block_reason(self, reason: str) -> None:
         """Prevent mutations while a snapshot-dependent task is active."""
@@ -83,6 +155,10 @@ class MaintenancePage(QWidget):
         self.lock_button.setText('Unlock' if row and row['locked'] else 'Lock')
         for button in (self.rename_button, self.lock_button, self.delete_button):
             button.setToolTip(self.block_reason)
+        self.reset_consolidation_button.setEnabled(
+            bool(self.consolidation_table.selected_records()) and not self.block_reason
+        )
+        self.reset_consolidation_button.setToolTip(self.block_reason)
 
     def _finish(self, success, action, row, new_name=None):
         if not success:

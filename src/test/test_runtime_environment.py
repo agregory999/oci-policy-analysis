@@ -1,6 +1,5 @@
 """Environment settings and deployment payload safety contracts."""
 
-import importlib.util
 import json
 import os
 import subprocess
@@ -9,16 +8,15 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-spec = importlib.util.spec_from_file_location('runtime_settings', ROOT / 'src/oci_policy_analysis/runtime_settings.py')
-runtime = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(runtime)
 
 
 @pytest.mark.parametrize('value', ['0', '7', 'invalid'])
 def test_invalid_mcp_depth_fails_with_variable_name(monkeypatch, value):
-    monkeypatch.setenv('MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH', value)
-    with pytest.raises(ValueError, match='MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH'):
-        runtime.mcp_domain_search_depth()
+    monkeypatch.setenv('OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH', value)
+    from oci_policy_analysis import mcp_server
+
+    with pytest.raises(ValueError, match='OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH'):
+        mcp_server._build_arg_parser()
 
 
 def test_saved_ui_settings_are_not_changed_by_operator_environment(monkeypatch, tmp_path):
@@ -28,7 +26,7 @@ def test_saved_ui_settings_are_not_changed_by_operator_environment(monkeypatch, 
     file = tmp_path / 'settings.json'
     file.write_text(json.dumps(saved))
     monkeypatch.setattr(config, 'SETTINGS_PATH', str(file))
-    monkeypatch.setenv('MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH', '2')
+    monkeypatch.setenv('OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH', '2')
     monkeypatch.setenv('OCI_POLICY_ANALYSIS_DOMAIN_COMPARTMENT_DEPTH', '6')
     assert config.load_settings() == saved
 
@@ -42,7 +40,7 @@ def payload_environment():
         IMAGE_TAG_WEB='web-1',
         IMAGE_TAG_MCP='mcp-1',
         MCP_PORT='8001',
-        MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH='2',
+        OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH='2',
         OCI_PROFILE='operator-secret-profile',
         OCIR_AUTH_TOKEN='must-not-forward',
         OCI_SESSION_TOKEN='must-not-forward',
@@ -59,7 +57,8 @@ def test_combined_payload_preserves_depth_and_excludes_operator_credentials():
         check=True,
     )
     web, mcp = json.loads(result.stdout)
-    assert mcp['environmentVariables']['MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH'] == '2'
+    assert web['environmentVariables']['OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH'] == '2'
+    assert mcp['environmentVariables']['OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH'] == '2'
     assert mcp['healthChecks'][0]['port'] == 8001
     assert mcp['environmentVariables']['MCP_AUTH_MODE'] == 'resource_principal'
     assert web['isResourcePrincipalDisabled'] is False
@@ -78,16 +77,22 @@ def test_container_payload_ignores_preferences_diagnostics_and_disabled_oauth():
     )
     result = subprocess.check_output(['python3', str(ROOT / 'run/container-config.py'), 'combined'], env=env, text=True)
     web, mcp = json.loads(result)
-    assert set(web['environmentVariables']) == {'WEB_RESOURCE_PRINCIPAL_ONLY', 'WEB_HOST', 'WEB_PORT'}
+    assert set(web['environmentVariables']) == {
+        'WEB_RESOURCE_PRINCIPAL_ONLY',
+        'WEB_HOST',
+        'WEB_PORT',
+        'OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH',
+    }
     assert set(mcp['environmentVariables']) == {
         'MCP_AUTH_MODE',
         'MCP_TRANSPORT',
         'MCP_HOST',
         'MCP_PORT',
-        'MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH',
+        'OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH',
         'MCP_LOG_LEVEL',
     }
-    assert mcp['environmentVariables']['MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH'] == '2'
+    assert web['environmentVariables']['OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH'] == '2'
+    assert mcp['environmentVariables']['OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH'] == '2'
 
 
 def test_web_only_payload_does_not_require_unused_mcp_configuration():
@@ -111,16 +116,16 @@ def test_incomplete_oauth_fails_before_deployment():
 
 def test_one_run_override_survives_env_and_loader_exports_values(tmp_path):
     env_file = tmp_path / '.env'
-    env_file.write_text('OCI_REDEPLOY=false\nMCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH=2\n')
+    env_file.write_text('OCI_REDEPLOY=false\nOPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH=2\n')
     env = dict(os.environ, RUN_ENV_FILE=str(env_file), OCI_REDEPLOY='true')
-    env.pop('MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH', None)
+    env.pop('OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH', None)
     result = subprocess.run(
         [
             'bash',
             '-c',
             'set -euo pipefail; source run/common.sh; '
             "python3 -c \"import os; print(os.environ['OCI_REDEPLOY'], "
-            "os.environ['MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH'])\"",
+            "os.environ['OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH'])\"",
         ],
         cwd=ROOT,
         env=env,
@@ -134,7 +139,7 @@ def test_one_run_override_survives_env_and_loader_exports_values(tmp_path):
 def test_mcp_environment_defaults_and_explicit_depth_override(monkeypatch):
     from oci_policy_analysis import mcp_server
 
-    monkeypatch.setenv('MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH', '2')
+    monkeypatch.setenv('OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH', '2')
     monkeypatch.setenv('MCP_RECURSIVE', 'false')
     parser = mcp_server._build_arg_parser()
     defaults = parser.parse_args(['--profile', 'DEFAULT'])
@@ -182,7 +187,7 @@ def test_deployment_detects_environment_drift_without_mutating_in_dry_run(tmp_pa
     for mode, container in zip(('web', 'mcp'), desired, strict=True):
         runtime_env = dict(container['environmentVariables'])
         if mode == 'mcp':
-            runtime_env['MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH'] = current_depth
+            runtime_env['OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH'] = current_depth
         records.append(
             {
                 'image-url': container['imageUrl'],

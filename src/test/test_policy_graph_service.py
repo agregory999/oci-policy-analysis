@@ -9,6 +9,7 @@ from oci_policy_analysis.application.core.policy_corpus import (
     PolicyCorpus,
     PolicyCorpusFact,
 )
+from oci_policy_analysis.application.services.permissions_report_service import PermissionsReportService
 from oci_policy_analysis.application.services.policy_graph_service import PolicyGraphService
 from oci_policy_analysis.presentation.web.api import routes_core
 from oci_policy_analysis.presentation.web.main import app
@@ -17,6 +18,30 @@ from oci_policy_analysis.presentation.web.main import app
 def _fact(statement: str, principal: str, permission: str, *, effect: str = 'allow') -> PolicyCorpusFact:
     source = CorpusProvenance('Policy A', 'ocid1.policy.test', statement, f'{effect} {principal} to read buckets')
     return PolicyCorpusFact(principal, 'ROOT/Prod', 'ROOT/Prod', permission, effect, '', source, resource='buckets')
+
+
+def test_service_principal_display_preserves_identity_and_both_search_forms(monkeypatch):
+    from oci_policy_analysis.application.core.common.policy_helpers import principal_display_name
+
+    key = 'service:none/cloudguard'
+    assert principal_display_name(key) == 'service:cloudguard'
+    assert principal_display_name('service:None/CloudGuard') == 'service:CloudGuard'
+    for value in ('group:none/cloudguard', 'resource-principal:None/SomeOpaqueID', 'service:cloudguard'):
+        assert principal_display_name(value) == value
+    corpus = PolicyCorpus(schema_version=1, built_at='now', facts=(_fact('service', key, 'BUCKET_READ'),))
+    graph = PolicyGraphService(corpus)
+    report = PermissionsReportService(SimpleNamespace())
+    monkeypatch.setattr(report, '_report_data', lambda **_: {'ROOT': {key: {'subject_type': 'service'}}})
+    for query in (key, 'service:cloudguard', 'cloudguard'):
+        page = graph.get_page(principal=query)
+        assert page['total'] == 1
+        assert page['grants'][0]['principal'] == key
+        assert page['grants'][0]['principal_display'] == 'service:cloudguard'
+        assert page['principals'][0]['principal'] == key
+        assert page['principals'][0]['principal_display'] == 'service:cloudguard'
+        subject = report.get_tree(principal_query=query)['paths'][0]['subjects'][0]
+        assert subject['subject_key'] == key
+        assert subject['display_name'] == 'service:cloudguard'
 
 
 def test_policy_graph_groups_permissions_and_filters_grants() -> None:
@@ -160,7 +185,7 @@ def test_principal_discovery_includes_partial_matches_beyond_first_page():
     assert result['total'] == 21
     assert len(result['grants']) == 12
     assert target not in {row['principal'] for row in result['grants']}
-    assert {'principal': target, 'grant_count': 1} in result['principals']
+    assert {'principal': target, 'principal_display': target, 'grant_count': 1} in result['principals']
     assert len(result['principals']) == 21
     assert service.get_page(principal=target)['grants'][0]['statement_id'] == 'target'
     assert len(service.get_page(overview=True)['principals']) == 21
@@ -268,3 +293,31 @@ def test_selected_combination_joins_all_sources_and_full_detached_permission_fac
     source['policy_tags']['project'] = 'changed'
     assert sources == before
     assert service.get_statement_evidence([], source_statements=sources) == []
+
+
+def test_graph_search_includes_declared_principals_for_specialized_workloads():
+    from dataclasses import replace
+
+    facts = tuple(
+        replace(
+            _fact(str(index), f'resource-principal:fnfunc/ocid1.compartment.{index}', 'BUCKET_READ'),
+            original_principal_key='any-user:None/any-user',
+        )
+        for index in range(20)
+    )
+    service = PolicyGraphService(PolicyCorpus(schema_version=1, built_at='now', facts=facts))
+    result = service.get_page(principal='any-user', all_results=True)
+    assert result['total'] == len(result['grants']) == 20
+    assert service.get_page(principal='ocid1.compartment.19')['total'] == 1
+
+
+def test_principal_search_does_not_match_sibling_subjects_from_same_source():
+    from dataclasses import replace
+
+    facts = tuple(
+        replace(_fact('shared', f'group:default/{name}', 'BUCKET_READ'), original_principal_key='group:default/first')
+        for name in ('first', 'second')
+    )
+    service = PolicyGraphService(PolicyCorpus(schema_version=1, built_at='now', facts=facts))
+    assert [row['principal'] for row in service.get_page(principal='first')['grants']] == ['group:default/first']
+    assert [row['principal'] for row in service.get_page(principal='second')['grants']] == ['group:default/second']

@@ -57,6 +57,9 @@ class CrossTenancyTab(BaseUITab):
         ttk.Label(bar, text='Cross-Tenancy Planner', font=('TkDefaultFont', 13, 'bold')).pack(side='left')
         self.count_var = tk.StringVar(value='No statements loaded')
         ttk.Label(bar, textvariable=self.count_var).pack(side='left', padx=12)
+        ttk.Button(bar, text='Generate single Cross-Tenancy Policy', command=self._generate_single_policy).pack(
+            side='right', padx=(6, 0)
+        )
         ttk.Button(bar, text='Refresh view', command=self.update_cross_tenancy_output).pack(side='right')
 
         split = ttk.PanedWindow(self, orient='vertical')
@@ -172,6 +175,50 @@ class CrossTenancyTab(BaseUITab):
             source_ids = set(finding.get('source_ids') or [])
             related = [row for row in selected_rows(self.payload) if row.get('stable_key') in source_ids]
             self._show_detail({**finding, 'source_statements': related})
+
+    def _generate_single_policy(self) -> None:
+        """Show the combined, ordered policy with source comments and copy action."""
+        generated = CrossTenancyAnalysisService.generate_single_policy(self.payload)
+        window = tk.Toplevel(self.winfo_toplevel())
+        window.title('Single Cross-Tenancy Policy')
+        window.geometry('900x650')
+        window.transient(self.winfo_toplevel())
+        window.grab_set()
+        summary = (
+            f'Included: {generated["included"]} valid, resolved Define / Admit / Endorse statements from all loaded policies. '
+            f'Not included: {generated["invalid_or_unparsed"]} invalid or unparsed, '
+            f'{generated["unresolved_or_ambiguous"]} unresolved or ambiguous, and '
+            f'{generated["unclassified"]} unclassified statements.'
+        )
+        ttk.Label(window, text=summary, wraplength=850, justify='left').pack(fill='x', padx=12, pady=12)
+        policies = generated.get('policies') or [{'name': 'CrossTenancy-01', 'text': generated.get('text', '')}]
+        selected = tk.StringVar(value=policies[0]['name'])
+        selector = ttk.Combobox(
+            window, textvariable=selected, values=[item['name'] for item in policies], state='readonly'
+        )
+        selector.pack(fill='x', padx=12, pady=(0, 8))
+        editor = ScrolledText(window, wrap='none', font=('TkFixedFont', 10))
+        editor.pack(fill='both', expand=True, padx=12, pady=(0, 8))
+        editor.insert('1.0', policies[0]['text'] or 'No valid, resolved cross-tenancy statements are available.')
+        editor.configure(state='disabled')
+
+        def show_policy(_event=None):
+            editor.configure(state='normal')
+            editor.delete('1.0', 'end')
+            editor.insert('1.0', policies[selector.current()]['text'])
+            editor.configure(state='disabled')
+
+        selector.bind('<<ComboboxSelected>>', show_policy)
+        buttons = ttk.Frame(window)
+        buttons.pack(fill='x', padx=12, pady=(0, 12))
+
+        def copy_policy():
+            window.clipboard_clear()
+            window.clipboard_append(policies[selector.current()]['text'])
+            window.update_idletasks()
+
+        ttk.Button(buttons, text='Copy policy', command=copy_policy).pack(side='left')
+        ttk.Button(buttons, text='Close', command=window.destroy).pack(side='right')
 
     def _schedule_redraw(self, _event=None) -> None:
         if self._redraw_after:

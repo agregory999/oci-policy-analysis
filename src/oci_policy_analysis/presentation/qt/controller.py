@@ -1,7 +1,6 @@
 """Own the current context and publish successful asynchronous loads to pages."""
 
 import copy
-import json
 
 from PySide6.QtCore import QObject, Signal, Slot
 
@@ -68,7 +67,9 @@ class WorkbenchController(QObject):
         self.loaded.emit(context, result, self._description)
         warnings = getattr(context.policy_repo, '_cleanup_reload_api_errors', []) or []
         if warnings:
-            self.activity.emit('Collection findings:\n' + json.dumps(warnings, indent=2, default=str))
+            self.activity.emit(
+                f'Collection findings: {len(warnings)} failed operations. See Logs → API Calls for response codes, reasons, timings, and request IDs. These diagnostics are retained only in memory.'
+            )
         self.activity.emit('Snapshot published. Source files were not rewritten.')
         logger.info('Published snapshot: %s', result.summary)
 

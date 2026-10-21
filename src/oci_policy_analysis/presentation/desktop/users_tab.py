@@ -162,7 +162,6 @@ class UsersTab(BaseUITab):
         # only show users in those groups.  This table is multi-select as well.
         # Depending on what is selected on the right, show all policies for those users in the bottom frame.
         # Bottom Frame is a policy table, similar to the other tabs, but only showing policies for the selected users/groups.
-        # Similar AI analysis as well.
 
         # --- SECTION 1: User/Group Selection ---
         self.lf_user_selection = ttk.LabelFrame(self, text='User/Group Selection')
@@ -412,14 +411,12 @@ class UsersTab(BaseUITab):
         # frm_user_top.grid_rowconfigure(3, minsize=0, weight=0)
         # frm_user_top.grid_rowconfigure(4, minsize=0, weight=0)
 
-        # --- SECTION 2: Display Options with AI Assist Button in LabelFrame ---
+        # --- SECTION 2: Display Options ---
         self.lf_display_options = ttk.LabelFrame(self, text='Display Options')
         self.lf_display_options.pack(fill='x', padx=12, pady=(12, 0))
 
         def _show_display_options_help(_event=None):
-            self.set_page_help_text(
-                'Adjust output display options, filters, and access AI assistance for user/group policies.'
-            )
+            self.set_page_help_text('Adjust output display options and filters for user/group policies.')
 
         def _restore_display_options_help(_event=None):
             self.set_page_help_text(self.default_help_text)
@@ -429,17 +426,6 @@ class UsersTab(BaseUITab):
 
         # Filter checkboxes section
         self._build_ui_statement_filters(self.lf_display_options)
-
-        # OCI GenAI controls are an opt-in desktop preview.
-        if self.is_genai_feature_enabled():
-            self.ai_assist_btn = ttk.Button(
-                self.lf_display_options, text='AI Assist', command=self._on_ai_assist_clicked, state=tk.DISABLED
-            )
-            self.ai_assist_btn.pack(side='right', anchor='e', padx=(16, 8), pady=8)
-            self.add_context_help(
-                self.ai_assist_btn,
-                'Show or hide the AI Assistant pane below to analyze user/group policies.\nNOTE: AI must be enabled in Settings Tab and only policy statements are supported.',
-            )
 
         # --- SECTION 3: Filtered Policy Statements ---
         self.lf_filtered_statements = ttk.LabelFrame(self, text='Filtered Policy Statements')
@@ -460,14 +446,6 @@ class UsersTab(BaseUITab):
         self.lf_filtered_statements.bind('<Enter>', _show_filtered_statements_help)
         self.lf_filtered_statements.bind('<Leave>', _restore_filtered_statements_help)
 
-        def selection_callback(selected_rows: list[dict]) -> None:
-            for row in selected_rows:
-                logger.info(f'Selected policy statement: {row.get("Statement Text")}')
-                # Update the policy box
-                self.app.ai_additional_instructions = 'Analyze the selected OCI policy statement. Show how the statement breaks down into its components such as action, subject, verb, resource, conditions, and effective path. Explain its implications on permissions within the OCI environment.'
-                self.app.policy_query_label_text.set('Policy Statement\nInsights:')
-                self.app.policy_query_var.set(row.get('Statement Text'))
-
         # Data Table for filtered policy statements
         self.users_policy_table = DataTable(
             self.lf_filtered_statements,
@@ -476,7 +454,6 @@ class UsersTab(BaseUITab):
             data=[],
             column_widths=POLICY_COLUMN_WIDTHS,
             # font_size=10,
-            selection_callback=selection_callback,
             multi_select=False,
         )
         self.users_policy_table.pack(expand=True, fill='both', padx=0, pady=0)
@@ -508,12 +485,6 @@ class UsersTab(BaseUITab):
             variable=self.chk_show_any_group_user,
             command=lambda: self.update_user_policy_output(),
         ).pack(side='left', padx=10)
-
-    def _on_ai_assist_clicked(self):
-        """Callback for AI Assist button. Toggles the AI (bottom) pane."""
-        if self.is_genai_feature_enabled() and hasattr(self.app, 'toggle_bottom'):
-            self.app.toggle_bottom()
-            logger.info('Users Tab: AI Assist button clicked, toggled bottom pane.')
 
     def update_user_analysis_output(self):
         """Update the top user/group listing and associated counters.

@@ -217,7 +217,9 @@ class PolicyGraphTab(BaseUITab):
             else f'{total} matching grant{"s" if total != 1 else ""} · {len(paths)} effective paths'
         )
         self.path_entry['values'] = [item['path'] for item in paths]
-        self.principal_entry['values'] = [item['principal'] for item in self.result['principals']]
+        self.principal_entry['values'] = [
+            item.get('principal_display') or item['principal'] for item in self.result['principals']
+        ]
         self.path_title.configure(text=f'Effective Paths ({len(paths)})' if not overview else 'Effective Paths')
         self.table.delete(*self.table.get_children())
         self._rows.clear()
@@ -229,7 +231,7 @@ class PolicyGraphTab(BaseUITab):
                 'end',
                 iid=iid,
                 values=(
-                    row['principal'],
+                    row.get('principal_display') or row['principal'],
                     row['effect'],
                     row['resource'],
                     row['path'],
@@ -360,7 +362,7 @@ class PolicyGraphTab(BaseUITab):
                     8,
                     y,
                     lane - 20,
-                    principal,
+                    item.get('principal_display') or principal,
                     f'{count} matching grant(s) across all pages · click to filter',
                     {'principal': principal},
                 )
@@ -483,7 +485,7 @@ class PolicyGraphTab(BaseUITab):
             ('Policy OCID', row['policy_ocid']),
             ('Statement', row['statement_text']),
             ('Statement ID', row['statement_id']),
-            ('Principal', row['principal']),
+            ('Principal', row.get('principal_display') or row['principal']),
             ('Effect', row['effect']),
             ('Resource', row['resource']),
             ('Effective path', row['path']),

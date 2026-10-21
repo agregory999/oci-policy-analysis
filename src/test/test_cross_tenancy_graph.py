@@ -2,10 +2,183 @@
 
 from types import SimpleNamespace
 
+import pytest
+
 from oci_policy_analysis.application.core.engine.intelligence_strategies.cross_tenancy_findings import (
     CrossTenancyFindingsStrategy,
 )
 from oci_policy_analysis.application.services.cross_tenancy_analysis_service import CrossTenancyAnalysisService
+
+
+def test_generate_single_policy_orders_valid_resolved_statements_and_reports_omissions() -> None:
+    payload = {
+        'defines': [
+            {
+                'valid': True,
+                'defined_type': 'tenancy',
+                'definition_status': 'resolved',
+                'policy_name': 'Definitions',
+                'statement_text': 'Define tenancy Partner as ocid1.tenancy.partner',
+            },
+            {'valid': False, 'policy_name': 'Bad', 'statement_text': 'invalid define'},
+        ],
+        'admit_statements': [
+            {
+                'valid': True,
+                'policy_name': 'Admissions',
+                'statement_text': 'Admit group Admins of tenancy Partner to manage all-resources in tenancy',
+                'external_tenancies': [{'status': 'resolved'}],
+            },
+            {
+                'valid': True,
+                'policy_name': 'Unresolved',
+                'statement_text': 'Admit group Unknown of tenancy Missing to manage all-resources in tenancy',
+                'external_tenancies': [{'status': 'unresolved'}],
+            },
+        ],
+        'endorse_statements': [
+            {
+                'valid': True,
+                'policy_name': 'Endorsements',
+                'statement_text': 'Endorse group Admins to manage all-resources in tenancy Partner',
+                'external_tenancies': [{'status': 'resolved'}],
+            }
+        ],
+        'unknown_statements': [{'statement_text': 'Other cross-tenancy statement'}],
+    }
+
+    generated = CrossTenancyAnalysisService.generate_single_policy(payload)
+
+    lines = generated['text'].splitlines()
+    assert len(lines) == 3
+    assert lines[0].startswith('Define tenancy Partner')
+    assert lines[0].endswith('// Define · source policy: Definitions')
+    assert lines[1].startswith('Admit group Admins')
+    assert lines[2].startswith('Endorse group Admins')
+    assert generated['included'] == 3
+    assert generated['invalid_or_unparsed'] == 1
+    assert generated['unresolved_or_ambiguous'] == 1
+    assert generated['unclassified'] == 1
+    assert generated['policies'][0]['text'].splitlines() == lines
+
+
+@pytest.mark.parametrize('relation_count', [49, 50, 51, 97])
+def test_generated_policies_stay_within_statement_limit_and_repeat_relevant_defines(relation_count) -> None:
+    payload = {
+        'defines': [
+            {
+                'valid': True,
+                'defined_type': kind,
+                'defined_name': name,
+                'statement_text': f'Define {kind} {name} as ocid1.{kind}.{name.casefold()}',
+                'policy_name': 'Definitions',
+            }
+            for kind, name in (('tenancy', 'Partner'), ('group', 'RemoteAdmins'))
+        ],
+        'admit_statements': [
+            {
+                'valid': True,
+                'parsed': True,
+                'policy_name': 'Admissions',
+                'statement_text': f'Admit group RemoteAdmins of tenancy Partner to read buckets in tenancy /* {n} */',
+                'external_tenancies': [{'status': 'resolved'}],
+            }
+            for n in range(relation_count)
+        ],
+        'endorse_statements': [],
+    }
+
+    generated = CrossTenancyAnalysisService.generate_single_policy(payload)
+
+    assert len(generated['policies']) > 1
+    assert all(policy['included'] <= 50 for policy in generated['policies'])
+    assert all('Define tenancy Partner' in policy['text'] for policy in generated['policies'])
+    assert all('Define group RemoteAdmins' in policy['text'] for policy in generated['policies'])
+    for policy in generated['policies']:
+        lines = policy['text'].splitlines()
+        assert lines[0].startswith('Define tenancy Partner')
+        assert lines[1].startswith('Define group RemoteAdmins')
+        assert all(line.startswith('Admit ') for line in lines[2:])
+    assert sum(policy['included'] - 2 for policy in generated['policies']) == relation_count
+
+
+@pytest.mark.parametrize('kind', ['group', 'dynamic-group', 'compartment'])
+@pytest.mark.parametrize('status', ['resolved', 'ambiguous'])
+def test_generated_policy_omits_conflicting_scoped_aliases_and_dependent_relations(kind, status):
+    definitions = [
+        {
+            'valid': True,
+            'defined_type': kind,
+            'defined_name': 'Shared',
+            'ocid_alias': f'ocid1.{kind}.{source}',
+            'definition_status': status,
+            'policy_name': source,
+            'statement_text': f'Define {kind} Shared as ocid1.{kind}.{source}',
+        }
+        for source in ('Alpha', 'Beta')
+    ]
+    relation = (
+        'Admit group Shared of tenancy Partner to read buckets in tenancy'
+        if kind != 'compartment'
+        else 'Admit group Admins of tenancy Partner to read buckets in compartment Shared'
+    )
+    safe = 'Admit any-user of tenancy Partner to read buckets in tenancy'
+    payload = {
+        'defines': definitions,
+        'admit_statements': [
+            {
+                'valid': True,
+                'parsed': True,
+                'policy_name': source,
+                'statement_text': relation,
+                'external_tenancies': [{'status': 'resolved'}],
+            }
+            for source in ('Alpha', 'Beta')
+        ]
+        + [{'valid': True, 'statement_text': safe, 'external_tenancies': [{'status': 'resolved'}]}],
+    }
+    generated = CrossTenancyAnalysisService.generate_single_policy(payload)
+
+    assert generated['included'] == 1
+    assert generated['unresolved_or_ambiguous'] == 4
+    assert len(generated['omission_reasons']) == 4
+    assert all('shared' in row['reason'] for row in generated['omission_reasons'])
+    assert generated['policies'][0]['text'].startswith(safe)
+    assert 'Shared' not in '\n'.join(line for line in generated['text'].splitlines() if not line.startswith('//'))
+    assert '// Not included:' in generated['policies'][0]['text']
+    assert 'Conflicting alias definitions' in generated['policies'][0]['text']
+
+
+def test_generated_policy_omits_relation_whose_dependencies_cannot_fit_one_policy():
+    definitions = [
+        {
+            'valid': True,
+            'defined_type': 'group',
+            'defined_name': f'Group{index}',
+            'ocid_alias': f'ocid1.group.{index}',
+            'statement_text': f'Define group Group{index} as ocid1.group.{index}',
+        }
+        for index in range(50)
+    ]
+    text = 'Admit group ' + ', '.join(f'Group{index}' for index in range(50))
+    text += ' of tenancy Partner to read buckets in tenancy'
+    generated = CrossTenancyAnalysisService.generate_single_policy(
+        {
+            'defines': definitions,
+            'admit_statements': [
+                {'valid': True, 'statement_text': text, 'external_tenancies': [{'status': 'resolved'}]}
+            ],
+        }
+    )
+
+    assert generated['included_by_kind']['Admit'] == 0
+    assert generated['included'] == 50
+    assert generated['unresolved_or_ambiguous'] == 1
+    assert generated['omission_reasons'][0]['statement_text'] == text
+    assert '50-statement policy limit' in generated['omission_reasons'][0]['reason']
+    assert text not in '\n'.join(line for line in generated['text'].splitlines() if not line.startswith('//'))
+    assert all(policy['included'] <= 50 for policy in generated['policies'])
+    assert '50-statement policy limit' in generated['policies'][0]['text']
 
 
 def test_graph_has_incoming_outgoing_and_association_links() -> None:

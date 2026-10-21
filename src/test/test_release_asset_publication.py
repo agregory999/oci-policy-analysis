@@ -61,3 +61,22 @@ def test_empty_native_artifact_set_is_not_published():
     with pytest.raises(ValueError, match='No native archives'):
         PUBLISHER.publish(client, tag='v7.0.0-dev.3', archives=[], prerelease=True)
     assert client.calls == []
+
+
+def test_release_collection_includes_only_verified_onefile_executable_and_archives(monkeypatch, tmp_path):
+    for name in (
+        'oci-policy-analysis-qt-windows-x64-dev-onefile.zip',
+        'oci-policy-analysis-qt-onefile.exe',
+        'oci-policy-analysis-tk.exe',
+        'oci-policy-analysis-qt.exe',
+        'build-result-onefile.json',
+    ):
+        (tmp_path / name).write_bytes(b'artifact')
+    selected = []
+    monkeypatch.setattr(PUBLISHER, 'GitHubReleases', lambda *_: object())
+    monkeypatch.setattr(PUBLISHER, 'publish', lambda client, **kwargs: selected.extend(kwargs['archives']))
+    assert PUBLISHER.main(['--tag', 'v7.0.0-dev.3', '--prerelease', 'true', '--artifacts-dir', str(tmp_path)]) == 0
+    assert {path.name for path in selected} == {
+        'oci-policy-analysis-qt-windows-x64-dev-onefile.zip',
+        'oci-policy-analysis-qt-onefile.exe',
+    }

@@ -26,7 +26,10 @@ from oci_policy_analysis.application.core.support.logger import get_logger
 from oci_policy_analysis.application.services.analysis_service import AnalysisService
 from oci_policy_analysis.application.services.principal_analysis_service import PrincipalAnalysisService
 from oci_policy_analysis.application.services.reference_data_service import ReferenceDataService
-from oci_policy_analysis.application.services.search_builders import build_policy_search_from_filters
+from oci_policy_analysis.application.services.search_builders import (
+    build_policy_search_from_filters,
+    build_policy_search_from_saved_search,
+)
 from oci_policy_analysis.presentation import for_display_policy
 from oci_policy_analysis.presentation.desktop.base_tab import BaseUITab
 from oci_policy_analysis.presentation.desktop.data_table import DataTable
@@ -147,6 +150,7 @@ class PoliciesTab(BaseUITab):
         self.text_filter_var = tk.StringVar()
         self.effective_path_var = tk.StringVar()
         self.policy_filter_var = tk.StringVar()
+        self.policy_ocid_filter_var = tk.StringVar()
         self.chk_show_service = tk.BooleanVar()
         self.chk_show_dynamic = tk.BooleanVar()
         self.chk_show_resource = tk.BooleanVar()
@@ -171,6 +175,10 @@ class PoliciesTab(BaseUITab):
         top_frm.grid_columnconfigure(0, weight=1)
         top_frm.grid_columnconfigure(1, weight=0)
 
+        exact_row = ttk.Frame(self.label_frm_actions)
+        exact_row.grid(row=9, column=0, padx=5, pady=4, sticky='ew')
+        ttk.Label(exact_row, text='Policy OCID (exact)').pack(anchor='w')
+        ttk.Entry(exact_row, textvariable=self.policy_ocid_filter_var, width=25).pack(fill='x')
         # --- Filter Actions widgets ---
 
         # Export to CSV button
@@ -800,12 +808,6 @@ class PoliciesTab(BaseUITab):
             popup.destroy()
         self._perm_lookup_popup = None
 
-    def _on_ai_assist_clicked(self):
-        """Callback for AI Assist button. Toggles the AI (bottom) pane."""
-        if self.is_genai_feature_enabled() and hasattr(self.app, 'toggle_bottom'):
-            self.app.toggle_bottom()
-            logger.info('Policies Tab: AI Assist button clicked, toggled bottom pane.')
-
     def _update_reload_policy_button_state(self):
         """Enable or disable the reload button depending on whether reload is allowed."""
         allowed = False
@@ -878,6 +880,7 @@ class PoliciesTab(BaseUITab):
             compartment_path=self.hierarchy_filter_var.get(),
             statement_text=self.text_filter_var.get(),
             policy_name=self.policy_filter_var.get(),
+            policy_ocid=self.policy_ocid_filter_var.get(),
             effective_path=self.effective_path_var.get(),
             conditions=self.condition_filter_var.get(),
             valid=False if self.chk_show_invalid.get() else None,
@@ -903,6 +906,7 @@ class PoliciesTab(BaseUITab):
             if not tkmessagebox.askyesno('Save Search', f'A saved search named "{search_name}" exists. Overwrite?'):
                 return
             found['filters'] = filters
+            found['raw_json'] = json.dumps(filters)
             found['output_toggles'] = output_toggles
         else:
             self.settings['saved_policy_searches'].append(
@@ -934,7 +938,36 @@ class PoliciesTab(BaseUITab):
         if not found:
             tkmessagebox.showwarning('Saved Search', f'Could not find saved search "{selected}".')
             return
-        filters = found.get('filters', {})
+        try:
+            filters = build_policy_search_from_saved_search(found)
+        except ValueError as exc:
+            tkmessagebox.showerror('Saved search', str(exc))
+            return
+        unsupported = set(filters) - {
+            'subject',
+            'verb',
+            'resource',
+            'permission',
+            'location',
+            'compartment_path',
+            'conditions',
+            'statement_text',
+            'policy_name',
+            'policy_ocid',
+            'effective_path',
+            'action',
+            'valid',
+        }
+        if filters.get('valid') is True:
+            unsupported.add('valid-only')
+        if unsupported:
+            tkmessagebox.showinfo(
+                'Advanced saved search',
+                'Open this search in Qt or Web to retain unsupported filters: ' + ', '.join(sorted(unsupported)),
+            )
+            return
+        actions = filters.get('action', [])
+        self.action_filter_var.set(actions[0].title() if len(actions) == 1 else 'Both')
         # Only update variables; leave all widget layout as built in __init__
         self.subject_filter_var.set('|'.join(filters.get('subject', [])) if 'subject' in filters else '')
         self.verb_filter_var.set('|'.join(filters.get('verb', [])) if 'verb' in filters else '')
@@ -947,6 +980,7 @@ class PoliciesTab(BaseUITab):
         self.condition_filter_var.set('|'.join(filters.get('conditions', [])) if 'conditions' in filters else '')
         self.text_filter_var.set('|'.join(filters.get('statement_text', [])) if 'statement_text' in filters else '')
         self.policy_filter_var.set('|'.join(filters.get('policy_name', [])) if 'policy_name' in filters else '')
+        self.policy_ocid_filter_var.set('|'.join(filters.get('policy_ocid', [])))
         self.effective_path_var.set('|'.join(filters.get('effective_path', [])) if 'effective_path' in filters else '')
         # "Action" field already handled above
 
@@ -980,6 +1014,7 @@ class PoliciesTab(BaseUITab):
             self.condition_filter_var,
             self.text_filter_var,
             self.policy_filter_var,
+            self.policy_ocid_filter_var,
             self.effective_path_var,
         ]:
             entry.set('')
@@ -1002,6 +1037,7 @@ class PoliciesTab(BaseUITab):
                 compartment_path=self.hierarchy_filter_var.get(),
                 statement_text=self.text_filter_var.get(),
                 policy_name=self.policy_filter_var.get(),
+                policy_ocid=self.policy_ocid_filter_var.get(),
                 effective_path=self.effective_path_var.get(),
                 valid=False if self.chk_show_invalid.get() else None,
             )
@@ -1019,7 +1055,7 @@ class PoliciesTab(BaseUITab):
             tkmessagebox.showinfo('Export Complete', f'Exported {len(filtered)} policy statements to {filepath}')
 
     def _build_ui_policy_output(self):  # noqa: C901
-        # Display Options label frame (with AI Assist button inside)
+        # Display Options label frame
         label_frm_output = ttk.LabelFrame(self, text='Display Options')
         label_frm_output.pack(fill='x', padx=10, pady=(10, 0))
 
@@ -1122,25 +1158,6 @@ class PoliciesTab(BaseUITab):
             'Prospective statements defined there will be evaluated alongside '
             'real tenancy policies during simulation.',
         )
-
-        # OCI GenAI controls are an opt-in desktop preview.
-        if self.is_genai_feature_enabled():
-            self.ai_assist_btn = ttk.Button(
-                label_frm_output, text='AI Assist', command=self._on_ai_assist_clicked, state=tk.DISABLED
-            )
-            self.ai_assist_btn.grid(row=0, column=13, sticky='e', padx=(20, 8), pady=4)
-            self.add_context_help(
-                self.ai_assist_btn,
-                'Show or hide the AI Assistant pane below to analyze policies.\nNOTE: AI must be enabled in Settings Tab.',
-            )
-
-        def selection_callback(selected_rows: list[dict]) -> None:
-            for row in selected_rows:
-                logger.info(f'Selected policy statement: {row.get("Statement Text")}')
-                # Update the policy box
-                self.app.ai_additional_instructions = 'Analyze the selected OCI policy statement. Show how the statement breaks down into its components such as action, subject, verb, resource, conditions, and effective path. Explain its implications on permissions within the OCI environment.'
-                self.app.policy_query_label_text.set('Policy Statement\nInsights:')
-                self.app.policy_query_var.set(row.get('Statement Text'))
 
         def perform_effective_path_search(effective_path: str):
             # Only allow non-None values to avoid type errors
@@ -1333,7 +1350,6 @@ class PoliciesTab(BaseUITab):
             display_columns=BASIC_POLICY_COLUMNS,
             data=[],
             column_widths=POLICY_COLUMN_WIDTHS,
-            selection_callback=selection_callback,
             row_context_menu_callback=policy_table_right_click,
             multi_select=True,
         )
@@ -1373,6 +1389,7 @@ class PoliciesTab(BaseUITab):
                 compartment_path=self.hierarchy_filter_var.get(),
                 statement_text=self.text_filter_var.get(),
                 policy_name=self.policy_filter_var.get(),
+                policy_ocid=self.policy_ocid_filter_var.get(),
                 effective_path=self.effective_path_var.get(),
                 conditions=self.condition_filter_var.get(),
                 valid=False if self.chk_show_invalid.get() else None,
