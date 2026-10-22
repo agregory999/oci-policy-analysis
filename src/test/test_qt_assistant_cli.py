@@ -1,5 +1,6 @@
 """Cross-platform resolution for embedded assistant CLIs."""
 
+import os
 from pathlib import Path
 
 import pytest
@@ -78,7 +79,7 @@ def test_child_environment_puts_bundled_codex_helpers_first(tmp_path):
 
     environment = child_environment(native, platform='win32', home=tmp_path)
 
-    assert environment.value('PATH').split(';')[0] == str(helpers)
+    assert environment.value('PATH').split(os.pathsep)[0] == str(helpers)
 
 
 def test_billing_source_names_api_key_variables_or_the_cli_login(monkeypatch):
