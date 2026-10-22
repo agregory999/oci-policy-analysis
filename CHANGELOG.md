@@ -1,3 +1,10 @@
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.18](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.17...v7.0.0-7-0-0-policy-corpus-cross-tenancy.18) (2026-10-22)
+
+
+### Bug Fixes
+
+* correct certificate bundle permission mapping ([7855a73](https://github.com/agregory999/oci-policy-analysis/commit/7855a739df85f89a7f7f8b5ab89b647530eaf780))
+
 ## [7.0.0-7-0-0-policy-corpus-cross-tenancy.17](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.16...v7.0.0-7-0-0-policy-corpus-cross-tenancy.17) (2026-10-22)
 
 
