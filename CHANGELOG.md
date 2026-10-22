@@ -1,3 +1,10 @@
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.14](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.13...v7.0.0-7-0-0-policy-corpus-cross-tenancy.14) (2026-10-22)
+
+
+### Features
+
+* add embedded Claude CLI chat and server MCP activity ([92b5d79](https://github.com/agregory999/oci-policy-analysis/commit/92b5d79cd77205d1a31096ffa240bcf4403a2351))
+
 ## [7.0.0-7-0-0-policy-corpus-cross-tenancy.13](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.12...v7.0.0-7-0-0-policy-corpus-cross-tenancy.13) (2026-10-22)
 
 
