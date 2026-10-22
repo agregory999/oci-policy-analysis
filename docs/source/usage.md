@@ -409,7 +409,8 @@ coverage metadata as JSON.
 The default **Ignore ephemeral internal IDs** option omits only entity-level
 `internal_id`, `stable_key` and underscore-prefixed runtime fields. Nested JSON,
 including arbitrary tag keys, remains literal. Statements match by exact source
-text within a policy; edits appear as removal/addition and duplicate occurrences
+text within a policy, then pairs comment-only edits as modifications. Grant and
+condition edits appear as removal/addition, and duplicate occurrences
 are retained. Turning this option off uses the existing stable-key matching.
 Nested arrays retain their order. Original JSON is always retained for inspection.
 Snapshot controls collapse after comparison to leave room for the change lists.

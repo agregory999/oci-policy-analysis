@@ -246,3 +246,45 @@ def test_incomplete_opt_in_does_not_override_inherited_iam_or_scope_mismatch():
     result = _service(left, right).compare_caches(left_cache='left', right_cache='right', include_incomplete=True)
     assert not result.identity_sections and not result.policy_sections
     assert result.skipped_sections
+
+
+def test_comment_only_statement_edits_are_modifications_without_mutating_snapshots():
+    from copy import deepcopy
+
+    for key, source in (
+        ('policy_statements', 'allow group G to read buckets in tenancy'),
+        ('cross_tenancy_statements', 'admit group G of tenancy T to read buckets in tenancy'),
+    ):
+        left = {key: [{'policy_ocid': 'p', 'statement_text': source + ' // old', 'comments': 'old'}]}
+        right = {key: [{'policy_ocid': 'p', 'statement_text': source + ' // new', 'comments': 'new'}]}
+        before = deepcopy((left, right))
+        section = _service(left, right).compare_snapshots(left, right, meaningful_only=True).policy_sections[0]
+        assert (section.added, section.removed, section.modified) == (0, 0, 1)
+        assert {change['field'] for change in section.items[0].changed_fields} == {'statement_text', 'comments'}
+        assert (left, right) == before
+
+
+def test_comment_matching_keeps_exact_duplicate_matches_before_pairing_edits():
+    source = 'allow group G to read buckets in tenancy'
+    left = {'policy_statements': [{'policy_ocid': 'p', 'statement_text': source + ' // ' + c} for c in ('A', 'B')]}
+    right = {'policy_statements': [{'policy_ocid': 'p', 'statement_text': source + ' // ' + c} for c in ('C', 'A')]}
+    section = _service(left, right).compare_snapshots(left, right, meaningful_only=True).policy_sections[0]
+    assert (section.added, section.removed, section.modified) == (0, 0, 1)
+    assert section.items[0].old_value['statement_text'].endswith('// B')
+    assert section.items[0].new_value['statement_text'].endswith('// C')
+
+
+def test_comment_matching_preserves_quoted_slashes_permissions_and_policy_scope():
+    source = "allow group G to read buckets in tenancy where target.bucket.name = 'a//b'"
+    left = {'policy_statements': [{'policy_ocid': 'p', 'statement_text': source + ' // old'}]}
+    for policy, text in (
+        ('p', source.replace('a//b', 'a//c') + ' // new'),
+        ('p', source.replace('read', 'manage') + ' // new'),
+        ('other-policy', source + ' // new'),
+    ):
+        right = {'policy_statements': [{'policy_ocid': policy, 'statement_text': text}]}
+        section = _service(left, right).compare_snapshots(left, right, meaningful_only=True).policy_sections[0]
+        assert (section.added, section.removed, section.modified) == (1, 1, 0)
+    right = {'policy_statements': [{'policy_ocid': 'p', 'statement_text': source}]}
+    section = _service(left, right).compare_snapshots(left, right, meaningful_only=True).policy_sections[0]
+    assert (section.added, section.removed, section.modified) == (0, 0, 1)

@@ -234,6 +234,64 @@ class HistoricalAnalysisService:
             result[stable] = row_copy
         return result
 
+    @staticmethod
+    def _statement_without_comments(source: str) -> str:
+        # Preserve quoted condition values (including URLs and literal //).
+        # Only remove OCI's // line comments; never use parsed/derived fields
+        # to infer that two different grants are the same statement.
+        result = []
+        quote = None
+        index = 0
+        while index < len(source):
+            char = source[index]
+            if quote:
+                result.append(char)
+                if char == '\\' and index + 1 < len(source):
+                    index += 1
+                    result.append(source[index])
+                elif char == quote:
+                    quote = None
+            elif char in {"'", '"'}:
+                quote = char
+                result.append(char)
+            elif source[index : index + 2] == '//':
+                while index < len(source) and source[index] not in '\r\n':
+                    index += 1
+                continue
+            else:
+                result.append(char)
+            index += 1
+        if quote:
+            return source  # An unterminated literal cannot safely be normalized.
+        return '\n'.join(line.rstrip() for line in ''.join(result).splitlines()).rstrip()
+
+    @classmethod
+    def _align_comment_edits(cls, left_map: dict[str, dict[str, Any]], right_map: dict[str, dict[str, Any]]) -> None:
+        # Exact matches take precedence so duplicate grants with different
+        # comments can be reordered without creating spurious modifications.
+        shared = left_map.keys() & right_map.keys()
+
+        def candidates(rows):
+            grouped = {}
+            for stable_key, row in rows.items():
+                source = row.get('statement_text')
+                if stable_key in shared or not isinstance(source, str) or not source:
+                    continue
+                identity = (
+                    row.get('policy_ocid') or row.get('policy_name'),
+                    row.get('compartment_ocid') or row.get('compartment_path'),
+                    cls._statement_without_comments(source),
+                )
+                if identity[0] and identity[2]:
+                    grouped.setdefault(identity, []).append(stable_key)
+            return grouped
+
+        left_candidates = candidates(left_map)
+        right_candidates = candidates(right_map)
+        for identity in left_candidates.keys() & right_candidates.keys():
+            for old_key, new_key in zip(left_candidates[identity], right_candidates[identity], strict=False):
+                right_map[old_key] = right_map.pop(new_key)
+
     def _compare_section(
         self,
         left: dict[str, Any],
@@ -245,6 +303,8 @@ class HistoricalAnalysisService:
     ) -> HistoricalSectionResult:
         left_map = self._to_keyed_map(left, key, meaningful_only=meaningful_only)
         right_map = self._to_keyed_map(right, key, meaningful_only=meaningful_only)
+        if meaningful_only and key in {'policy_statements', 'cross_tenancy_statements'}:
+            self._align_comment_edits(left_map, right_map)
 
         left_keys = set(left_map.keys())
         right_keys = set(right_map.keys())
@@ -482,9 +542,11 @@ class HistoricalAnalysisService:
         Notes:
             List items align by stable keys, with legacy fallback identities. An
             identity change can appear as removal/addition rather than modification.
-            Meaningful mode aligns statements by exact text within a policy and retains
-            duplicate occurrences; edits appear as removal/addition. Nested JSON
-            arrays retain their order. No source files or engines change.
+            Meaningful mode first aligns exact statement text within a policy,
+            then matches comment-only edits as modifications, retaining duplicate
+            occurrences and original evidence. Grant/condition edits appear as
+            removal/addition. Nested JSON arrays retain their order. No source
+            files or engines change.
         """
         if not isinstance(left, dict) or not left or not isinstance(right, dict) or not right:
             raise ValueError('Unable to load cache json for historical comparison.')
