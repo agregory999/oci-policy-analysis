@@ -1,3 +1,10 @@
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.20](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.19...v7.0.0-7-0-0-policy-corpus-cross-tenancy.20) (2026-10-22)
+
+
+### Bug Fixes
+
+* format OCI Audit event details ([333106e](https://github.com/agregory999/oci-policy-analysis/commit/333106eba7270b92bedcb59a0b10651a83921db8))
+
 ## [7.0.0-7-0-0-policy-corpus-cross-tenancy.19](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.18...v7.0.0-7-0-0-policy-corpus-cross-tenancy.19) (2026-10-22)
 
 
