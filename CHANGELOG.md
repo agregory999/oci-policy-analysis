@@ -1,3 +1,10 @@
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.15](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.14...v7.0.0-7-0-0-policy-corpus-cross-tenancy.15) (2026-10-22)
+
+
+### Features
+
+* make embedded Claude and Codex assistants work on macOS and Windows ([86737c2](https://github.com/agregory999/oci-policy-analysis/commit/86737c271d0682b6e670075d0f679358247a15bf))
+
 ## [7.0.0-7-0-0-policy-corpus-cross-tenancy.14](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.13...v7.0.0-7-0-0-policy-corpus-cross-tenancy.14) (2026-10-22)
 
 
