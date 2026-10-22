@@ -4688,9 +4688,15 @@ def test_audit_dialog_generates_only_on_explicit_action_and_clears_stale_command
         window,
     )
     assert dialog.output.toPlainText() == ''
+    assert not dialog.fetch_all.isChecked()
     dialog.generate()
     assert dialog.output.toPlainText().count('oci audit event list') == 3
+    assert '--all' not in dialog.output.toPlainText()
     assert dialog.copy.isEnabled()
+    dialog.fetch_all.setChecked(True)
+    assert dialog.output.toPlainText() == '' and not dialog.copy.isEnabled()
+    dialog.generate()
+    assert '--all' in dialog.output.toPlainText()
     dialog.fields['region'].setText('us-ashburn-1')
     assert dialog.output.toPlainText() == '' and not dialog.copy.isEnabled()
     dialog.generate()

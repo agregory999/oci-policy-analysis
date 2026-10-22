@@ -52,7 +52,7 @@
 
     <dialog id="auditPanel" style="position:fixed;inset:auto 0 0;width:min(1200px,95vw);max-height:75vh;overflow:auto;padding:20px;border:1px solid #bbb;border-radius:12px 12px 0 0">
       <h2>Find OCI Audit Records</h2>
-      <p>Generate commands to run yourself. No OCI calls are performed. Audit is regional and compartment-scoped, not recursive. Confirm the event compartment, region and audit-events read permissions. Clear the resource filter if a narrow search finds nothing. IAM domain activity may require its domain audit report.</p>
+      <p>Generate commands to run yourself. No OCI calls are performed. Audit is regional and compartment-scoped, not recursive. Commands return one page per time window by default. The resource OCID filter runs locally after fetching; narrow the time range and compartment first. Fetching all pages can be slow. Confirm the region and audit-events read permission. IAM domain activity may require its domain audit report.</p>
       <form id="auditForm" class="form-grid">
         <label>Compartment OCID<input name="compartment_id" required></label>
         <label>Resource OCID (optional)<input name="resource_id"></label>
@@ -61,6 +61,7 @@
         <label>Region (blank uses CLI configuration)<input name="region"></label>
         <label>Profile (blank uses CLI configuration)<input name="profile"></label>
         <label>Shell<select name="shell"><option value="posix">POSIX shell</option><option value="powershell">PowerShell</option></select></label>
+        <label><input type="checkbox" name="fetch_all" value="true"> Fetch all pages (--all; may be slow)</label>
         <button type="submit">Generate commands (14-day windows)</button>
       </form>
       <p id="auditStatus" role="status"></p>
@@ -175,6 +176,7 @@
         if (!response.ok) { statusEl.textContent = 'Could not prepare the Audit command helper.'; return; }
         const defaults = await response.json();
         Object.entries(defaults).forEach(([key,value]) => { if (form.elements.namedItem(key)) form.elements.namedItem(key).value = value; });
+        form.elements.namedItem('fetch_all').checked = false;
         document.getElementById('auditOutput').value = '';
         document.getElementById('copyAudit').disabled = true;
         document.getElementById('auditStatus').textContent = 'Edit the time range and scope, then generate. Times expand to minute boundaries.';
@@ -192,7 +194,8 @@
           if (!response.ok) throw new Error(payload.detail || 'Command generation failed');
           if (JSON.stringify(Object.fromEntries(new FormData(event.target))) !== JSON.stringify(inputs)) return;
           output.value = payload.commands.join('\n\n');
-          status.textContent = `${payload.commands.length} commands · Start inclusive, end exclusive · Nothing executed.`;
+          const paging = payload.fetch_all ? 'All result pages requested; this can take longer.' : 'First page per window.';
+          status.textContent = `${payload.commands.length} commands · ${paging} · Start inclusive, end exclusive · Nothing executed.`;
           document.getElementById('copyAudit').disabled = false;
         } catch(error) { status.textContent = error.message; }
       });

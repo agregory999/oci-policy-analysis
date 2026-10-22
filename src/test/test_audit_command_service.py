@@ -30,9 +30,16 @@ def test_audit_ranges_are_contiguous_end_exclusive_and_at_most_14_days():
     for window in result['windows']:
         assert (datetime.fromisoformat(window['end_time']) - datetime.fromisoformat(window['start_time'])).days <= 14
     args = shlex.split(result['commands'][0])
-    assert args[:4] == ['oci', 'audit', 'event', 'list'] and '--all' in args
+    assert args[:4] == ['oci', 'audit', 'event', 'list'] and '--all' not in args
+    assert result['fetch_all'] is False
     query = args[args.index('--query') + 1]
     assert query == 'data[?data."resource-id" == \'ocid1.policy.oc1..example\']'
+
+
+def test_fetch_all_pages_is_an_explicit_opt_in():
+    result = AuditCommandService.generate(inputs(fetch_all=True))
+    assert result['fetch_all'] is True
+    assert '--all' in shlex.split(result['commands'][0])
 
 
 def test_command_quoting_retains_literal_profile_and_query():

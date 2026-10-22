@@ -16,8 +16,11 @@ class AuditCommandService:
     NOTE = (
         'Commands only; nothing is executed. Audit is regional and compartment-scoped, not recursive. '
         'Select the compartment where the event occurred and the appropriate region (often the home region for IAM). '
-        'Read access to audit-events is required. A resource filter may omit events with different or missing resource IDs; '
-        'clear it to broaden the search. Snapshot differences are not confirmed OCI changes. '
+        'Read access to audit-events is required. Commands return one page per time window by default. '
+        'The optional resource OCID filter is applied locally after events are fetched, not by the Audit service; '
+        'narrow the time range and compartment first. Fetching all pages can be slow. '
+        'A resource filter may omit events with different or missing resource IDs; clear it to broaden the search. '
+        'Snapshot differences are not confirmed OCI changes. '
         'Identity-domain activity may require the IAM domain audit report.'
     )
 
@@ -89,7 +92,8 @@ class AuditCommandService:
 
         Args:
             inputs: compartment_id, optional resource_id/region/profile,
-                start_time/end_time with timezone, and posix or powershell shell.
+                start_time/end_time with timezone, posix or powershell shell,
+                and optional fetch_all to retrieve every result page.
 
         Returns:
             dict: Commands, normalized minute boundaries, warning and reference.
@@ -112,6 +116,13 @@ class AuditCommandService:
         if end.second or end.microsecond:
             end = end.replace(second=0, microsecond=0) + timedelta(minutes=1)
         quote = shlex.quote if shell == 'posix' else lambda value: "'" + value.replace("'", "''") + "'"
+        fetch_all_value = inputs.get('fetch_all', False)
+        if fetch_all_value in (True, 1, 'true', 'on', '1'):
+            fetch_all = True
+        elif fetch_all_value in (False, 0, None, '', 'false', 'off', '0'):
+            fetch_all = False
+        else:
+            raise ValueError('Choose whether to fetch every Audit result page.')
         commands, windows = [], []
         while start < end:
             stop = min(start + timedelta(days=14), end)
@@ -127,8 +138,9 @@ class AuditCommandService:
                 first,
                 '--end-time',
                 last,
-                '--all',
             ]
+            if fetch_all:
+                args.append('--all')
             for flag, field in [('--region', 'region'), ('--profile', 'profile')]:
                 value = str(inputs.get(field) or '').strip()
                 if any(ord(char) < 32 for char in value):
@@ -140,4 +152,10 @@ class AuditCommandService:
             commands.append(' '.join(quote(arg) for arg in args))
             windows.append({'start_time': first, 'end_time': last})
             start = stop
-        return {'commands': commands, 'windows': windows, 'note': cls.NOTE, 'documentation': cls.DOCUMENTATION}
+        return {
+            'commands': commands,
+            'windows': windows,
+            'fetch_all': fetch_all,
+            'note': cls.NOTE,
+            'documentation': cls.DOCUMENTATION,
+        }
