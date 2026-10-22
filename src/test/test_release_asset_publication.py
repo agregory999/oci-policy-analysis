@@ -63,7 +63,7 @@ def test_empty_native_artifact_set_is_not_published():
     assert client.calls == []
 
 
-def test_release_collection_includes_only_verified_onefile_executable_and_archives(monkeypatch, tmp_path):
+def test_release_collection_includes_archives_and_excludes_raw_executables(monkeypatch, tmp_path):
     for name in (
         'oci-policy-analysis-qt-windows-x64-dev-onefile.zip',
         'oci-policy-analysis-qt-onefile.exe',
@@ -78,5 +78,4 @@ def test_release_collection_includes_only_verified_onefile_executable_and_archiv
     assert PUBLISHER.main(['--tag', 'v7.0.0-dev.3', '--prerelease', 'true', '--artifacts-dir', str(tmp_path)]) == 0
     assert {path.name for path in selected} == {
         'oci-policy-analysis-qt-windows-x64-dev-onefile.zip',
-        'oci-policy-analysis-qt-onefile.exe',
     }

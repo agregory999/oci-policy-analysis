@@ -1,4 +1,4 @@
-"""Attach verified native archives and onefile executables to an existing release."""
+"""Attach verified native archives to an existing release."""
 
 import argparse
 import json
@@ -144,12 +144,7 @@ def main(argv: list[str] | None = None) -> int:
     archives = sorted(
         path
         for path in args.artifacts_dir.rglob('oci-policy-analysis-*')
-        if path.is_file()
-        and (
-            path.name.endswith('.zip')
-            or path.name.endswith('.tar.gz')
-            or path.name == 'oci-policy-analysis-qt-onefile.exe'
-        )
+        if path.is_file() and (path.name.endswith('.zip') or path.name.endswith('.tar.gz'))
     )
     client = GitHubReleases(args.repository, os.environ.get('GH_TOKEN') or os.environ.get('GITHUB_TOKEN') or '')
     publish(client, tag=args.tag, archives=archives, prerelease=args.prerelease == 'true')

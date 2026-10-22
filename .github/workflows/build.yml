@@ -391,11 +391,6 @@ jobs:
           - os: windows-latest
             platform: windows
             architecture: x64
-            mode: standalone
-            nuitka_mode: app-dist
-          - os: windows-latest
-            platform: windows
-            architecture: x64
             mode: onefile
             nuitka_mode: onefile
     runs-on: ${{ matrix.os }}
@@ -441,7 +436,6 @@ jobs:
           path: |
             dist/qt/*.zip
             dist/qt/*.tar.gz
-            dist/qt/*-onefile.exe
             dist/qt/build-result-${{ matrix.mode }}.json
           if-no-files-found: error
           retention-days: 30

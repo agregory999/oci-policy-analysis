@@ -97,12 +97,11 @@ with `brew install ccache` on macOS. Removing `dist/` does not clear compiler ca
 The GitHub `build_qt` matrix uses the pinned official Nuitka action, persists its
 cache, and smoke-tests macOS arm64 and Windows x64 bundles before attaching their
 archives to the same semantic-release prerelease as the Tkinter installers.
-Windows releases include both standalone and onefile Qt builds. For standalone,
-extract the entire Qt ZIP and run `oci-policy-analysis-qt/oci-policy-analysis-qt.exe`;
-keep its adjacent DLLs and resource folders together. Alternatively, download
-`oci-policy-analysis-qt-onefile.exe` directly from the release and run it. Nuitka
-extracts its embedded runtime internally; the onefile build uses the same offline
-Qt/MCP startup checks as standalone.
+Windows Qt releases include only the onefile build, packaged in a ZIP. Extract
+the ZIP and run `oci-policy-analysis-qt-onefile.exe`; no adjacent DLLs or resource
+folders are required. Raw executables are not attached to releases. Nuitka
+extracts its embedded runtime internally; the onefile build retains the offline
+Qt/MCP startup checks. Local standalone builds remain available for development.
 
 `run/clean.sh` deliberately removes `.venv`, `dist`, `build`, `wheels`, generated dependency lists and source Python caches. It preserves configuration, signing keys and application data. Build again afterward. Root `local-run.sh`, `local-build.sh`, `local-clean.sh`, `local-build-with-pyinstaller.sh`, and MCP build/deploy shell/PowerShell names are compatibility adapters into `run/`; they use the same configuration. Native Windows commands are `run/local.ps1`, `run/build.ps1`, `run/clean.ps1`, and `run/build-executable.ps1`; they read the same literal assignments in the shared file. PowerShell container adapters require Bash. PowerShell configuration supports literal quoted values, not shell expansion/command substitution. The ignored old `env.sh` is no longer sourced by these commands.
 

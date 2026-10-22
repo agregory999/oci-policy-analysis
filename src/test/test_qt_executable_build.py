@@ -125,3 +125,8 @@ def test_true_onefile_is_a_binary_not_an_app_directory(monkeypatch, tmp_path, ta
     executable = Path(result['executable'])
     assert executable.name == f'oci-policy-analysis-qt-onefile{extension}'
     assert executable.is_file() and executable.suffix != '.app'
+    if target == 'win32':
+        import zipfile
+
+        with zipfile.ZipFile(result['archive']) as archive:
+            assert archive.namelist() == ['oci-policy-analysis-qt-onefile.exe']
