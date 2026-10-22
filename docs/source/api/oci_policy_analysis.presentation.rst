@@ -139,6 +139,9 @@ For the ASGI application and server launcher, see :doc:`oci_policy_analysis`.
 .. automodule:: oci_policy_analysis.presentation.qt.mcp_host
    :members:
 
+.. automodule:: oci_policy_analysis.presentation.qt.assistant_cli
+   :members:
+
 .. automodule:: oci_policy_analysis.presentation.qt.codex_client
    :members:
 

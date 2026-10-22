@@ -463,7 +463,11 @@ class McpAssistantPage(QWidget):
     def _turn_finished(self, status: str) -> None:
         self._flush_text()
         self.conversation.finish_answer()
-        self.conversation.append_literal(f'[{status}]')
+        marker = f'[{status}]'
+        if status == 'failed' and self.assistant_status.text():
+            # Show the reason inline; a bare [failed] hides why the turn stopped.
+            marker = f'{marker} {self.assistant_status.text()}'
+        self.conversation.append_literal(marker)
         self._update_controls()
 
     def _client_stopped(self) -> None:

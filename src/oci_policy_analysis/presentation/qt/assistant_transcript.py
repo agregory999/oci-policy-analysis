@@ -1,7 +1,9 @@
 """Bounded native Markdown transcript for the embedded assistant."""
 
 from PySide6.QtGui import (
+    QFont,
     QFontDatabase,
+    QPalette,
     QTextBlockFormat,
     QTextCharFormat,
     QTextCursor,
@@ -54,9 +56,19 @@ class AssistantTranscript(QTextBrowser):
             assistant: Literal role label for this answer.
         """
         self.finish_answer()
-        self.append_literal('You')
+        label = QTextCharFormat()
+        label.setFontWeight(QFont.Weight.Bold)
         cursor = self._end_cursor()
         cursor.insertBlock(QTextBlockFormat(), QTextCharFormat())
+        cursor.insertText('You', label)
+        # The question is indented on a tinted block so it reads apart from the answer.
+        prompt = QTextBlockFormat()
+        prompt.setLeftMargin(24)
+        prompt.setRightMargin(12)
+        prompt.setTopMargin(4)
+        prompt.setBottomMargin(4)
+        prompt.setBackground(self.palette().color(QPalette.ColorRole.AlternateBase))
+        cursor.insertBlock(prompt, QTextCharFormat())
         cursor.insertText(question)
         cursor.insertBlock(QTextBlockFormat(), QTextCharFormat())
         role = QTextCharFormat()

@@ -2,8 +2,6 @@
 
 import json
 import os
-import re
-import shutil
 import tempfile
 import time
 import uuid
@@ -12,6 +10,16 @@ from urllib.parse import urlsplit
 
 from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, Signal
 
+from oci_policy_analysis.application.core.support.logger import get_logger
+from oci_policy_analysis.presentation.qt.assistant_cli import (
+    billing_variables,
+    child_environment,
+    redact_secrets,
+    resolve_executable,
+)
+
+logger = get_logger(component='qt.claude')
+_BILLING_VARIABLES = ('ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN')
 _TOOLS = tuple(
     'mcp__opa_snapshot__' + name
     for name in (
@@ -151,6 +159,8 @@ class ClaudeClient(QObject):
         self._message_id = ''
         self._streamed = set()
         self.server_name = ''
+        self.billing_source = 'CLI login'
+        self._started_at = 0.0
         self._tools = set()
 
     @property
@@ -167,11 +177,14 @@ class ClaudeClient(QObject):
         """
         if self.active:
             return
-        environment = QProcessEnvironment.systemEnvironment()
-        program = shutil.which(executable.strip().strip('"'))
-        if not program:
-            self.status.emit('Claude Code executable not found. Select the CLI claude.exe, not Claude Desktop.')
+        program, reason = resolve_executable(executable)
+        if program is None:
+            logger.warning('Claude executable not resolved: %s', reason)
+            self.status.emit(
+                f'Claude Code executable unavailable. {reason} Select the CLI claude.exe, not Claude Desktop.'
+            )
             return
+        environment = child_environment(program)
         try:
             _claude_arguments(url, 'default')
             self._settings = _session_settings()
@@ -192,11 +205,22 @@ class ClaudeClient(QObject):
         environment.insert('ENABLE_CLAUDEAI_MCP_SERVERS', 'false')
         self.process.setProcessEnvironment(environment)
         self.process.setWorkingDirectory(self._scratch.name)
-        self.process.setProgram(program)
+        self.process.setProgram(str(program))
         self.process.setArguments(['--version'])
         self._phase = 'probe'
         self._deadline = time.monotonic() + 30
-        self.status.emit('Checking Claude Code executable…')
+        # The child inherits the whole environment, so an API key here silently
+        # switches the CLI from subscription login to API billing. Say so up front.
+        self.billing_source = billing_variables(environment, _BILLING_VARIABLES)
+        logger.info('Claude CLI probe started: %s, billing source %s', program.name, self.billing_source)
+        self.status.emit(
+            'Checking Claude Code executable…'
+            + (
+                f' · API billing variable in environment: {self.billing_source}'
+                if self.billing_source != 'CLI login'
+                else ''
+            )
+        )
         self.process.start()
 
     def send(self, question: str, model: str) -> None:
@@ -230,6 +254,13 @@ class ClaudeClient(QObject):
         self._phase = 'turn'
         self._deadline = time.monotonic() + 600
         self.process.setArguments(_claude_arguments(self.url, model, self._settings, self.server_name))
+        self._started_at = time.monotonic()
+        logger.info(
+            'Claude turn started: model %s, question %d chars, history %d exchanges',
+            model,
+            len(self._question),
+            len(self._history),
+        )
         self.status.emit('Claude is connecting to snapshot MCP and answering…')
         self.process.start()
 
@@ -297,15 +328,27 @@ class ClaudeClient(QObject):
         if kind == 'system' and message.get('subtype') == 'init':
             servers = message.get('mcp_servers') or []
             tools = set(message.get('tools') or [])
-            if (
-                len(servers) != 1
-                or servers[0].get('name') != self.server_name
-                or servers[0].get('status') != 'connected'
-                or f'mcp__{self.server_name}__snapshot_status' not in tools
-                or tools - self._tools - {'EndConversation'}
-                or message.get('plugins')
-            ):
-                self._fail('Claude did not report only the connected snapshot tools. Disconnected.')
+            # Built-in CLI plugins are always listed, even when disabled by settings;
+            # only user or project plugins could add hooks, commands or servers.
+            extra_plugins = [
+                str(plugin.get('name')) for plugin in message.get('plugins') or [] if plugin.get('path') != 'builtin'
+            ]
+            if len(servers) != 1 or servers[0].get('name') != self.server_name:
+                self._fail(
+                    f'Claude reported {len(servers)} MCP server(s) instead of the snapshot server. Disconnected.'
+                )
+                return
+            if servers[0].get('status') != 'connected':
+                self._fail(f'Snapshot MCP server status is {servers[0].get("status")!r}. Disconnected.')
+                return
+            if f'mcp__{self.server_name}__snapshot_status' not in tools:
+                self._fail('Claude did not list the snapshot_status tool. Disconnected.')
+                return
+            if extra := sorted(tools - self._tools - {'EndConversation'}):
+                self._fail(f'Claude exposed unexpected tools: {", ".join(extra)[:300]}. Disconnected.')
+                return
+            if extra_plugins:
+                self._fail(f'Claude loaded non-builtin plugins: {", ".join(extra_plugins)[:300]}. Disconnected.')
                 return
             self._initialized = True
             self.activity.emit('Claude connected to snapshot MCP')
@@ -362,10 +405,7 @@ class ClaudeClient(QObject):
         self.delta.emit(text)
 
     def _safe_text(self, text: str) -> str:
-        key = self.process.processEnvironment().value('ANTHROPIC_API_KEY')
-        if key:
-            text = text.replace(key, '[redacted]')
-        return re.sub(r'sk-[A-Za-z0-9_-]+', '[redacted]', text)[:500]
+        return redact_secrets(text)
 
     def _set_ready(self, value: bool) -> None:
         self.ready = value
@@ -373,6 +413,8 @@ class ClaudeClient(QObject):
 
     def _fail(self, text: str) -> None:
         self._error = text
+        logger.warning('Claude session failed: %s', text)
+        self.activity.emit(f'Failed: {text}')
         self.stop()
         self.status.emit(text)
 
@@ -405,13 +447,25 @@ class ClaudeClient(QObject):
                 ]
             )
             self._set_ready(True)
-            self.status.emit('Claude CLI configured · Send uses your CLI login, billing and model access.')
+            logger.info('Claude CLI configured; billing source %s', self.billing_source)
+            self.status.emit(f'Claude CLI configured · Send uses {self.billing_source} for billing and model access.')
             return
         if self._phase != 'turn':
             return
         outcome = 'interrupted' if self._interrupted else self._outcome if not code else 'failed'
         if not outcome or (not self._interrupted and self._buffer.strip()):
             outcome = 'failed'
+            if not self._error:
+                self._error = (
+                    'Claude output ended without a result message.'
+                    if not self._outcome
+                    else 'Claude ended with an incomplete stream line.'
+                )
+        if outcome == 'failed' and not self._error and code:
+            # Keep only the last sanitized stderr line; full stderr may echo prompts or keys.
+            lines = self._safe_text(self._stderr.decode('utf-8', errors='replace')).strip().splitlines()
+            detail = f' Last stderr line: {lines[-1][:200]}' if lines else ''
+            self._error = f'Claude CLI exited with code {code}.{detail}'
         if outcome == 'completed':
             self._history.append({'question': self._question, 'answer': self._answer})
             while sum(len(item['question']) + len(item['answer']) for item in self._history) > 150000:
@@ -425,6 +479,12 @@ class ClaudeClient(QObject):
                 'Claude CLI failed. Check its login, billing, model access and version in a terminal. '
                 'This adapter requires print-mode stream-json support. No raw stderr was logged.'
             )
+        elapsed = time.monotonic() - self._started_at
+        if outcome == 'failed':
+            logger.warning('Claude turn failed after %.1fs (exit %s): %s', elapsed, code, self._error)
+            self.activity.emit(f'Turn failed: {self._error}')
+        else:
+            logger.info('Claude turn %s after %.1fs, answer %d chars', outcome, elapsed, len(self._answer))
         self.status.emit(self._error or f'Claude turn {outcome}')
         self.turn_finished.emit(outcome)
 

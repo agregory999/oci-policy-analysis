@@ -23,10 +23,25 @@ in the CLI before retrying. Claude Desktop remains a separate external option.
 
 Each question runs a print-mode JSONL child in a temporary working directory,
 with only the served snapshot MCP endpoint and its query tools. Built-in tools,
-skills, user hooks, plugins and unrelated connectors are disabled for that child;
-managed organization policy still applies. Claude's reported tools and server
-connection are checked before displaying assistant output. Questions travel over
-stdin, not command arguments. No question is sent until **Send**.
+skills, user hooks and unrelated connectors are disabled for that child, and
+user or project plugins are rejected. The CLI always lists its built-in plugins,
+so those are allowed. Managed organization policy still applies. Claude's reported
+tools, MCP server and plugins are checked before displaying assistant output; a
+mismatch fails the turn with the specific reason. Questions travel over stdin,
+not command arguments. No question is sent until **Send**.
+
+When `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` is set in the environment
+Qt inherits, the CLI uses that for billing rather than its login. Connect shows
+which source is active. Qt does not remove these variables, so unset them in the
+launching shell to keep API-key billing separate from the CLI login.
+
+Failed turns show the reason inline after `[failed]`, in the status line and
+the events log. Failure reasons are written to the application log
+(`~/.oci-policy-analysis/logs/app.log`) at WARNING, which the default level keeps.
+The probe and each turn's start and outcome (model, question length, answer
+length, duration, exit code) are INFO; raise the `qt.claude` component level in
+the logging settings to record them. Questions, answers, and tool payloads are
+never logged. Only the last sanitized stderr line is included in a failure reason.
 
 Successful question/answer pairs provide follow-up context in memory, capped at
 150,000 characters; older exchanges are omitted visibly when needed. Tool traces
@@ -185,8 +200,10 @@ configuration, reads account state and the model catalog, creates an ephemeral
 read-only thread on the first question, verifies its MCP tool connection, and
 only then starts a model turn. It supports streamed assistant messages, tool
 activity, cancellation, failed turns, process errors, malformed protocol data,
-response deadlines and finite buffers. stderr and raw account/configuration
-payloads are not copied into the application logs.
+response deadlines and finite buffers. Raw stderr and account/configuration
+payloads are not logged. Failures record the exit code and the last sanitized
+stderr line. Startup, account type (`apiKey` or `chatgpt`), turn start and turn
+outcome are logged under `qt.codex`, with the same INFO/WARNING split as Claude.
 
 All overrides are child-process arguments. The operator's global Codex settings
 are not rewritten. Inherited server names are explicitly disabled with valid
@@ -209,6 +226,27 @@ Official OpenAI references: [app-server protocol](https://developers.openai.com/
 [configuration reference](https://developers.openai.com/codex/config-reference/).
 The transport, account flows, configuration keys, and event names follow these
 references and the locally generated schemas for installed `codex-cli 0.162.1`.
+
+## Finding the CLI on macOS and Windows
+
+Both adapters resolve their CLI the same way. A name is searched on the inherited
+PATH plus existing install locations: Homebrew and `/usr/local/bin` on macOS,
+`~/.local/bin`, `~/.npm-global/bin` and `~/.volta/bin` on both, and `%APPDATA%\npm`
+on Windows. This matters because apps started from Finder or the Start menu do
+not inherit the terminal's PATH. Node-based shims also need `node` on that PATH,
+and the child receives the same augmented PATH.
+
+On Windows, npm installs `codex.cmd`, a script that cannot pass the adapter's
+arguments reliably. Qt maps that shim to the native `codex.exe` inside the
+`@openai/codex-win32-*` platform package and adds its bundled `codex-path`
+helpers to the child PATH. If the native package is absent, Qt reports that the
+shim cannot run and asks for the native executable. Claude Code's native
+`claude.exe`, installed by its installer under `~/.local/bin`, is used directly;
+a Claude npm `.cmd` shim is rejected with the same guidance.
+
+Connect reports any API-key variable found in the environment (`OPENAI_API_KEY`
+or `CODEX_API_KEY` for Codex; `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` for
+Claude). The Codex account type from `account/read` is the authoritative signal.
 
 ## Validation and remaining exploration
 

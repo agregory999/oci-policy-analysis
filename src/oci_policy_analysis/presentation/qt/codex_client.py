@@ -2,7 +2,6 @@
 
 import json
 import os
-import shutil
 import tempfile
 import time
 import tomllib
@@ -13,8 +12,15 @@ from urllib.parse import urlsplit
 from PySide6.QtCore import QObject, QProcess, QTimer, Signal
 
 from oci_policy_analysis.application.core.support.logger import get_logger
+from oci_policy_analysis.presentation.qt.assistant_cli import (
+    billing_variables,
+    child_environment,
+    redact_secrets,
+    resolve_executable,
+)
 
 logger = get_logger(component='qt.codex')
+_BILLING_VARIABLES = ('OPENAI_API_KEY', 'CODEX_API_KEY')
 
 
 def child_arguments(url: str, name: str) -> list[str]:
@@ -142,6 +148,9 @@ class CodexClient(QObject):
         self._mcp_poll.setSingleShot(True)
         self._mcp_poll.timeout.connect(self._check_tools)
         self._seen_deltas = set()
+        self._stderr = bytearray()
+        self._started_at = 0.0
+        self.billing_source = 'CLI login'
 
     @property
     def active(self) -> bool:
@@ -157,9 +166,10 @@ class CodexClient(QObject):
         """
         if self.active:
             return
-        program = shutil.which(executable)
-        if not program:
-            self.status.emit('Codex executable not found. Install Codex CLI or select its executable.')
+        program, reason = resolve_executable(executable)
+        if program is None:
+            logger.warning('Codex executable not resolved: %s', reason)
+            self.status.emit(f'Codex executable not found. {reason}')
             return
         self.server_name = 'opa_qt_' + uuid.uuid4().hex[:10]
         try:
@@ -173,12 +183,25 @@ class CodexClient(QObject):
         self._catalog = []
         self._stopping = False
         self._last_error = ''
+        self._stderr.clear()
         self._finalized = False
         self._scratch = tempfile.TemporaryDirectory(prefix='opa-qt-codex-')
+        self.process.setProcessEnvironment(child_environment(program))
         self.process.setWorkingDirectory(self._scratch.name)
-        self.process.setProgram(program)
+        self.process.setProgram(str(program))
         self.process.setArguments(arguments)
-        self.status.emit('Starting Codex app-server…')
+        # The child inherits the whole environment, so an API key here can switch the CLI to API billing.
+        self.billing_source = billing_variables(self.process.processEnvironment(), _BILLING_VARIABLES)
+        self._started_at = time.monotonic()
+        logger.info('Codex app-server starting: %s, billing source %s', program.name, self.billing_source)
+        self.status.emit(
+            'Starting Codex app-server…'
+            + (
+                f' · API billing variable in environment: {self.billing_source}'
+                if self.billing_source != 'CLI login'
+                else ''
+            )
+        )
         self.process.start()
 
     def _write(self, message: dict) -> None:
@@ -244,6 +267,8 @@ class CodexClient(QObject):
             self._fail('Codex is not signed in. Run codex login in a terminal, then reconnect.')
             return
         kind = (account or {}).get('type', 'configured provider')
+        # The account type is the authoritative billing signal: apiKey means API billing, chatgpt means the ChatGPT plan.
+        logger.info('Codex account type %s; billing source %s', kind, self.billing_source)
         self.status.emit(f'Codex account: {kind} · Reading model catalog…')
         self.request('model/list', {}, self._models)
 
@@ -268,7 +293,14 @@ class CodexClient(QObject):
         self._question = question.strip()
         self._model = model
         self._seen_deltas.clear()
+        self._started_at = time.monotonic()
         self._turn_deadline = time.monotonic() + 600
+        logger.info(
+            'Codex turn started: model %s, question %d chars, thread %s',
+            model,
+            len(self._question),
+            'reused' if self.thread_id and self._thread_model == model else 'new',
+        )
         self._mcp_deadline = time.monotonic() + 25
         self._set_ready(False)
         if self.thread_id and self._thread_model == model:
@@ -438,7 +470,14 @@ class CodexClient(QObject):
             self.busy = False
             self._turn_deadline = None
             self._set_ready(True)
-            error = (turn.get('error') or {}).get('message', '')
+            error = redact_secrets((turn.get('error') or {}).get('message', ''))
+            elapsed = time.monotonic() - self._started_at
+            if status == 'completed':
+                logger.info('Codex turn completed after %.1fs', elapsed)
+            else:
+                logger.warning('Codex turn %s after %.1fs: %s', status, elapsed, error or 'no error text')
+                if error:
+                    self.activity.emit(f'Turn {status}: {error}')
             self.status.emit(f'Turn {status}' + (f': {error[:400]}' if error else ''))
             self.turn_finished.emit(status)
         elif method == 'error':
@@ -469,8 +508,9 @@ class CodexClient(QObject):
         self.receive(bytes(self.process.readAllStandardOutput()))
 
     def _drain_stderr(self) -> None:
-        output = self.process.readAllStandardError()
-        logger.debug('Codex stderr received: %d bytes (not copied into logs)', output.size())
+        # Keep a bounded tail for exit classification only; the tail is sanitized before it is logged or shown.
+        self._stderr.extend(bytes(self.process.readAllStandardError()))
+        self._stderr = self._stderr[-8192:]
 
     def _set_ready(self, ready: bool) -> None:
         self.ready = ready
@@ -478,6 +518,7 @@ class CodexClient(QObject):
 
     def _fail(self, message: str) -> None:
         self._last_error = message
+        logger.warning('Codex session failed: %s', message)
         self._buffer.clear()
         self.stop()
         self.status.emit(message)
@@ -490,11 +531,18 @@ class CodexClient(QObject):
         if not self.active:
             self._finished()
 
-    def _finished(self, *_args) -> None:
+    def _finished(self, *args) -> None:
         if self._finalized:
             return
         self._finalized = True
         was_stopping = self._stopping
+        exit_code = args[0] if args else 0
+        if exit_code and not was_stopping and not self._last_error:
+            # Only the sanitized last stderr line is surfaced; the full tail may echo request payloads.
+            lines = redact_secrets(self._stderr.decode('utf-8', errors='replace')).strip().splitlines()
+            detail = f' Last stderr line: {lines[-1][:200]}' if lines else ''
+            self._last_error = f'Codex app-server exited with code {exit_code}.{detail}'
+            logger.warning(self._last_error)
         self._pending.clear()
         self._buffer.clear()
         self._set_ready(False)

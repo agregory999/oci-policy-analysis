@@ -1873,7 +1873,7 @@ def test_claude_launcher_opens_windows_shortcuts_through_desktop_services(workbe
         assistant_launcher, 'QProcess', SimpleNamespace(startDetached=lambda *_: pytest.fail('Shortcut is not an exe'))
     )
     assert assistant_launcher._launch_desktop_assistant('claude-desktop', str(shortcut))
-    assert urls[0].toLocalFile() == str(shortcut)
+    assert Path(urls[0].toLocalFile()) == shortcut
     assert not assistant_launcher._launch_desktop_assistant('claude-desktop', str(tmp_path / 'missing.lnk'))
 
 
@@ -1997,7 +1997,10 @@ def test_codex_process_handshake_stream_failure_and_interrupt_without_model_requ
     client = page.client
     stub = tmp_path / 'app_server_stub.py'
     requests = tmp_path / 'rpc.jsonl'
-    stub.write_text("""import json, sys, time
+    stub.write_text(
+        """import json, sys, time
+sys.stdin.reconfigure(encoding='utf-8')
+sys.stdout.reconfigure(encoding='utf-8')
 name, url, log = sys.argv[1:]
 turn_number = 0
 
@@ -2040,7 +2043,9 @@ for line in sys.stdin:
             send({"method": "turn/completed", "params": {"threadId": "fake-thread", "turn": {"id": f"turn-{turn_number}", "status": "completed" if turn_number == 1 else "failed", "error": None if turn_number == 1 else {"message": "Synthetic failure"}}}})
     elif method == "turn/interrupt":
         send({"method": "turn/completed", "params": {"threadId": "fake-thread", "turn": {"id": f"turn-{turn_number}", "status": "interrupted"}}})
-""")
+""",
+        encoding='utf-8',
+    )
     original = client.process.setArguments
     launch_args = []
 
@@ -4687,11 +4692,12 @@ args = sys.argv[2:]
 if args == ['--version']:
     print('2.1.999 (Claude Code)')
     sys.exit(0)
-prompt = json.loads(sys.stdin.read())
+prompt = json.loads(sys.stdin.buffer.read().decode('utf-8'))
 with open(log, 'a', encoding='utf-8') as output:
     output.write(json.dumps({'args': args, 'prompt': prompt}) + '\\n')
 def emit(value):
-    print(json.dumps(value, ensure_ascii=False), flush=True)
+    sys.stdout.buffer.write((json.dumps(value, ensure_ascii=False) + '\\n').encode('utf-8'))
+    sys.stdout.buffer.flush()
 if prompt['question'] == 'fail':
     emit({'type': 'result', 'subtype': 'error_during_execution', 'is_error': True,
           'errors': ['Not signed in. sk-ant-fixture-secret']})
@@ -4714,8 +4720,11 @@ asyncio.run(query())
 tools = args[args.index('--allowedTools') + 1].split(',')
 if prompt['question'] == 'foreign':
     tools.append('Bash')
+plugins = [{'name': 'cc-plugin-agents-md', 'path': 'builtin', 'source': 'cc-plugin-agents-md@builtin'}]
+if prompt['question'] == 'user_plugin':
+    plugins.append({'name': 'team-hooks', 'path': 'C:/plugins/team-hooks', 'source': 'team-hooks@local'})
 emit({'type': 'system', 'subtype': 'init', 'tools': tools,
-      'mcp_servers': [{'name': name, 'status': 'connected'}], 'plugins': []})
+      'mcp_servers': [{'name': name, 'status': 'connected'}], 'plugins': plugins})
 emit({'type': 'stream_event', 'event': {'type': 'content_block_start',
       'content_block': {'type': 'tool_use', 'name': f'mcp__{name}__snapshot_status',
                         'input': {'do_not_log': 'private-marker'}}}})
@@ -4816,7 +4825,7 @@ def test_claude_embedded_chat_preserves_cli_auth_streams_and_reuses_context(work
     assert not page.model.isEditable()
 
 
-@pytest.mark.parametrize('question', ['fail', 'malformed', 'foreign', 'wait', 'wait_partial'])
+@pytest.mark.parametrize('question', ['fail', 'malformed', 'foreign', 'user_plugin', 'wait', 'wait_partial'])
 def test_claude_cli_failure_interrupt_and_shutdown(workbench, monkeypatch, tmp_path, question):
     pytest.importorskip('fastmcp')
     application, window = workbench
@@ -4848,7 +4857,12 @@ def test_claude_cli_failure_interrupt_and_shutdown(workbench, monkeypatch, tmp_p
         assert 'Not signed in' in page.assistant_status.text()
         assert 'sk-ant-fixture-secret' not in page.assistant_status.text()
         assert client.ready
-    if question in {'foreign', 'malformed'}:
+    if question == 'user_plugin':
+        assert 'non-builtin plugins: team-hooks' in page.assistant_status.text()
+        assert '[failed] Failed' not in page.conversation.toPlainText()
+        assert 'non-builtin plugins: team-hooks' in page.conversation.toPlainText()
+        assert 'non-builtin plugins: team-hooks' in page.events.toPlainText()
+    if question in {'foreign', 'malformed', 'user_plugin'}:
         assert not client.active
         assert 'AppWorkers → snapshot evidence' not in page.conversation.toPlainText()
     page.stop_all()
