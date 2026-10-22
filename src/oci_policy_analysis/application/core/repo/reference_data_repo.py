@@ -130,7 +130,16 @@ class ReferenceDataRepo:
         return name
 
     def get_catalog_metadata(self, entity):
-        """Return review metadata without treating unlisted types as deprecated."""
+        """Return catalog provenance and explicit coverage limitations.
+
+        Args:
+            entity: Resource or family identifier, including a declared alias.
+
+        Returns:
+            dict: Available status, notes, source and discovery metadata. Search
+            terms are descriptive vocabulary, not accepted policy identifiers.
+            Missing metadata does not establish deprecation or complete coverage.
+        """
         name = str(entity or '').strip().lower()
         family = self.family_name_map.get(name)
         resource = self.resource_name_map.get(name)
@@ -141,7 +150,17 @@ class ReferenceDataRepo:
         )
         return {
             key: data[key]
-            for key in ('catalog_status', 'notes', 'replacement_resources', 'source_url', 'aliases')
+            for key in (
+                'catalog_status',
+                'mapping_status',
+                'notes',
+                'replacement_resources',
+                'source_url',
+                'source_resource_name',
+                'aliases',
+                'search_terms',
+                'supported_verbs',
+            )
             if key in data
         }
 
@@ -211,17 +230,16 @@ class ReferenceDataRepo:
         if entity_ci == 'all-resources':
             all_perms = set()
             for res_name in self.data['resources'].keys():
-                # Synthetic failsafe permissions describe unresolved resource
-                # mappings; they are not part of OCI's known permission set.
+                # A resource with no published mapping is still recognizable,
+                # but contributes no inferred permissions to this aggregate.
                 if self.data['resources'][res_name].get('mapping_status'):
                     continue
                 perms = self._get_cumulative_permissions(res_name, verb_ci, action)
                 if perms:
                     all_perms.update(perms)
             return list(all_perms)
-        # Failsafe resource entries use the same verb table as catalog entries.
-        # Their mapping_status remains metadata; synthetic permission names are
-        # intentionally visible to callers rather than silently discarded.
+        # Recognized resources may have empty verb tables. Their mapping status
+        # remains available separately; no synthetic permission is invented.
         # Handle families/resources with case-insensitive lookups
         if entity_ci in self.family_name_map:
             fam_key = self.family_name_map[entity_ci]
@@ -354,11 +372,18 @@ class ReferenceDataRepo:
             granted_permissions (list[str]): List of permission strings to check.
         Returns:
             bool: True if all required permissions for the operation are present, False otherwise.
+
+        Notes:
+            Context-dependent or unavailable mappings cannot establish coverage,
+            even when their fixed permission list is empty. Explicitly public
+            operations with an empty list retain their existing behavior.
         """
         # Find operation (case-sensitive key match)
         op_info = self.data.get('operations', {}).get(self.resolve_operation(operation_name))
         if not op_info:
             logger.debug(f'API operation {operation_name!r} not found in reference data.')
+            return False
+        if op_info.get('mapping_status') in {'context_dependent', 'unresearched', 'unavailable'}:
             return False
         required = {p.upper() for p in op_info.get('permissions', [])}
         provided = {p.upper() for p in granted_permissions}

@@ -42,6 +42,7 @@ Full documentation
    :maxdepth: 1
    :caption: Developer Reference
 
+   reference_catalog
    api/oci_policy_analysis
    api/oci_policy_analysis.application_core
    api/oci_policy_analysis.presentation

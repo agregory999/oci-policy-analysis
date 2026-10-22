@@ -49,6 +49,9 @@ An integration must therefore preserve the distinction between:
 - no matching policy and an indeterminate result caused by incomplete data;
 - a normalized statement and an OCI-authoritative authorization decision.
 
+See [reference catalog coverage](reference_catalog.md) for resources without
+published mappings, conditional API requirements and reviewed corrections.
+
 Treat validation findings, load warnings, collection timestamp, source mode,
 and any scope limits as output that belongs beside the requested result.
 

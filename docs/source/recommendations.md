@@ -11,7 +11,11 @@ Summary, Policy risk, Statement risk, Superseded, Cross-tenancy, Consolidation,
 Cleanup / Fix, and Limits tabs use the same `RecommendationsService` payload as
 the web dashboard. Search each table; filter Summary by priority/category,
 Superseded by compartment subtree, and Limits by status. Right-click or
-double-click a finding for its complete read-only details. Risk/count columns
+double-click a finding for its complete read-only details. Policy risk and
+Statement risk findings open a continuous list of every backing-service field,
+including empty values, without collapsible sections or an Additional Details
+bucket. Values remain selectable plain text, and Raw record / Copy JSON preserve
+the complete original finding. Risk/count columns
 sort numerically, and Summary priorities sort by urgency.
 
 **Query foundations** deliberately skips full recommendations and the permissions

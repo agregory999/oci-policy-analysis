@@ -738,6 +738,7 @@ class PolicySimulationEngine:
             required = []
             missing = set()
             related_checks = []
+            op_meta = {}
             if self.ref_data_repo:
                 op_meta = self.ref_data_repo.data.get('operations', {}).get(api_operation, {})
                 if not isinstance(op_meta, dict):
@@ -767,6 +768,14 @@ class PolicySimulationEngine:
                 'allow_statements_considered': len(allow_statements),
                 'deny_statements_considered': len(deny_statements),
             }
+
+            mapping_status = op_meta.get('mapping_status', '')
+            if mapping_status in {'context_dependent', 'unresearched', 'unavailable'}:
+                sim_result['operation_mapping_status'] = mapping_status
+                sim_result['failure_reason'] = 'Operation permission mapping cannot establish access: ' + str(
+                    op_meta.get('notes') or mapping_status
+                )
+                trace_obj['operation_mapping_status'] = mapping_status
 
             # Always expose full simulation_trace (including
             # trace_statements). UI/CLI callers decide what to display.

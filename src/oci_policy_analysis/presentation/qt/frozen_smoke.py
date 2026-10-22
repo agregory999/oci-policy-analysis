@@ -62,11 +62,31 @@ def main() -> int:
                 server = await create_snapshot_server(context)
                 async with Client(server) as client:
                     tools = {tool.name for tool in await client.list_tools()}
-                    assert {'snapshot_status', 'policy_search', 'identity_search'} <= tools
+                    assert {
+                        'snapshot_status',
+                        'policy_search',
+                        'identity_search',
+                        'resource_reference',
+                        'operation_reference',
+                        'permission_reference',
+                    } <= tools
                     status = await client.call_tool('snapshot_status')
                     assert status.data['statements'] == len(context.policy_repo.regular_statements)
                     policies = await client.call_tool('policy_search', {'filters': {'exact_subject_types': ['group']}})
                     assert not policies.is_error and policies.data['total_count'] > 0
+                    resource = await client.call_tool('resource_reference', {'query': 'virtual machines'})
+                    assert resource.structured_content['matches'][0]['canonical_name'] == 'instances'
+                    operation = await client.call_tool(
+                        'operation_reference', {'query': 'audit:ListEvents', 'match': 'exact'}
+                    )
+                    assert operation.structured_content['matches'][0]['permissions'] == ['AUDIT_EVENT_READ']
+                    permission = await client.call_tool(
+                        'permission_reference', {'query': 'AUDIT_EVENT_READ', 'match': 'exact'}
+                    )
+                    assert (
+                        permission.structured_content['matches'][0]['resource_mappings'][0]['lowest_granting_verb']
+                        == 'read'
+                    )
 
             asyncio.run(verify_mcp())
             window = WorkbenchWindow()

@@ -502,3 +502,13 @@ Tag-based consolidation is outside this view.
 The legacy desktop OCI Generative AI repository, model settings and query pane were removed
 in 7.0. `AppContext` no longer creates or exposes an AI backend. MCP/Assistant support and
 analysis of policies granting access to OCI Generative AI resources remain available.
+
+## Reference catalog coverage
+
+Resource recognition and permission expansion are separate concerns. A recognized
+resource can have no published permission mapping, as with the Cloud Shell entry.
+Do not invent permissions to compile such a statement into a grant fact; preserve
+the source with an explicit corpus exclusion when expansion is unavailable.
+Context-dependent API requirements cannot pass a fixed permission check merely
+because its list is empty. See [reference catalog coverage](reference_catalog.md)
+for status meanings, reviewed sources and snapshot compatibility.

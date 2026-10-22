@@ -134,7 +134,9 @@ snapshot and log files unchanged. See [logging and troubleshooting](logging_and_
 
 ## Assistants, hosting and automation
 
-**MCP & Assistant** serves seven query-only tools over a fixed loaded snapshot.
+**MCP & Assistant** serves ten read-only tools: snapshot status and queries over
+the loaded snapshot, plus three bundled reference lookups for resource names,
+API requirements and reverse permission mappings.
 Embedded **Codex** and **Claude Code** stream conversation in Qt. External
 **Claude Desktop**, **ChatGPT Desktop** and **Codex Desktop** open separate apps;
 configure their MCP connection in those apps. Set up each tool's login, billing

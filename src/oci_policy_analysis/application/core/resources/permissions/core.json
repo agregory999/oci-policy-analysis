@@ -15,7 +15,8 @@
                 "manage": [
                     "APP_CATALOG_LISTING_SUBSCRIBE"
                 ]
-            }
+            },
+            "source_resource_name": "app-catalog-listing"
         },
         "console-histories": {
             "verbs": {
@@ -33,7 +34,9 @@
             }
         },
         "instances": {
-            "aliases": ["instance"],
+            "aliases": [
+                "instance"
+            ],
             "verbs": {
                 "inspect": [
                     "INSTANCE_INSPECT"
@@ -55,7 +58,14 @@
                     "INSTANCE_DETACH_SECONDARY_VNIC",
                     "INSTANCE_MOVE"
                 ]
-            }
+            },
+            "search_terms": [
+                "virtual machine",
+                "virtual machines",
+                "compute instance",
+                "compute instances",
+                "VM"
+            ]
         },
         "instance-console-connections": {
             "verbs": {
@@ -70,7 +80,11 @@
                     "INSTANCE_CONSOLE_CONNECTION_CREATE",
                     "INSTANCE_CONSOLE_CONNECTION_DELETE"
                 ]
-            }
+            },
+            "aliases": [
+                "instance-console-connection"
+            ],
+            "source_resource_name": "instance-console-connection"
         },
         "instance-images": {
             "verbs": {
@@ -189,7 +203,11 @@
                     "AUTO_SCALING_CONFIGURATION_DELETE",
                     "AUTO_SCALING_CONFIGURATION_MOVE"
                 ]
-            }
+            },
+            "aliases": [
+                "auto-scaling-configurations"
+            ],
+            "source_resource_name": "auto-scaling-configurations"
         },
         "compute-capacity-reports": {
             "verbs": {
@@ -250,7 +268,11 @@
                 ],
                 "use": [],
                 "manage": []
-            }
+            },
+            "aliases": [
+                "compute-global-image-capability-schema"
+            ],
+            "source_resource_name": "compute-global-image-capability-schema"
         },
         "compute-image-capability-schemas": {
             "verbs": {
@@ -268,7 +290,11 @@
                     "COMPUTE_IMAGE_CAPABILITY_SCHEMA_MOVE",
                     "COMPUTE_IMAGE_CAPABILITY_SCHEMA_DELETE"
                 ]
-            }
+            },
+            "aliases": [
+                "compute-image-capability-schema"
+            ],
+            "source_resource_name": "compute-image-capability-schema"
         },
         "dedicated-vm-hosts": {
             "verbs": {
@@ -446,219 +472,232 @@
                     "BYOIP_RANGE_UPDATE",
                     "BYOIP_RANGE_VALIDATE",
                     "BYOIP_RANGE_ADVERTISE",
-                    "BYOIP_RANGE_WITHDRAW"
+                    "BYOIP_RANGE_WITHDRAW",
+                    "BYOIP_RANGE_MOVE"
                 ]
-            }
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Verb permission increments reviewed against the linked service policy reference; broader verbs include lower-verb permissions.",
+            "aliases": [
+                "byoiprange"
+            ],
+            "source_resource_name": "byoiprange"
         },
         "capture-filters": {
             "verbs": {
                 "inspect": [
-                    "CAPTURE_FILTER_INSPECT"
+                    "CAPTURE_FILTER_LIST"
                 ],
                 "read": [
                     "CAPTURE_FILTER_READ"
                 ],
                 "use": [
-                    "CAPTURE_FILTER_UPDATE"
+                    "CAPTURE_FILTER_UPDATE",
+                    "CAPTURE_FILTER_ATTACH",
+                    "CAPTURE_FILTER_DETACH"
                 ],
                 "manage": [
                     "CAPTURE_FILTER_CREATE",
                     "CAPTURE_FILTER_DELETE",
                     "CAPTURE_FILTER_MOVE"
                 ]
-            }
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Verb permission increments reviewed against the linked service policy reference; broader verbs include lower-verb permissions."
         },
         "cpes": {
             "verbs": {
                 "inspect": [
-                    "CPE_INSPECT"
-                ],
-                "read": [
                     "CPE_READ"
                 ],
-                "use": [
-                    "CPE_UPDATE"
-                ],
+                "read": [],
+                "use": [],
                 "manage": [
+                    "CPE_ATTACH",
+                    "CPE_DETACH",
+                    "CPE_UPDATE",
                     "CPE_CREATE",
-                    "CPE_DELETE"
+                    "CPE_DELETE",
+                    "CPE_RESOURCE_MOVE"
                 ]
-            }
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Verb permission increments reviewed against the linked service policy reference; broader verbs include lower-verb permissions."
         },
         "cross-connect-groups": {
             "verbs": {
                 "inspect": [
-                    "CROSS_CONNECT_GROUP_INSPECT"
-                ],
-                "read": [
                     "CROSS_CONNECT_GROUP_READ"
                 ],
-                "use": [
-                    "CROSS_CONNECT_GROUP_UPDATE"
-                ],
+                "read": [],
+                "use": [],
                 "manage": [
+                    "CROSS_CONNECT_GROUP_UPDATE",
                     "CROSS_CONNECT_GROUP_CREATE",
-                    "CROSS_CONNECT_GROUP_DELETE"
+                    "CROSS_CONNECT_GROUP_DELETE",
+                    "CROSS_CONNECT_GROUP_RESOURCE_MOVE"
                 ]
-            }
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Verb permission increments reviewed against the linked service policy reference; broader verbs include lower-verb permissions."
         },
         "cross-connects": {
             "verbs": {
                 "inspect": [
-                    "CROSS_CONNECT_INSPECT"
-                ],
-                "read": [
                     "CROSS_CONNECT_READ"
                 ],
-                "use": [
-                    "CROSS_CONNECT_UPDATE"
-                ],
+                "read": [],
+                "use": [],
                 "manage": [
+                    "CROSS_CONNECT_UPDATE",
                     "CROSS_CONNECT_CREATE",
-                    "CROSS_CONNECT_DELETE"
+                    "CROSS_CONNECT_DELETE",
+                    "CROSS_CONNECT_RESOURCE_MOVE",
+                    "CROSS_CONNECT_ATTACH",
+                    "CROSS_CONNECT_DETACH"
                 ]
-            }
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Verb permission increments reviewed against the linked service policy reference; broader verbs include lower-verb permissions."
         },
         "dhcp-options": {
             "verbs": {
                 "inspect": [
-                    "DHCP_OPTIONS_INSPECT"
+                    "DHCP_READ"
                 ],
-                "read": [
-                    "DHCP_OPTIONS_READ"
-                ],
-                "use": [
-                    "DHCP_OPTIONS_UPDATE"
-                ],
+                "read": [],
+                "use": [],
                 "manage": [
-                    "DHCP_OPTIONS_CREATE",
-                    "DHCP_OPTIONS_DELETE",
-                    "DHCP_OPTIONS_MOVE"
+                    "DHCP_ATTACH",
+                    "DHCP_DETACH",
+                    "DHCP_UPDATE",
+                    "DHCP_CREATE",
+                    "DHCP_DELETE",
+                    "DHCP_MOVE"
                 ]
-            }
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Verb permission increments reviewed against the linked service policy reference; broader verbs include lower-verb permissions."
         },
         "drg-attachments": {
             "verbs": {
                 "inspect": [
-                    "DRG_ATTACHMENT_INSPECT"
-                ],
-                "read": [
                     "DRG_ATTACHMENT_READ"
                 ],
-                "use": [
+                "read": [],
+                "use": [],
+                "manage": [
                     "DRG_ATTACHMENT_UPDATE"
-                ],
-                "manage": [
-                    "DRG_ATTACHMENT_CREATE",
-                    "DRG_ATTACHMENT_DELETE",
-                    "DRG_ATTACHMENT_MOVE"
                 ]
-            }
-        },
-        "drgs": {
-            "verbs": {
-                "inspect": [
-                    "DRG_INSPECT"
-                ],
-                "read": [
-                    "DRG_READ"
-                ],
-                "use": [
-                    "DRG_UPDATE"
-                ],
-                "manage": [
-                    "DRG_CREATE",
-                    "DRG_DELETE",
-                    "DRG_MOVE"
-                ]
-            }
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Reviewed DRG component table. drgs is the aggregate over drg-object, attachments, route tables and route distributions."
         },
         "drg-route-distributions": {
             "verbs": {
                 "inspect": [
-                    "DRG_ROUTE_DISTRIBUTION_INSPECT"
+                    "DRG_ROUTE_DISTRIBUTION_READ",
+                    "DRG_ROUTE_DISTRIBUTION_STATEMENT_READ"
                 ],
-                "read": [
-                    "DRG_ROUTE_DISTRIBUTION_READ"
-                ],
+                "read": [],
                 "use": [
-                    "DRG_ROUTE_DISTRIBUTION_UPDATE"
+                    "DRG_ROUTE_DISTRIBUTION_ASSIGN"
                 ],
                 "manage": [
+                    "DRG_ROUTE_DISTRIBUTION_UPDATE",
                     "DRG_ROUTE_DISTRIBUTION_CREATE",
-                    "DRG_ROUTE_DISTRIBUTION_DELETE"
+                    "DRG_ROUTE_DISTRIBUTION_DELETE",
+                    "DRG_ROUTE_DISTRIBUTION_STATEMENT_UPDATE"
                 ]
-            }
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Reviewed DRG component table. drgs is the aggregate over drg-object, attachments, route tables and route distributions."
         },
         "drg-route-tables": {
             "verbs": {
                 "inspect": [
-                    "DRG_ROUTE_TABLE_INSPECT"
+                    "DRG_ROUTE_TABLE_READ",
+                    "DRG_ROUTE_RULE_READ"
                 ],
-                "read": [
-                    "DRG_ROUTE_TABLE_READ"
-                ],
+                "read": [],
                 "use": [
-                    "DRG_ROUTE_TABLE_UPDATE"
+                    "DRG_ROUTE_TABLE_ATTACH"
                 ],
                 "manage": [
                     "DRG_ROUTE_TABLE_CREATE",
-                    "DRG_ROUTE_TABLE_DELETE"
+                    "DRG_ROUTE_TABLE_DELETE",
+                    "DRG_ROUTE_TABLE_UPDATE",
+                    "DRG_ROUTE_RULE_UPDATE"
                 ]
-            }
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Reviewed DRG component table. drgs is the aggregate over drg-object, attachments, route tables and route distributions."
         },
         "internet-gateways": {
             "verbs": {
                 "inspect": [
-                    "INTERNET_GATEWAY_INSPECT"
-                ],
-                "read": [
                     "INTERNET_GATEWAY_READ"
                 ],
-                "use": [
-                    "INTERNET_GATEWAY_UPDATE"
-                ],
+                "read": [],
+                "use": [],
                 "manage": [
+                    "INTERNET_GATEWAY_ATTACH",
+                    "INTERNET_GATEWAY_DETACH",
+                    "INTERNET_GATEWAY_UPDATE",
                     "INTERNET_GATEWAY_CREATE",
                     "INTERNET_GATEWAY_DELETE",
                     "INTERNET_GATEWAY_MOVE"
                 ]
-            }
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Verb permission increments reviewed against the linked service policy reference; broader verbs include lower-verb permissions."
         },
         "ipsec-connections": {
             "verbs": {
                 "inspect": [
-                    "IPSEC_CONNECTION_INSPECT"
-                ],
-                "read": [
                     "IPSEC_CONNECTION_READ"
                 ],
-                "use": [
-                    "IPSEC_CONNECTION_UPDATE"
+                "read": [
+                    "IPSEC_CONNECTION_DEVICE_CONFIG_READ"
                 ],
+                "use": [],
                 "manage": [
                     "IPSEC_CONNECTION_CREATE",
-                    "IPSEC_CONNECTION_DELETE"
+                    "IPSEC_CONNECTION_UPDATE",
+                    "IPSEC_CONNECTION_DELETE",
+                    "IPSEC_CONNECTION_DEVICE_CONFIG_UPDATE"
                 ]
-            }
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Verb permission increments reviewed against the linked service policy reference; broader verbs include lower-verb permissions."
         },
         "ipv6s": {
             "verbs": {
-                "inspect": [
-                    "IPV6_INSPECT"
-                ],
+                "inspect": [],
                 "read": [
                     "IPV6_READ"
                 ],
-                "use": [
-                    "IPV6_UPDATE"
-                ],
+                "use": [],
                 "manage": [
+                    "IPV6_UPDATE",
                     "IPV6_CREATE",
-                    "IPV6_DELETE",
-                    "IPV6_MOVE"
+                    "IPV6_DELETE"
                 ]
-            }
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Verb permission increments reviewed against the linked service policy reference; broader verbs include lower-verb permissions."
         },
         "ipam": {
             "verbs": {
@@ -680,58 +719,73 @@
         "local-peering-gateways": {
             "verbs": {
                 "inspect": [
-                    "LOCAL_PEERING_GATEWAY_INSPECT"
-                ],
-                "read": [
                     "LOCAL_PEERING_GATEWAY_READ"
                 ],
-                "use": [
-                    "LOCAL_PEERING_GATEWAY_UPDATE"
-                ],
+                "read": [],
+                "use": [],
                 "manage": [
+                    "LOCAL_PEERING_GATEWAY_UPDATE",
+                    "LOCAL_PEERING_GATEWAY_ATTACH",
+                    "LOCAL_PEERING_GATEWAY_DETACH",
                     "LOCAL_PEERING_GATEWAY_CREATE",
                     "LOCAL_PEERING_GATEWAY_DELETE",
                     "LOCAL_PEERING_GATEWAY_MOVE"
                 ]
-            }
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Verb permission increments reviewed against the linked service policy reference; broader verbs include lower-verb permissions."
         },
         "local-peering-from": {
             "verbs": {
-                "inspect": [],
+                "inspect": [
+                    "LOCAL_PEERING_GATEWAY_READ"
+                ],
                 "read": [],
                 "use": [],
                 "manage": [
                     "LOCAL_PEERING_GATEWAY_CONNECT_FROM"
                 ]
-            }
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Verb permission increments reviewed against the linked service policy reference; broader verbs include lower-verb permissions."
         },
         "local-peering-to": {
             "verbs": {
-                "inspect": [],
+                "inspect": [
+                    "LOCAL_PEERING_GATEWAY_READ"
+                ],
                 "read": [],
                 "use": [],
                 "manage": [
                     "LOCAL_PEERING_GATEWAY_CONNECT_TO"
                 ]
-            }
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Verb permission increments reviewed against the linked service policy reference; broader verbs include lower-verb permissions."
         },
         "nat-gateways": {
             "verbs": {
-                "inspect": [
-                    "NAT_GATEWAY_INSPECT"
-                ],
+                "inspect": [],
                 "read": [
                     "NAT_GATEWAY_READ"
                 ],
                 "use": [
-                    "NAT_GATEWAY_UPDATE"
+                    "NAT_GATEWAY_ATTACH",
+                    "NAT_GATEWAY_DETACH"
                 ],
                 "manage": [
+                    "NAT_GATEWAY_UPDATE",
                     "NAT_GATEWAY_CREATE",
                     "NAT_GATEWAY_DELETE",
                     "NAT_GATEWAY_MOVE"
                 ]
-            }
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Verb permission increments reviewed against the linked service policy reference; broader verbs include lower-verb permissions."
         },
         "network-security-groups": {
             "verbs": {
@@ -742,14 +796,21 @@
                     "NETWORK_SECURITY_GROUP_READ"
                 ],
                 "use": [
-                    "NETWORK_SECURITY_GROUP_UPDATE"
+                    "NETWORK_SECURITY_GROUP_LIST_SECURITY_RULES",
+                    "NETWORK_SECURITY_GROUP_LIST_MEMBERS",
+                    "NETWORK_SECURITY_GROUP_UPDATE_MEMBERS"
                 ],
                 "manage": [
+                    "NETWORK_SECURITY_GROUP_UPDATE",
                     "NETWORK_SECURITY_GROUP_CREATE",
                     "NETWORK_SECURITY_GROUP_DELETE",
-                    "NETWORK_SECURITY_GROUP_MOVE"
+                    "NETWORK_SECURITY_GROUP_MOVE",
+                    "NETWORK_SECURITY_GROUP_UPDATE_SECURITY_RULES"
                 ]
-            }
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Verb permission increments reviewed against the linked service policy reference; broader verbs include lower-verb permissions."
         },
         "private-ips": {
             "verbs": {
@@ -760,13 +821,20 @@
                 "use": [
                     "PRIVATE_IP_UPDATE",
                     "PRIVATE_IP_ASSIGN",
-                    "PRIVATE_IP_UNASSIGN"
+                    "PRIVATE_IP_UNASSIGN",
+                    "PRIVATE_IP_CREATE",
+                    "PRIVATE_IP_DELETE",
+                    "PRIVATE_IP_ASSIGN_PUBLIC_IP",
+                    "PRIVATE_IP_UNASSIGN_PUBLIC_IP"
                 ],
                 "manage": [
-                    "PRIVATE_IP_DELETE",
-                    "PRIVATE_IP_MOVE"
+                    "PRIVATE_IP_ROUTE_TABLE_ATTACH",
+                    "PRIVATE_IP_ROUTE_TABLE_DETACH"
                 ]
-            }
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Verb permission increments reviewed against the linked service policy reference; broader verbs include lower-verb permissions."
         },
         "public-ip-pools": {
             "verbs": {
@@ -777,173 +845,203 @@
                     "PUBLIC_IP_POOL_READ"
                 ],
                 "use": [
-                    "PUBLIC_IP_POOL_UPDATE"
+                    "PUBLIC_IP_POOL_CREATE_PUBLIC_IP_FROM"
                 ],
                 "manage": [
                     "PUBLIC_IP_POOL_CREATE",
                     "PUBLIC_IP_POOL_DELETE",
+                    "PUBLIC_IP_POOL_UPDATE",
+                    "PUBLIC_IP_POOL_ADD_CAPACITY",
+                    "PUBLIC_IP_POOL_REMOVE_CAPACITY",
                     "PUBLIC_IP_POOL_MOVE"
                 ]
-            }
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Verb permission increments reviewed against the linked service policy reference; broader verbs include lower-verb permissions.",
+            "aliases": [
+                "publicippool"
+            ],
+            "source_resource_name": "publicippool"
         },
         "public-ips": {
             "verbs": {
-                "inspect": [
+                "inspect": [],
+                "read": [
                     "PUBLIC_IP_READ"
                 ],
-                "read": [],
                 "use": [
-                    "PUBLIC_IP_UPDATE",
-                    "PUBLIC_IP_ASSIGN",
-                    "PUBLIC_IP_UNASSIGN"
+                    "PUBLIC_IP_ASSIGN_PRIVATE_IP",
+                    "PUBLIC_IP_UNASSIGN_PRIVATE_IP"
                 ],
                 "manage": [
+                    "PUBLIC_IP_UPDATE",
                     "PUBLIC_IP_CREATE",
-                    "PUBLIC_IP_DELETE",
-                    "PUBLIC_IP_MOVE"
+                    "PUBLIC_IP_DELETE"
                 ]
-            }
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Verb permission increments reviewed against the linked service policy reference; broader verbs include lower-verb permissions."
         },
         "remote-peering-connections": {
             "verbs": {
                 "inspect": [
-                    "REMOTE_PEERING_CONNECTION_INSPECT"
-                ],
-                "read": [
                     "REMOTE_PEERING_CONNECTION_READ"
                 ],
-                "use": [
-                    "REMOTE_PEERING_CONNECTION_UPDATE"
-                ],
+                "read": [],
+                "use": [],
                 "manage": [
+                    "REMOTE_PEERING_CONNECTION_UPDATE",
                     "REMOTE_PEERING_CONNECTION_CREATE",
                     "REMOTE_PEERING_CONNECTION_DELETE",
-                    "REMOTE_PEERING_CONNECTION_MOVE"
+                    "REMOTE_PEERING_CONNECTION_RESOURCE_MOVE"
                 ]
-            }
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Verb permission increments reviewed against the linked service policy reference; broader verbs include lower-verb permissions."
         },
         "remote-peering-from": {
             "verbs": {
-                "inspect": [],
+                "inspect": [
+                    "REMOTE_PEERING_CONNECTION_READ"
+                ],
                 "read": [],
                 "use": [],
                 "manage": [
                     "REMOTE_PEERING_CONNECTION_CONNECT_FROM"
                 ]
-            }
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Verb permission increments reviewed against the linked service policy reference; broader verbs include lower-verb permissions."
         },
         "remote-peering-to": {
             "verbs": {
-                "inspect": [],
+                "inspect": [
+                    "REMOTE_PEERING_CONNECTION_READ"
+                ],
                 "read": [],
                 "use": [],
                 "manage": [
                     "REMOTE_PEERING_CONNECTION_CONNECT_TO"
                 ]
-            }
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Verb permission increments reviewed against the linked service policy reference; broader verbs include lower-verb permissions."
         },
         "route-tables": {
             "verbs": {
                 "inspect": [
-                    "ROUTE_TABLE_INSPECT"
-                ],
-                "read": [
                     "ROUTE_TABLE_READ"
                 ],
-                "use": [
-                    "ROUTE_TABLE_UPDATE"
-                ],
+                "read": [],
+                "use": [],
                 "manage": [
+                    "ROUTE_TABLE_ATTACH",
+                    "ROUTE_TABLE_DETACH",
+                    "ROUTE_TABLE_UPDATE",
                     "ROUTE_TABLE_CREATE",
                     "ROUTE_TABLE_DELETE",
                     "ROUTE_TABLE_MOVE"
                 ]
-            }
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Verb permission increments reviewed against the linked service policy reference; broader verbs include lower-verb permissions."
         },
         "security-lists": {
             "verbs": {
                 "inspect": [
-                    "SECURITY_LIST_INSPECT"
-                ],
-                "read": [
                     "SECURITY_LIST_READ"
                 ],
-                "use": [
-                    "SECURITY_LIST_UPDATE"
-                ],
+                "read": [],
+                "use": [],
                 "manage": [
+                    "SECURITY_LIST_ATTACH",
+                    "SECURITY_LIST_DETACH",
+                    "SECURITY_LIST_UPDATE",
                     "SECURITY_LIST_CREATE",
                     "SECURITY_LIST_DELETE",
                     "SECURITY_LIST_MOVE"
                 ]
-            }
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Verb permission increments reviewed against the linked service policy reference; broader verbs include lower-verb permissions."
         },
         "service-gateways": {
             "verbs": {
                 "inspect": [
-                    "SERVICE_GATEWAY_INSPECT"
-                ],
-                "read": [
                     "SERVICE_GATEWAY_READ"
                 ],
+                "read": [],
                 "use": [
-                    "SERVICE_GATEWAY_UPDATE"
+                    "SERVICE_GATEWAY_ATTACH",
+                    "SERVICE_GATEWAY_DETACH"
                 ],
                 "manage": [
+                    "SERVICE_GATEWAY_UPDATE",
                     "SERVICE_GATEWAY_CREATE",
                     "SERVICE_GATEWAY_DELETE",
+                    "SERVICE_GATEWAY_ADD_SERVICE",
+                    "SERVICE_GATEWAY_DELETE_SERVICE",
                     "SERVICE_GATEWAY_MOVE"
                 ]
-            }
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Verb permission increments reviewed against the linked service policy reference; broader verbs include lower-verb permissions."
         },
         "subnets": {
             "verbs": {
                 "inspect": [
-                    "SUBNET_INSPECT"
-                ],
-                "read": [
                     "SUBNET_READ"
                 ],
+                "read": [],
                 "use": [
-                    "SUBNET_UPDATE",
                     "SUBNET_ATTACH",
                     "SUBNET_DETACH"
                 ],
                 "manage": [
                     "SUBNET_CREATE",
+                    "SUBNET_UPDATE",
                     "SUBNET_DELETE",
-                    "SUBNET_ATTACH_NETWORK_SECURITY_GROUP",
-                    "SUBNET_DETACH_NETWORK_SECURITY_GROUP",
                     "SUBNET_MOVE"
                 ]
-            }
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Verb permission increments reviewed against the linked service policy reference; broader verbs include lower-verb permissions."
         },
         "vcns": {
             "verbs": {
                 "inspect": [
-                    "VCN_INSPECT"
-                ],
-                "read": [
                     "VCN_READ"
                 ],
-                "use": [
-                    "VCN_UPDATE"
-                ],
+                "read": [],
+                "use": [],
                 "manage": [
+                    "VCN_ATTACH",
+                    "VCN_DETACH",
+                    "VCN_UPDATE",
                     "VCN_CREATE",
                     "VCN_DELETE",
                     "VCN_MOVE"
                 ]
-            }
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Verb permission increments reviewed against the linked service policy reference; broader verbs include lower-verb permissions."
         },
         "virtual-circuits": {
             "verbs": {
                 "inspect": [
-                    "VIRTUAL_CIRCUIT_INSPECT"
-                ],
-                "read": [
                     "VIRTUAL_CIRCUIT_READ"
                 ],
+                "read": [],
                 "use": [
                     "VIRTUAL_CIRCUIT_UPDATE"
                 ],
@@ -952,7 +1050,10 @@
                     "VIRTUAL_CIRCUIT_DELETE",
                     "VIRTUAL_CIRCUIT_RESOURCE_MOVE"
                 ]
-            }
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Verb permission increments reviewed against the linked service policy reference; broader verbs include lower-verb permissions."
         },
         "vlans": {
             "verbs": {
@@ -1015,6 +1116,27 @@
                     "VTAP_MOVE"
                 ]
             }
+        },
+        "drg-object": {
+            "verbs": {
+                "inspect": [
+                    "DRG_READ"
+                ],
+                "read": [],
+                "use": [
+                    "DRG_ATTACH",
+                    "DRG_DETACH"
+                ],
+                "manage": [
+                    "DRG_UPDATE",
+                    "DRG_CREATE",
+                    "DRG_DELETE",
+                    "DRG_MOVE"
+                ]
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Reviewed DRG component table. drgs is the aggregate over drg-object, attachments, route tables and route distributions."
         }
     },
     "families": {
@@ -1027,7 +1149,11 @@
                 "instance-images",
                 "volume-attachments"
             ],
-            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm",
+            "search_terms": [
+                "compute instance family",
+                "compute instances and related resources"
+            ]
         },
         "compute-management-family": {
             "resources": [
@@ -1100,11 +1226,16 @@
                 "vnics",
                 "vtaps"
             ],
-            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm",
+            "search_terms": [
+                "networking",
+                "virtual cloud network",
+                "VCN networking"
+            ]
         },
         "drgs": {
             "resources": [
-                "drgs",
+                "drg-object",
                 "drg-route-tables",
                 "drg-route-distributions",
                 "drg-attachments"
@@ -1454,18 +1585,18 @@
         "CreateCrossConnect": {
             "permissions": [
                 "CROSS_CONNECT_CREATE",
-                "I",
                 "CROSS_CONNECT_ATTACH"
             ],
-            "notes": "if not creating cross-connect in a cross-connect group. If creating the cross-connect in a cross-connect group, also need and"
+            "notes": "if not creating cross-connect in a cross-connect group. If creating the cross-connect in a cross-connect group, also need and Source requirements: CROSS_CONNECT_CREATE if not creating cross-connect in a cross-connect group. If creating the cross-connect in a cross-connect group, also need CROSS_CONNECT_CREATE and CROSS_CONNECT_ATTACH",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
         },
         "DeleteCrossConnect": {
             "permissions": [
                 "CROSS_CONNECT_DELETE",
-                "I",
                 "CROSS_CONNECT_DETACH"
             ],
-            "notes": "if cross-connect is not in a cross-connect group. If the cross-connect is in a cross-connect group, also need and"
+            "notes": "if cross-connect is not in a cross-connect group. If the cross-connect is in a cross-connect group, also need and Source requirements: CROSS_CONNECT_DELETE if cross-connect is not in a cross-connect group. If the cross-connect is in a cross-connect group, also need CROSS_CONNECT_DELETE and CROSS_CONNECT_DETACH",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
         },
         "ChangeCrossConnectCompartment": {
             "permissions": [
@@ -1598,19 +1729,19 @@
         "UpdateDrgAttachment": {
             "permissions": [
                 "DRG_ATTACHMENT_UPDATE",
-                "ROUTE_TABLE_ATTACH",
-                "DRG"
+                "ROUTE_TABLE_ATTACH"
             ],
-            "notes": "is necessary to associate a route table with the attachment during the update."
+            "notes": "is necessary to associate a route table with the attachment during the update. Source requirements: DRG_ATTACHMENT_UPDATE ROUTE_TABLE_ATTACH is necessary to associate a route table with the DRG attachment during the update.",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
         },
         "CreateDrgAttachment": {
             "permissions": [
                 "DRG_ATTACH",
                 "VCN_ATTACH",
-                "ROUTE_TABLE_ATTACH",
-                "DRG"
+                "ROUTE_TABLE_ATTACH"
             ],
-            "notes": "and is necessary to associate a route table with the attachment during creation."
+            "notes": "and is necessary to associate a route table with the attachment during creation. Source requirements: DRG_ATTACH and VCN_ATTACH ROUTE_TABLE_ATTACH is necessary to associate a route table with the DRG attachment during creation.",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
         },
         "DeleteDrgAttachment": {
             "permissions": [
@@ -1813,10 +1944,10 @@
         "CreateImage": {
             "permissions": [
                 "INSTANCE_IMAGE_CREATE",
-                "INSTANCE_CREATE_IMAGE",
-                "T"
+                "INSTANCE_CREATE_IMAGE"
             ],
-            "notes": "and The first permission is related to the instance-image; the second is related to the instance."
+            "notes": "and The first permission is related to the instance-image; the second is related to the instance. Source requirements: INSTANCE_IMAGE_CREATE and INSTANCE_CREATE_IMAGE The first permission is related to the instance-image; the second is related to the instance.",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
         },
         "ChangeImageCompartment": {
             "permissions": [
@@ -1902,11 +2033,19 @@
                 {
                     "resource": "subnets",
                     "operation": "LaunchInstance (Subnet)",
-                    "permissions": ["SUBNET_ATTACH"],
+                    "permissions": [
+                        "SUBNET_ATTACH"
+                    ],
                     "applies_when": "The instance attaches to a subnet, potentially in a different network compartment.",
                     "reason": "Run the subnet permission check in the subnet compartment, separately from the instance compartment.",
                     "failure_hint": "Select the network compartment for the follow-up simulation."
                 }
+            ],
+            "search_terms": [
+                "launch instance",
+                "create virtual machine",
+                "create VM",
+                "launch compute instance"
             ]
         },
         "LaunchInstance (Subnet)": {
@@ -1915,7 +2054,8 @@
                 "SUBNET_ATTACH"
             ],
             "notes": "Ensure the network compartment is selected above, rather than the application compartment."
-        },        "ListInstances": {
+        },
+        "ListInstances": {
             "permissions": [
                 "INSTANCE_READ"
             ],
@@ -2008,17 +2148,14 @@
         "CreateInstanceConfiguration": {
             "permissions": [
                 "INSTANCE_CONFIGURATION_CREATE",
-                "C",
-                "I",
-                "D",
                 "INSTANCE_READ",
                 "VNIC_READ",
                 "VNIC_ATTACHMENT_READ",
                 "VOLUME_INSPECT",
-                "VOLUME_ATTACHMENT_INSPECT",
-                "F"
+                "VOLUME_ATTACHMENT_INSPECT"
             ],
-            "notes": "(if using the CreateInstanceConfigurationDetails subtype) and and and and (if using the CreateInstanceConfigurationFromInstanceDetails subtype)"
+            "notes": "(if using the CreateInstanceConfigurationDetails subtype) and and and and (if using the CreateInstanceConfigurationFromInstanceDetails subtype) Source requirements: INSTANCE_CONFIGURATION_CREATE (if using the CreateInstanceConfigurationDetails subtype) INSTANCE_READ and VNIC_READ and VNIC_ATTACHMENT_READ and VOLUME_INSPECT and VOLUME_ATTACHMENT_INSPECT (if using the CreateInstanceConfigurationFromInstanceDetails subtype)",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
         },
         "ChangeInstanceConfigurationCompartment": {
             "permissions": [
@@ -2197,10 +2334,7 @@
             "permissions": [
                 "DRG_ATTACH",
                 "CPE_ATTACH",
-                "IPSEC_CONNECTION_CREATER",
-                "IPS",
-                "F",
-                "C",
+                "IPSEC_CONNECTION_CREATE",
                 "DRG_ROUTE_TABLE_ATTACH",
                 "DRG_ROUTE_TABLE_CREATE",
                 "DRG_ROUTE_TABLE_UPDATE",
@@ -2209,23 +2343,22 @@
                 "DRG_ROUTE_DISTRIBUTION_ASSIGN",
                 "DRG_ROUTE_DISTRIBUTION_STATEMENT_UPDATE"
             ],
-            "notes": "and and IPSEC_CONNECTION_CREATERequired to create IPSec over FastConnect: , , , , ,"
+            "notes": "and and IPSEC_CONNECTION_CREATERequired to create IPSec over FastConnect: , , , , , Source requirements: DRG_ATTACH and CPE_ATTACH and IPSEC_CONNECTION_CREATE Required to create IPSec over FastConnect: DRG_ROUTE_TABLE_ATTACH, DRG_ROUTE_TABLE_CREATE DRG_ROUTE_TABLE_UPDATE, DRG_ROUTE_DISTRIBUTION_CREATE, DRG_ROUTE_DISTRIBUTION_UPDATE, DRG_ROUTE_DISTRIBUTION_ASSIGN, DRG_ROUTE_DISTRIBUTION_STATEMENT_UPDATE",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
         },
         "DeleteIPSecConnection": {
             "permissions": [
                 "DRG_DETACH",
                 "CPE_DETACH",
-                "IPSEC_CONNECTION_DELETER",
-                "IPS",
-                "F",
-                "C",
+                "IPSEC_CONNECTION_DELETE",
                 "DRG_ROUTE_TABLE_DELETE",
                 "DRG_ROUTE_TABLE_UPDATE",
                 "DRG_ROUTE_DISTRIBUTION_DELETE",
                 "DRG_ROUTE_DISTRIBUTION_UPDATE",
                 "DRG_ROUTE_DISTRIBUTION_STATEMENT_UPDATE"
             ],
-            "notes": "and and IPSEC_CONNECTION_DELETERequired to create IPSec over FastConnect: , , ,"
+            "notes": "and and IPSEC_CONNECTION_DELETERequired to create IPSec over FastConnect: , , , Source requirements: DRG_DETACH and CPE_DETACH and IPSEC_CONNECTION_DELETE Required to create IPSec over FastConnect: DRG_ROUTE_TABLE_DELETE DRG_ROUTE_TABLE_UPDATE, DRG_ROUTE_DISTRIBUTION_DELETE, DRG_ROUTE_DISTRIBUTION_UPDATE, DRG_ROUTE_DISTRIBUTION_STATEMENT_UPDATE",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
         },
         "GetIPSecConnectionDeviceConfig": {
             "permissions": [
@@ -2273,10 +2406,10 @@
             "permissions": [
                 "IPV6_READ",
                 "SUBNET_READ",
-                "VNIC_READ",
-                "VNIC"
+                "VNIC_READ"
             ],
-            "notes": "and (if listing by subnet) and (if listing by )"
+            "notes": "and (if listing by subnet) and (if listing by ) Source requirements: IPV6_READ and SUBNET_READ (if listing by subnet) and VNIC_READ (if listing by VNIC)",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
         },
         "GetIpv6": {
             "permissions": [
@@ -2321,19 +2454,19 @@
         "UpdateLocalPeeringGateway": {
             "permissions": [
                 "LOCAL_PEERING_GATEWAY_UPDATE",
-                "ROUTE_TABLE_ATTACH",
-                "LPG"
+                "ROUTE_TABLE_ATTACH"
             ],
-            "notes": "is necessary to associate a route table with the during the update."
+            "notes": "is necessary to associate a route table with the during the update. Source requirements: LOCAL_PEERING_GATEWAY_UPDATE ROUTE_TABLE_ATTACH is necessary to associate a route table with the LPG during the update.",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
         },
         "CreateLocalPeeringGateway": {
             "permissions": [
                 "LOCAL_PEERING_GATEWAY_CREATE",
                 "VCN_ATTACH",
-                "ROUTE_TABLE_ATTACH",
-                "LPG"
+                "ROUTE_TABLE_ATTACH"
             ],
-            "notes": "and is necessary to associate a route table with the during creation."
+            "notes": "and is necessary to associate a route table with the during creation. Source requirements: LOCAL_PEERING_GATEWAY_CREATE and VCN_ATTACH ROUTE_TABLE_ATTACH is necessary to associate a route table with the LPG during creation.",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
         },
         "DeleteLocalPeeringGateway": {
             "permissions": [
@@ -2544,44 +2677,38 @@
         },
         "ListPublicIps": {
             "permissions": [
-                "F",
-                "IP",
                 "PRIVATE_IP_READ",
                 "PUBLIC_IP_READ"
             ],
-            "notes": "For ephemeral public IPs: For reserved public IPs:"
+            "notes": "For ephemeral public IPs: For reserved public IPs: Source requirements: For ephemeral public IPs: PRIVATE_IP_READ For reserved public IPs: PUBLIC_IP_READ",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
         },
         "GetPublicIp": {
             "permissions": [
-                "F",
-                "IP",
                 "PRIVATE_IP_READ",
                 "PUBLIC_IP_READ"
             ],
-            "notes": "For ephemeral public IPs: For reserved public IPs:"
+            "notes": "For ephemeral public IPs: For reserved public IPs: Source requirements: For ephemeral public IPs: PRIVATE_IP_READ For reserved public IPs: PUBLIC_IP_READ",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
         },
         "GetPublicIpByPrivateIpId": {
             "permissions": [
-                "F",
-                "IP",
                 "PRIVATE_IP_READ",
                 "PUBLIC_IP_READ"
             ],
-            "notes": "For ephemeral public IPs: For reserved public IPs:"
+            "notes": "For ephemeral public IPs: For reserved public IPs: Source requirements: For ephemeral public IPs: PRIVATE_IP_READ For reserved public IPs: PUBLIC_IP_READ",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
         },
         "GetPublicIpByIpAddress": {
             "permissions": [
-                "F",
-                "IP",
                 "PRIVATE_IP_READ",
                 "PUBLIC_IP_READ"
             ],
-            "notes": "For ephemeral public IPs: For reserved public IPs:"
+            "notes": "For ephemeral public IPs: For reserved public IPs: Source requirements: For ephemeral public IPs: PRIVATE_IP_READ For reserved public IPs: PUBLIC_IP_READ",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
         },
         "UpdatePublicIP": {
             "permissions": [
-                "F",
-                "IP",
                 "PRIVATE_IP_UPDATE",
                 "PUBLIC_IP_UPDATE",
                 "PRIVATE_IP_ASSIGN_PUBLIC_IP",
@@ -2589,32 +2716,30 @@
                 "PRIVATE_IP_UNASSIGN_PUBLIC_IP",
                 "PUBLIC_IP_UNASSIGN_PRIVATE_IP"
             ],
-            "notes": "For ephemeral public IPs: For reserved public IPs: and and and and"
+            "notes": "For ephemeral public IPs: For reserved public IPs: and and and and Source requirements: For ephemeral public IPs: PRIVATE_IP_UPDATE For reserved public IPs: PUBLIC_IP_UPDATE and PRIVATE_IP_ASSIGN_PUBLIC_IP and PUBLIC_IP_ASSIGN_PRIVATE_IP and PRIVATE_IP_UNASSIGN_PUBLIC_IP and PUBLIC_IP_UNASSIGN_PRIVATE_IP",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
         },
         "CreatePublicIp": {
             "permissions": [
-                "F",
-                "IP",
                 "PRIVATE_IP_ASSIGN_PUBLIC_IP",
                 "PUBLIC_IP_CREATE",
                 "PUBLIC_IP_ASSIGN_PRIVATE_IP"
             ],
-            "notes": "For ephemeral public IPs: For reserved public IPs: and and"
+            "notes": "For ephemeral public IPs: For reserved public IPs: and and Source requirements: For ephemeral public IPs: PRIVATE_IP_ASSIGN_PUBLIC_IP For reserved public IPs: PUBLIC_IP_CREATE and PUBLIC_IP_ASSIGN_PRIVATE_IP and PRIVATE_IP_ASSIGN_PUBLIC_IP",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
         },
         "DeletePublicIp": {
             "permissions": [
-                "F",
-                "IP",
                 "PRIVATE_IP_UNASSIGN_PUBLIC_IP",
                 "PUBLIC_IP_DELETE",
                 "PUBLIC_IP_UNASSIGN_PRIVATE_IP"
             ],
-            "notes": "For ephemeral public IPs: For reserved public IPs: and and"
+            "notes": "For ephemeral public IPs: For reserved public IPs: and and Source requirements: For ephemeral public IPs: PRIVATE_IP_UNASSIGN_PUBLIC_IP For reserved public IPs: PUBLIC_IP_DELETE and PUBLIC_IP_UNASSIGN_PRIVATE_IP and PRIVATE_IP_UNASSIGN_PUBLIC_IP",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
         },
         "ChangePublicIpCompartment": {
             "permissions": [
                 "PUBLIC_IP_MOVE"
-
             ],
             "notes": "Note: This operation applies only to reserved public IPs."
         },
@@ -2636,21 +2761,18 @@
                 "INTERNET_GATEWAY_ATTACH",
                 "INTERNET_GATEWAY_DETACH",
                 "DRG_ATTACH",
-                "DRG",
                 "DRG_DETACH",
                 "PRIVATE_IP_ROUTE_TABLE_ATTACH",
-                "IP",
                 "PRIVATE_IP_ROUTE_TABLE_DETACH",
                 "LOCAL_PEERING_GATEWAY_ATTACH",
-                "LPG",
                 "LOCAL_PEERING_GATEWAY_DETACH",
                 "NAT_GATEWAY_ATTACH",
-                "NAT",
                 "NAT_GATEWAY_DETACH",
                 "SERVICE_GATEWAY_ATTACH",
                 "SERVICE_GATEWAY_DETACH"
             ],
-            "notes": "and (if creating a route rule that uses an internet gateway as a target) and (if deleting a route rule that uses an internet gateway as a target) and (if creating a route rule that uses a as a target) and (if deleting a route rule that uses a as a target) and (if creating a route rule that uses a private as a target) and (if deleting a route rule that uses a private as a target) and (if creating a route rule that uses an as a target) and (if deleting a route rule that uses an as a target) and (if creating a route rule that uses a gateway as a target) and (if deleting a route rule that uses a gateway as a target) and (if creating a route rule that uses a service gateway as a target) and (if deleting a route rule that uses a service gateway as a target)"
+            "notes": "and (if creating a route rule that uses an internet gateway as a target) and (if deleting a route rule that uses an internet gateway as a target) and (if creating a route rule that uses a as a target) and (if deleting a route rule that uses a as a target) and (if creating a route rule that uses a private as a target) and (if deleting a route rule that uses a private as a target) and (if creating a route rule that uses an as a target) and (if deleting a route rule that uses an as a target) and (if creating a route rule that uses a gateway as a target) and (if deleting a route rule that uses a gateway as a target) and (if creating a route rule that uses a service gateway as a target) and (if deleting a route rule that uses a service gateway as a target) Source requirements: ROUTE_TABLE_UPDATE and INTERNET_GATEWAY_ATTACH (if creating a route rule that uses an internet gateway as a target) and INTERNET_GATEWAY_DETACH (if deleting a route rule that uses an internet gateway as a target) and DRG_ATTACH (if creating a route rule that uses a DRG as a target) and DRG_DETACH (if deleting a route rule that uses a DRG as a target) and PRIVATE_IP_ROUTE_TABLE_ATTACH (if creating a route rule that uses a private IP as a target) and PRIVATE_IP_ROUTE_TABLE_DETACH (if deleting a route rule that uses a private IP as a target) and LOCAL_PEERING_GATEWAY_ATTACH (if creating a route rule that uses an LPG as a target) and LOCAL_PEERING_GATEWAY_DETACH (if deleting a route rule that uses an LPG as a target) and NAT_GATEWAY_ATTACH (if creating a route rule that uses a NAT gateway as a target) and NAT_GATEWAY_DETACH (if deleting a route rule that uses a NAT gateway as a target) and SERVICE_GATEWAY_ATTACH (if creating a route rule that uses a service gateway as a target) and SERVICE_GATEWAY_DETACH (if deleting a route rule that uses a service gateway as a target)",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
         },
         "CreateRouteTable": {
             "permissions": [
@@ -2658,16 +2780,13 @@
                 "VCN_ATTACH",
                 "INTERNET_GATEWAY_ATTACH",
                 "DRG_ATTACH",
-                "DRG",
                 "PRIVATE_IP_ROUTE_TABLE_ATTACH",
-                "IP",
                 "LOCAL_PEERING_GATEWAY_ATTACH",
-                "LPG",
                 "NAT_GATEWAY_ATTACH",
-                "NAT",
                 "SERVICE_GATEWAY_ATTACH"
             ],
-            "notes": "and and (if creating a route rule that uses an internet gateway as a target) and (if creating a route rule that uses a as a target) and (if creating a route rule that uses a private as a target) and (if creating a route rule that uses an as a target) and (if creating a route rule that uses a gateway as a target) and (if creating a route rule that uses a service gateway as a target)"
+            "notes": "and and (if creating a route rule that uses an internet gateway as a target) and (if creating a route rule that uses a as a target) and (if creating a route rule that uses a private as a target) and (if creating a route rule that uses an as a target) and (if creating a route rule that uses a gateway as a target) and (if creating a route rule that uses a service gateway as a target) Source requirements: ROUTE_TABLE_CREATE and VCN_ATTACH and INTERNET_GATEWAY_ATTACH (if creating a route rule that uses an internet gateway as a target) and DRG_ATTACH (if creating a route rule that uses a DRG as a target) and PRIVATE_IP_ROUTE_TABLE_ATTACH (if creating a route rule that uses a private IP as a target) and LOCAL_PEERING_GATEWAY_ATTACH (if creating a route rule that uses an LPG as a target) and NAT_GATEWAY_ATTACH (if creating a route rule that uses a NAT gateway as a target) and SERVICE_GATEWAY_ATTACH (if creating a route rule that uses a service gateway as a target)",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
         },
         "DeleteRouteTable": {
             "permissions": [
@@ -2675,16 +2794,13 @@
                 "VCN_DETACH",
                 "INTERNET_GATEWAY_DETACH",
                 "DRG_DETACH",
-                "DRG",
                 "PRIVATE_IP_ROUTE_TABLE_DETACH",
-                "IP",
                 "LOCAL_PEERING_GATEWAY_DETACH",
-                "LPG",
                 "NAT_GATEWAY_DETACH",
-                "NAT",
                 "SERVICE_GATEWAY_DETACH"
             ],
-            "notes": "and and (if deleting a route rule that uses an internet gateway as a target) and (if deleting a route rule that uses a as a target) and (if deleting a route rule that uses a private as a target) and (if deleting a route rule that uses an as a target) and (if deleting a route rule that uses a gateway as a target) and (if deleting a route rule that uses a service gateway as a target)"
+            "notes": "and and (if deleting a route rule that uses an internet gateway as a target) and (if deleting a route rule that uses a as a target) and (if deleting a route rule that uses a private as a target) and (if deleting a route rule that uses an as a target) and (if deleting a route rule that uses a gateway as a target) and (if deleting a route rule that uses a service gateway as a target) Source requirements: ROUTE_TABLE_DELETE and VCN_DETACH and INTERNET_GATEWAY_DETACH (if deleting a route rule that uses an internet gateway as a target) and DRG_DETACH (if deleting a route rule that uses a DRG as a target) and PRIVATE_IP_ROUTE_TABLE_DETACH (if deleting a route rule that uses a private IP as a target) and LOCAL_PEERING_GATEWAY_DETACH (if deleting a route rule that uses an LPG as a target) and NAT_GATEWAY_DETACH (if deleting a route rule that uses a NAT gateway as a target) and SERVICE_GATEWAY_DETACH (if deleting a route rule that uses a service gateway as a target)",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
         },
         "ChangeRouteTableCompartment": {
             "permissions": [
@@ -2805,16 +2921,15 @@
         "UpdateSubnet": {
             "permissions": [
                 "SUBNET_UPDATE",
-                "I",
                 "ROUTE_TABLE_ATTACH",
                 "ROUTE_TABLE_DETACH",
                 "SECURITY_LIST_ATTACH",
                 "SECURITY_LIST_DETACH",
-                "DHCP",
                 "DHCP_ATTACH",
                 "DHCP_DETACH"
             ],
-            "notes": "If changing which route table is associated with the subnet, also need and If changing which security lists are associated with the subnet, also need and If changing which set of options are associated with the subnet, also need and"
+            "notes": "If changing which route table is associated with the subnet, also need and If changing which security lists are associated with the subnet, also need and If changing which set of options are associated with the subnet, also need and Source requirements: SUBNET_UPDATE If changing which route table is associated with the subnet, also need ROUTE_TABLE_ATTACH and ROUTE_TABLE_DETACH If changing which security lists are associated with the subnet, also need SECURITY_LIST_ATTACH and SECURITY_LIST_DETACH If changing which set of DHCP options are associated with the subnet, also need DHCP_ATTACH and DHCP_DETACH",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
         },
         "CreateSubnet": {
             "permissions": [
@@ -2913,29 +3028,29 @@
                 "VIRTUAL_CIRCUIT_UPDATE",
                 "DRG_ATTACH",
                 "DRG_DETACH",
-                "I",
                 "CROSS_CONNECT_DETACH",
                 "CROSS_CONNECT_ATTACH"
             ],
-            "notes": "and and If updating which cross-connect or cross-connect group the virtual circuit is using, also need and"
+            "notes": "and and If updating which cross-connect or cross-connect group the virtual circuit is using, also need and Source requirements: VIRTUAL_CIRCUIT_UPDATE and DRG_ATTACH and DRG_DETACH If updating which cross-connect or cross-connect group the virtual circuit is using, also need CROSS_CONNECT_DETACH and CROSS_CONNECT_ATTACH",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
         },
         "CreateVirtualCircuit": {
             "permissions": [
                 "VIRTUAL_CIRCUIT_CREATE",
                 "DRG_ATTACH",
-                "I",
                 "CROSS_CONNECT_ATTACH"
             ],
-            "notes": "and If creating the virtual circuit with a mapping to a specific cross-connect or cross-connect group, also need"
+            "notes": "and If creating the virtual circuit with a mapping to a specific cross-connect or cross-connect group, also need Source requirements: VIRTUAL_CIRCUIT_CREATE and DRG_ATTACH If creating the virtual circuit with a mapping to a specific cross-connect or cross-connect group, also need CROSS_CONNECT_ATTACH",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
         },
         "DeleteVirtualCircuit": {
             "permissions": [
                 "VIRTUAL_CIRCUIT_DELETE",
                 "DRG_DETACH",
-                "I",
                 "CROSS_CONNECT_DETACH"
             ],
-            "notes": "and If deleting a virtual circuit that's currently using a cross-connect or cross-connect group, also need"
+            "notes": "and If deleting a virtual circuit that's currently using a cross-connect or cross-connect group, also need Source requirements: VIRTUAL_CIRCUIT_DELETE and DRG_DETACH If deleting a virtual circuit that's currently using a cross-connect or cross-connect group, also need CROSS_CONNECT_DETACH",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
         },
         "changeVirtualCircuitCompartment": {
             "permissions": [
@@ -2999,12 +3114,11 @@
                 "VNIC_ATTACH",
                 "VNIC_CREATE",
                 "SUBNET_ATTACH",
-                "I",
-                "VNIC",
                 "NETWORK_SECURITY_GROUP_UPDATE_MEMBERS",
                 "VNIC_ASSOCIATE_NETWORK_SECURITY_GROUP"
             ],
-            "notes": "and and and If putting the secondary in a network security group during creation, also need and"
+            "notes": "and and and If putting the secondary in a network security group during creation, also need and Source requirements: INSTANCE_ATTACH_SECONDARY_VNIC and VNIC_ATTACH and VNIC_CREATE and SUBNET_ATTACH If putting the secondary VNIC in a network security group during VNIC creation, also need NETWORK_SECURITY_GROUP_UPDATE_MEMBERS and VNIC_ASSOCIATE_NETWORK_SECURITY_GROUP",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
         },
         "DetachVnic": {
             "permissions": [
@@ -3018,12 +3132,11 @@
         "UpdateVnic": {
             "permissions": [
                 "VNIC_UPDATE",
-                "I",
-                "VNIC",
                 "NETWORK_SECURITY_GROUP_UPDATE_MEMBERS",
                 "VNIC_ASSOCIATE_NETWORK_SECURITY_GROUP"
             ],
-            "notes": "If adding or removing the from a network security group, also need and"
+            "notes": "If adding or removing the from a network security group, also need and Source requirements: VNIC_UPDATE If adding or removing the VNIC from a network security group, also need NETWORK_SECURITY_GROUP_UPDATE_MEMBERS and VNIC_ASSOCIATE_NETWORK_SECURITY_GROUP",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
         },
         "ListVnicAttachments": {
             "permissions": [
@@ -3050,29 +3163,26 @@
                 "CAPTURE_FILTER_ATTACH",
                 "VNIC_ATTACH",
                 "SUBNET_ATTACH",
-                "VCN_ATTACH",
-                "VCN"
+                "VCN_ATTACH"
             ],
-            "notes": "and (in capture filter compartment) and (both source and target in source & target compartment) || (when subnet as source) and (in compartment)"
+            "notes": "and (in capture filter compartment) and (both source and target in source & target compartment) || (when subnet as source) and (in compartment) Source requirements: VTAP_CREATE and CAPTURE_FILTER_ATTACH (in capture filter compartment) and VNIC_ATTACH (both source and target in source & target compartment) || SUBNET_ATTACH(when subnet as source) and VCN_ATTACH (in VCN compartment)",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
         },
         "DeleteVtap": {
             "permissions": [
                 "VTAP_DELETE",
                 "CAPTURE_FILTER_DETACH",
                 "NLB_VTAP_TARGET_DETACH",
-                "NLB",
                 "VNIC_DETACH",
                 "SUBNET_DETACH",
                 "LB_VTAP_DISABLE",
                 "DB_SYSTEM_VTAP_DISABLE",
-                "DB",
                 "EXADATA_VM_CLUSTER_VTAP_DISABLE",
-                "E",
                 "ADW_VTAP_DISABLE",
-                "ADW",
                 "VCN_DETACH"
             ],
-            "notes": "and and (when as target) and (both source and target) or (when subnet as source) or (when load balancer as source) or (when as source) or (when Exadata cluster as source) or (when as source) and"
+            "notes": "and and (when as target) and (both source and target) or (when subnet as source) or (when load balancer as source) or (when as source) or (when Exadata cluster as source) or (when as source) and Source requirements: VTAP_DELETE and CAPTURE_FILTER_DETACH and NLB_VTAP_TARGET_DETACH (when NLB as target) and VNIC_DETACH (both source and target) or SUBNET_DETACH (when subnet as source) or LB_VTAP_DISABLE (when load balancer as source) or DB_SYSTEM_VTAP_DISABLE (when DB as source) or EXADATA_VM_CLUSTER_VTAP_DISABLE (when Exadata cluster as source) or ADW_VTAP_DISABLE (when ADW as source) and VCN_DETACH",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
         },
         "GetVtap": {
             "permissions": [
@@ -3091,16 +3201,12 @@
                 "VTAP_UPDATE",
                 "CAPTURE_FILTER_ATTACH",
                 "NLB_VTAP_TARGET_ATTACH",
-                "NLB",
                 "VNIC_ATTACH",
                 "SUBNET_ATTACH",
                 "LB_VTAP_ENABLE",
                 "DB_SYSTEM_VTAP_ENABLE",
-                "DB",
                 "EXADATA_VM_CLUSTER_VTAP_ENABLE",
-                "E",
                 "ADW_VTAP_ENABLE",
-                "ADW",
                 "NLB_VTAP_TARGET_DETACH",
                 "CAPTURE_FILTER_DETACH",
                 "VNIC_DETACH",
@@ -3110,7 +3216,8 @@
                 "EXADATA_VM_CLUSTER_VTAP_DISABLE",
                 "ADW_VTAP_DISABLE"
             ],
-            "notes": "and (new) and (when as target) and (both new source and target) or (when subnet as source) or (when load balancer as source) or (when system as source) or (when Exadata cluster as source) or (when as source) and (when as target) and (old) and (both old source and target) or (when subnet as source) or (when load balancer as source) or (when system as source) or (when Exadata cluster as source) or (when as source)"
+            "notes": "and (new) and (when as target) and (both new source and target) or (when subnet as source) or (when load balancer as source) or (when system as source) or (when Exadata cluster as source) or (when as source) and (when as target) and (old) and (both old source and target) or (when subnet as source) or (when load balancer as source) or (when system as source) or (when Exadata cluster as source) or (when as source) Source requirements: VTAP_UPDATE and CAPTURE_FILTER_ATTACH (new) and NLB_VTAP_TARGET_ATTACH (when NLB as target) and VNIC_ATTACH (both new source and target) or SUBNET_ATTACH (when subnet as source) or LB_VTAP_ENABLE (when load balancer as source) or DB_SYSTEM_VTAP_ENABLE (when DB system as source) or EXADATA_VM_CLUSTER_VTAP_ENABLE (when Exadata cluster as source) or ADW_VTAP_ENABLE (when ADW as source) and NLB_VTAP_TARGET_DETACH (when NLB as target) and CAPTURE_FILTER_DETACH (old) and VNIC_DETACH (both old source and target) or SUBNET_DETACH (when subnet as source) or LB_VTAP_DISABLE (when load balancer as source) or DB_SYSTEM_VTAP_DISABLE (when DB system as source) or EXADATA_VM_CLUSTER_VTAP_DISABLE (when Exadata cluster as source) or ADW_VTAP_DISABLE (when ADW as source)",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
         },
         "ChangeCaptureFilterCompartment": {
             "permissions": [
@@ -3481,13 +3588,11 @@
             "notes": ""
         },
         "ListDedicatedVmHostInstanceShapes": {
-            "permissions": [
-            ],
+            "permissions": [],
             "notes": "None"
         },
         "ListDedicatedVmHostShapes": {
-            "permissions": [
-            ],
+            "permissions": [],
             "notes": "None"
         },
         "UpdateDedicatedVmHost": {
@@ -3678,31 +3783,22 @@
             "notes": ""
         },
         "GetWorkRequests": {
-            "permissions": [
-                "W",
-                "G",
-                "RESOURCE",
-                "_CREATE"
-            ],
-            "notes": "Work requests inherit the permissions of the operation that spawns the work request. Generally, <> permissions for the associated resource are required."
+            "permissions": [],
+            "notes": "Work requests inherit the permissions of the operation that spawns the work request. Generally, <> permissions for the associated resource are required. Source requirements: Work requests inherit the permissions of the operation that spawns the work request. Generally, <RESOURCE>_CREATE permissions for the associated resource are required.",
+            "mapping_status": "context_dependent",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
         },
         "ListWorkRequestLogs": {
-            "permissions": [
-                "W",
-                "G",
-                "RESOURCE",
-                "_CREATE"
-            ],
-            "notes": "Work requests inherit the permissions of the operation that spawns the work request. Generally, <> permissions for the associated resource are required."
+            "permissions": [],
+            "notes": "Work requests inherit the permissions of the operation that spawns the work request. Generally, <> permissions for the associated resource are required. Source requirements: Work requests inherit the permissions of the operation that spawns the work request. Generally, <RESOURCE>_CREATE permissions for the associated resource are required.",
+            "mapping_status": "context_dependent",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
         },
         "ListWorkRequestErrors": {
-            "permissions": [
-                "W",
-                "G",
-                "RESOURCE",
-                "_CREATE"
-            ],
-            "notes": "Work requests inherit the permissions of the operation that spawns the work request. Generally, <> permissions for the associated resource are required."
+            "permissions": [],
+            "notes": "Work requests inherit the permissions of the operation that spawns the work request. Generally, <> permissions for the associated resource are required. Source requirements: Work requests inherit the permissions of the operation that spawns the work request. Generally, <RESOURCE>_CREATE permissions for the associated resource are required.",
+            "mapping_status": "context_dependent",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
         }
     }
 }

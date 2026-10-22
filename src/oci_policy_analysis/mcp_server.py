@@ -62,6 +62,7 @@ from fastmcp.server.auth.providers.jwt import JWTVerifier  # noqa: E402
 from fastmcp.server.dependencies import get_access_token  # noqa: E402
 from mcp.server.auth.middleware.bearer_auth import RequireAuthMiddleware  # noqa: E402
 from mcp.server.auth.routes import create_protected_resource_routes  # noqa: E402
+from mcp.types import ToolAnnotations  # noqa: E402
 from pydantic import Field  # noqa: E402
 from starlette.responses import JSONResponse  # noqa: E402
 from starlette.routing import Route  # noqa: E402
@@ -81,6 +82,16 @@ from oci_policy_analysis.application.core.models.models_mcp import (  # noqa: E4
     MCPPolicySetSearch,
 )
 from oci_policy_analysis.application.core.models.models_policy import PolicySearch  # noqa: E402
+from oci_policy_analysis.application.core.models.models_reference_lookup import (  # noqa: E402
+    IAMVerb,
+    MatchMode,
+    OperationReferenceQuery,
+    OperationReferenceResult,
+    PermissionReferenceQuery,
+    PermissionReferenceResult,
+    ResourceReferenceQuery,
+    ResourceReferenceResult,
+)
 from oci_policy_analysis.application.core.repo.policy_analysis_repository import (  # noqa: E402
     PolicyAnalysisRepository,
 )
@@ -90,6 +101,7 @@ from oci_policy_analysis.application.core.support.caching import CacheManager  #
 from oci_policy_analysis.application.core.support.logger import get_logger, set_log_level  # noqa: E402
 from oci_policy_analysis.application.services.load_service import LoadService  # noqa: E402
 from oci_policy_analysis.application.services.mcp_query_service import MCPQueryService  # noqa: E402
+from oci_policy_analysis.application.services.reference_lookup_service import ReferenceLookupService  # noqa: E402
 from oci_policy_analysis.application.services.tag_based_policy_service import TagBasedPolicyService  # noqa: E402
 
 try:  # usage tracking is optional when running embedded; ignore if unavailable
@@ -1683,6 +1695,136 @@ async def health_check(request):
 # ---------------------
 
 
+@lru_cache(maxsize=1)
+def _reference_lookup_service() -> ReferenceLookupService:
+    return ReferenceLookupService(_policy_resource_catalog())
+
+
+def _reference_call(name, query, method):
+    _log_mcp_call_input(name, query.model_dump())
+    try:
+        result = getattr(_reference_lookup_service(), method)(query)
+    except ValueError as exc:
+        _track_mcp_tool(name, status='error')
+        raise ToolError(str(exc)) from exc
+    _track_mcp_tool(name, status='success', total_matches=result.total_matches)
+    _log_mcp_call_output(name, result.model_dump())
+    return result
+
+
+@mcp.tool(
+    name='resource_reference',
+    description=(
+        'Discover OCI policy resource types and families from names, aliases or everyday wording '
+        '(for example virtual machines). Returns canonical catalog identifiers, documented source '
+        'spellings, family membership and cumulative allow-verb permissions. Use before policy_search '
+        'when the resource name is uncertain. Empty or unavailable mappings are explicit; no tenancy '
+        'load or OCI API call is needed. Results describe bundled reference data, not access decisions.'
+    ),
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+)
+def resource_reference(
+    query: Annotated[
+        str, Field(min_length=1, max_length=200, description='Resource/family identifier, alias or everyday wording.')
+    ],
+    kind: Literal['resource', 'family', 'either'] = 'either',
+    verb: IAMVerb | None = None,
+    match: MatchMode = 'search',
+    limit: Annotated[int, Field(ge=1, le=25)] = 10,
+    cursor: Annotated[str | None, Field(max_length=512)] = None,
+) -> ResourceReferenceResult:
+    """Discover resource/family identities and bounded permission expansions.
+
+    Args:
+        query: Identifier or discovery wording.
+        kind: Restrict matches to resources, families or either.
+        verb: Optional cumulative allow verb; omission returns all four verbs.
+        match: Exact identifier/alias lookup or ranked discovery.
+        limit: Maximum returned matches, from 1 to 25.
+        cursor: Continuation from this same query and catalog.
+
+    Returns:
+        ResourceReferenceResult: Typed matches, provenance, limitations and cursor.
+    """
+    request = ResourceReferenceQuery(query=query, kind=kind, verb=verb, match=match, limit=limit, cursor=cursor)
+    return _reference_call('resource_reference', request, 'resource_reference')
+
+
+@mcp.tool(
+    name='operation_reference',
+    description=(
+        'Discover OCI API operation names and their catalog permission requirements. Returns qualified '
+        'identities such as core:LaunchInstance, request.operation values, conditional notes, related '
+        'checks and unmapped permissions. Bare operation names can match multiple API groups; do not '
+        'choose silently. Use before permission lookup or simulation. Bundled catalog only; no OCI calls.'
+    ),
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+)
+def operation_reference(
+    query: Annotated[
+        str, Field(min_length=1, max_length=200, description='Qualified/bare API name or discovery wording.')
+    ],
+    api_group: Annotated[str | None, Field(min_length=1, max_length=100)] = None,
+    match: MatchMode = 'search',
+    limit: Annotated[int, Field(ge=1, le=25)] = 10,
+    cursor: Annotated[str | None, Field(max_length=512)] = None,
+) -> OperationReferenceResult:
+    """Discover qualified operation requirements and explicit mapping gaps.
+
+    Args:
+        query: Operation identity or discovery wording.
+        api_group: Optional catalog group, such as core or objectstorage.
+        match: Exact identity/name lookup or ranked discovery.
+        limit: Maximum returned matches, from 1 to 25.
+        cursor: Continuation from this same query and catalog.
+
+    Returns:
+        OperationReferenceResult: Typed operation evidence, limitations and cursor.
+    """
+    request = OperationReferenceQuery(query=query, api_group=api_group, match=match, limit=limit, cursor=cursor)
+    return _reference_call('operation_reference', request, 'operation_reference')
+
+
+@mcp.tool(
+    name='permission_reference',
+    description=(
+        'Find OCI permission names and reverse-map them to known resources, families, lowest granting '
+        'allow verbs and API operations. Search a partial permission or use match=exact. Additional '
+        'permissions show the broader grant at that verb; this is not a complete least-privilege policy '
+        'plan. Operation-only permissions remain visible when resource mapping is unavailable. '
+        'No tenancy load, OCI calls or authorization decisions.'
+    ),
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+)
+def permission_reference(
+    query: Annotated[
+        str, Field(min_length=1, max_length=200, description='Permission identifier or partial permission wording.')
+    ],
+    resource: Annotated[str | None, Field(min_length=1, max_length=200)] = None,
+    match: MatchMode = 'search',
+    limit: Annotated[int, Field(ge=1, le=25)] = 10,
+    cursor: Annotated[str | None, Field(max_length=512)] = None,
+) -> PermissionReferenceResult:
+    """Discover permissions and their bounded reverse catalog mappings.
+
+    Args:
+        query: Exact or partial permission name.
+        resource: Optional exact resource identifier or declared alias.
+        match: Exact permission lookup or ranked discovery.
+        limit: Maximum returned matches, from 1 to 25.
+        cursor: Continuation from this same query and catalog.
+
+    Returns:
+        PermissionReferenceResult: Resource/verb mappings, operation evidence and gaps.
+    """
+    request = PermissionReferenceQuery(query=query, resource=resource, match=match, limit=limit, cursor=cursor)
+    return _reference_call('permission_reference', request, 'permission_reference')
+
+
+for _lookup_tool in (resource_reference, operation_reference, permission_reference):
+    _lookup_tool.parameters['additionalProperties'] = False
+
+
 @mcp.tool(
     name='policy_search',
     description=(
@@ -1691,7 +1833,8 @@ async def health_check(request):
         '(for example {"principal_type":"group","domain_name":"Default","name":"Admins"} or '
         '{"principal_type":"dynamic-group"}), filters.principals for OR selectors, and filters.principal_keys '
         'for exact canonical keys such as group:default/admins (mixed-case inputs are accepted). Resource values are OCI policy types, not '
-        'product names. For "which groups can manage Object Storage", use filters.action=["allow"], '
+        'product names. Use resource_reference to discover resource names before searching when uncertain. '
+        'For "which groups can manage Object Storage", use filters.action=["allow"], '
         'filters.principal={"principal_type":"group"}, filters.verb=["manage"], and '
         'filters.resource_family="object storage". This expands to buckets, objects, '
         'objectstorage-namespaces, object-family, and all-resources. Results are matching statements, '
@@ -2437,7 +2580,7 @@ async def create_snapshot_server(context: AppContext) -> FastMCP:
 
     server = FastMCP(
         name='OCI Policy Snapshot',
-        instructions='Query the loaded snapshot. Conditions are retained, not evaluated. '
+        instructions='Use resource_reference, operation_reference and permission_reference to resolve terminology from the bundled catalog; those tools do not query the tenancy. Query other tools against the loaded snapshot. Conditions are retained, not evaluated. '
         'Keep provenance, validity and inventory coverage limitations in answers. '
         'No tool loads data, changes OCI, or evaluates authoritative access.',
         middleware=[SnapshotBinding()],
@@ -2449,6 +2592,9 @@ async def create_snapshot_server(context: AppContext) -> FastMCP:
         'oke_workload_identity_search',
         'identity_search',
         'cross_tenancy_search',
+        'resource_reference',
+        'operation_reference',
+        'permission_reference',
     }
     tools = await mcp.get_tools()
     for name in sorted(allowed):

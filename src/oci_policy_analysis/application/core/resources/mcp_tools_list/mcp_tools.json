@@ -4,8 +4,763 @@
   "result": {
     "tools": [
       {
+        "name": "resource_reference",
+        "description": "Discover OCI policy resource types and families from names, aliases or everyday wording (for example virtual machines). Returns canonical catalog identifiers, documented source spellings, family membership and cumulative allow-verb permissions. Use before policy_search when the resource name is uncertain. Empty or unavailable mappings are explicit; no tenancy load or OCI API call is needed. Results describe bundled reference data, not access decisions.",
+        "inputSchema": {
+          "properties": {
+            "query": {
+              "description": "Resource/family identifier, alias or everyday wording.",
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "kind": {
+              "default": "either",
+              "enum": [
+                "resource",
+                "family",
+                "either"
+              ],
+              "type": "string"
+            },
+            "verb": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "inspect",
+                    "read",
+                    "use",
+                    "manage"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "match": {
+              "default": "search",
+              "enum": [
+                "search",
+                "exact"
+              ],
+              "type": "string"
+            },
+            "limit": {
+              "default": 10,
+              "maximum": 25,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "cursor": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "type": "object",
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "$defs": {
+            "PermissionExpansion": {
+              "description": "A bounded cumulative permission list, with an explicit total and truncation.",
+              "properties": {
+                "permissions": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "total_count": {
+                  "type": "integer"
+                },
+                "truncated": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "permissions",
+                "total_count",
+                "truncated"
+              ],
+              "type": "object"
+            },
+            "ResourceReferenceMatch": {
+              "description": "Resource/family identity, membership and cumulative allow-verb expansion.",
+              "properties": {
+                "canonical_name": {
+                  "type": "string"
+                },
+                "match_type": {
+                  "enum": [
+                    "identifier",
+                    "alias",
+                    "search_term",
+                    "text"
+                  ],
+                  "type": "string"
+                },
+                "matched_text": {
+                  "type": "string"
+                },
+                "notes": {
+                  "default": "",
+                  "type": "string"
+                },
+                "source_urls": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "catalog_status": {
+                  "default": "unreviewed",
+                  "type": "string"
+                },
+                "mapping_status": {
+                  "default": "mapped",
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "resource",
+                    "family"
+                  ],
+                  "type": "string"
+                },
+                "source_resource_name": {
+                  "type": "string"
+                },
+                "aliases": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "search_terms": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "families": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "member_resources": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "member_count": {
+                  "default": 0,
+                  "type": "integer"
+                },
+                "members_truncated": {
+                  "default": false,
+                  "type": "boolean"
+                },
+                "unmapped_member_resources": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "unmapped_member_count": {
+                  "default": 0,
+                  "type": "integer"
+                },
+                "supported_verbs": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "permissions_by_verb": {
+                  "additionalProperties": {
+                    "$ref": "#/$defs/PermissionExpansion"
+                  },
+                  "propertyNames": {
+                    "enum": [
+                      "inspect",
+                      "read",
+                      "use",
+                      "manage"
+                    ]
+                  },
+                  "type": "object"
+                }
+              },
+              "required": [
+                "canonical_name",
+                "match_type",
+                "matched_text",
+                "kind",
+                "source_resource_name",
+                "permissions_by_verb"
+              ],
+              "type": "object"
+            }
+          },
+          "description": "Structured resource discovery and expansion result.",
+          "properties": {
+            "catalog_id": {
+              "type": "string"
+            },
+            "catalog_version": {
+              "type": "string"
+            },
+            "total_matches": {
+              "type": "integer"
+            },
+            "matches": {
+              "items": {
+                "$ref": "#/$defs/ResourceReferenceMatch"
+              },
+              "type": "array"
+            },
+            "next_cursor": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "warnings": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "catalog_id",
+            "catalog_version",
+            "total_matches",
+            "matches",
+            "next_cursor",
+            "warnings"
+          ],
+          "type": "object"
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "operation_reference",
+        "description": "Discover OCI API operation names and their catalog permission requirements. Returns qualified identities such as core:LaunchInstance, request.operation values, conditional notes, related checks and unmapped permissions. Bare operation names can match multiple API groups; do not choose silently. Use before permission lookup or simulation. Bundled catalog only; no OCI calls.",
+        "inputSchema": {
+          "properties": {
+            "query": {
+              "description": "Qualified/bare API name or discovery wording.",
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "api_group": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "match": {
+              "default": "search",
+              "enum": [
+                "search",
+                "exact"
+              ],
+              "type": "string"
+            },
+            "limit": {
+              "default": 10,
+              "maximum": 25,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "cursor": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "type": "object",
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "$defs": {
+            "OperationReferenceMatch": {
+              "description": "Qualified API identity, known requirements and unresolved resource mappings.",
+              "properties": {
+                "canonical_name": {
+                  "type": "string"
+                },
+                "match_type": {
+                  "enum": [
+                    "identifier",
+                    "alias",
+                    "search_term",
+                    "text"
+                  ],
+                  "type": "string"
+                },
+                "matched_text": {
+                  "type": "string"
+                },
+                "notes": {
+                  "default": "",
+                  "type": "string"
+                },
+                "source_urls": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "catalog_status": {
+                  "default": "unreviewed",
+                  "type": "string"
+                },
+                "mapping_status": {
+                  "default": "mapped",
+                  "type": "string"
+                },
+                "api_group": {
+                  "type": "string"
+                },
+                "operation_name": {
+                  "type": "string"
+                },
+                "request_operation": {
+                  "type": "string"
+                },
+                "permissions": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "permission_count": {
+                  "type": "integer"
+                },
+                "permissions_truncated": {
+                  "type": "boolean"
+                },
+                "unmapped_permissions": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "related_checks": {
+                  "items": {
+                    "$ref": "#/$defs/RelatedReferenceCheck"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "canonical_name",
+                "match_type",
+                "matched_text",
+                "api_group",
+                "operation_name",
+                "request_operation",
+                "permissions",
+                "permission_count",
+                "permissions_truncated",
+                "unmapped_permissions"
+              ],
+              "type": "object"
+            },
+            "RelatedReferenceCheck": {
+              "additionalProperties": true,
+              "description": "Conditional or related API requirements retained from the catalog.",
+              "properties": {
+                "resource": {
+                  "default": "",
+                  "type": "string"
+                },
+                "permissions": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "operation": {
+                  "default": "",
+                  "type": "string"
+                },
+                "applies_when": {
+                  "default": "",
+                  "type": "string"
+                },
+                "reason": {
+                  "default": "",
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "description": "Structured API operation discovery result.",
+          "properties": {
+            "catalog_id": {
+              "type": "string"
+            },
+            "catalog_version": {
+              "type": "string"
+            },
+            "total_matches": {
+              "type": "integer"
+            },
+            "matches": {
+              "items": {
+                "$ref": "#/$defs/OperationReferenceMatch"
+              },
+              "type": "array"
+            },
+            "next_cursor": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "warnings": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "catalog_id",
+            "catalog_version",
+            "total_matches",
+            "matches",
+            "next_cursor",
+            "warnings"
+          ],
+          "type": "object"
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "permission_reference",
+        "description": "Find OCI permission names and reverse-map them to known resources, families, lowest granting allow verbs and API operations. Search a partial permission or use match=exact. Additional permissions show the broader grant at that verb; this is not a complete least-privilege policy plan. Operation-only permissions remain visible when resource mapping is unavailable. No tenancy load, OCI calls or authorization decisions.",
+        "inputSchema": {
+          "properties": {
+            "query": {
+              "description": "Permission identifier or partial permission wording.",
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "resource": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "match": {
+              "default": "search",
+              "enum": [
+                "search",
+                "exact"
+              ],
+              "type": "string"
+            },
+            "limit": {
+              "default": 10,
+              "maximum": 25,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "cursor": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "type": "object",
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "$defs": {
+            "PermissionExpansion": {
+              "description": "A bounded cumulative permission list, with an explicit total and truncation.",
+              "properties": {
+                "permissions": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "total_count": {
+                  "type": "integer"
+                },
+                "truncated": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "permissions",
+                "total_count",
+                "truncated"
+              ],
+              "type": "object"
+            },
+            "PermissionReferenceMatch": {
+              "description": "Permission evidence from resource tables and operation requirements.",
+              "properties": {
+                "canonical_name": {
+                  "type": "string"
+                },
+                "match_type": {
+                  "enum": [
+                    "identifier",
+                    "alias",
+                    "search_term",
+                    "text"
+                  ],
+                  "type": "string"
+                },
+                "matched_text": {
+                  "type": "string"
+                },
+                "notes": {
+                  "default": "",
+                  "type": "string"
+                },
+                "source_urls": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "catalog_status": {
+                  "default": "unreviewed",
+                  "type": "string"
+                },
+                "mapping_status": {
+                  "default": "mapped",
+                  "type": "string"
+                },
+                "resource_mappings": {
+                  "items": {
+                    "$ref": "#/$defs/PermissionResourceMatch"
+                  },
+                  "type": "array"
+                },
+                "resource_mapping_count": {
+                  "type": "integer"
+                },
+                "resource_mappings_truncated": {
+                  "type": "boolean"
+                },
+                "operations": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "operation_count": {
+                  "type": "integer"
+                },
+                "operations_truncated": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "canonical_name",
+                "match_type",
+                "matched_text",
+                "resource_mappings",
+                "resource_mapping_count",
+                "resource_mappings_truncated",
+                "operations",
+                "operation_count",
+                "operations_truncated"
+              ],
+              "type": "object"
+            },
+            "PermissionResourceMatch": {
+              "description": "Lowest catalog granting verb for one resource, not a complete policy plan.",
+              "properties": {
+                "resource": {
+                  "type": "string"
+                },
+                "source_resource_name": {
+                  "type": "string"
+                },
+                "families": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "lowest_granting_verb": {
+                  "enum": [
+                    "inspect",
+                    "read",
+                    "use",
+                    "manage"
+                  ],
+                  "type": "string"
+                },
+                "granting_verbs": {
+                  "items": {
+                    "enum": [
+                      "inspect",
+                      "read",
+                      "use",
+                      "manage"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "additional_permissions": {
+                  "$ref": "#/$defs/PermissionExpansion"
+                },
+                "source_urls": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "resource",
+                "source_resource_name",
+                "families",
+                "lowest_granting_verb",
+                "granting_verbs",
+                "additional_permissions",
+                "source_urls"
+              ],
+              "type": "object"
+            }
+          },
+          "description": "Structured permission discovery and reverse mapping result.",
+          "properties": {
+            "catalog_id": {
+              "type": "string"
+            },
+            "catalog_version": {
+              "type": "string"
+            },
+            "total_matches": {
+              "type": "integer"
+            },
+            "matches": {
+              "items": {
+                "$ref": "#/$defs/PermissionReferenceMatch"
+              },
+              "type": "array"
+            },
+            "next_cursor": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "warnings": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "catalog_id",
+            "catalog_version",
+            "total_matches",
+            "matches",
+            "next_cursor",
+            "warnings"
+          ],
+          "type": "object"
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        }
+      },
+      {
         "name": "policy_search",
-        "description": "Search OCI IAM policies for one question. For two or more related checks, comparisons across groups/services, or a deployment permission checklist, prefer policy_search_set in one call. Principal filters: use filters.principal for one structured selector (for example {\"principal_type\":\"group\",\"domain_name\":\"Default\",\"name\":\"Admins\"} or {\"principal_type\":\"dynamic-group\"}), filters.principals for OR selectors, and filters.principal_keys for exact canonical keys such as group:default/admins (mixed-case inputs are accepted). Resource values are OCI policy types, not product names. For \"which groups can manage Object Storage\", use filters.action=[\"allow\"], filters.principal={\"principal_type\":\"group\"}, filters.verb=[\"manage\"], and filters.resource_family=\"object storage\". This expands to buckets, objects, objectstorage-namespaces, object-family, and all-resources. Results are matching statements, not a proof of effective access; conditions and scope still matter. The limit is a detailed-row threshold capped at 50, not pagination. Unfiltered or larger results return a summary with summary_substituted, summary_reason, and a hint to narrow the filters instead of statement rows.",
+        "description": "Search OCI IAM policies for one question. For two or more related checks, comparisons across groups/services, or a deployment permission checklist, prefer policy_search_set in one call. Principal filters: use filters.principal for one structured selector (for example {\"principal_type\":\"group\",\"domain_name\":\"Default\",\"name\":\"Admins\"} or {\"principal_type\":\"dynamic-group\"}), filters.principals for OR selectors, and filters.principal_keys for exact canonical keys such as group:default/admins (mixed-case inputs are accepted). Resource values are OCI policy types, not product names. Use resource_reference to discover resource names before searching when uncertain. For \"which groups can manage Object Storage\", use filters.action=[\"allow\"], filters.principal={\"principal_type\":\"group\"}, filters.verb=[\"manage\"], and filters.resource_family=\"object storage\". This expands to buckets, objects, objectstorage-namespaces, object-family, and all-resources. Results are matching statements, not a proof of effective access; conditions and scope still matter. The limit is a detailed-row threshold capped at 50, not pagination. Unfiltered or larger results return a summary with summary_substituted, summary_reason, and a hint to narrow the filters instead of statement rows.",
         "inputSchema": {
           "$defs": {
             "MCPPolicyFilters": {

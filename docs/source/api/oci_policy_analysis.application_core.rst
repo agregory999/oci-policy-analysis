@@ -190,3 +190,12 @@ Support
 
 .. automodule:: oci_policy_analysis.application.services.tag_based_policy_service
    :members: TagBasedPolicyService
+
+Reference discovery contracts
+-----------------------------
+
+.. automodule:: oci_policy_analysis.application.core.models.models_reference_lookup
+   :members: IAMVerb, MatchMode, ReferenceQuery, ResourceReferenceQuery, OperationReferenceQuery, PermissionReferenceQuery, ReferenceRecord, PermissionExpansion, ResourceReferenceMatch, RelatedReferenceCheck, OperationReferenceMatch, PermissionResourceMatch, PermissionReferenceMatch, ResourceReferenceResult, OperationReferenceResult, PermissionReferenceResult
+
+.. automodule:: oci_policy_analysis.application.services.reference_lookup_service
+   :members:

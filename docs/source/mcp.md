@@ -551,25 +551,26 @@ For the OKE workload identity tool and advanced principal filter shape, see [OKE
 
 MCP clients choose tools from concise descriptions and JSON schemas. The server keeps tool schemas intentionally small; full examples and response notes live here instead of in the tool description payload.
 
-### Tool Schema Token Metrics
+### Packaged schema footprint
 
-The packaged MCP schema is intentionally compact. Measured against `src/oci_policy_analysis/application/core/resources/mcp_tools_list/mcp_tools.json`:
+The packaged `mcp_tools.json` contains input schemas for every tool and typed
+output schemas for the three reference tools. The following sizes use compact
+UTF-8 JSON serialization; they are bytes, not model token estimates. Actual token
+usage depends on the client and model.
 
-| Encoding | Total Tokens |
-|----------|--------------|
-| `o200k_base` | 1,310 |
-| `cl100k_base` | 1,308 |
-
-Per-tool schema footprint using `o200k_base`:
-
-| Tool | Total | Description | Input Schema | Output Schema |
-|------|------:|------------:|-------------:|--------------:|
-| `policy_search` | 153 | 14 | 108 | 12 |
-| `policy_search_set` | 170 | 8 | 130 | 12 |
-| `policy_history_search` | 202 | 11 | 159 | 12 |
-| `identity_search` | 466 | 9 | 426 | 12 |
-| `data_operations` | 125 | 16 | 78 | 12 |
-| `cross_tenancy_search` | 166 | 10 | 122 | 12 |
+| Tool | Input schema bytes | Output schema bytes |
+| --- | ---: | ---: |
+| `resource_reference` | 622 | 2,207 |
+| `operation_reference` | 525 | 1,973 |
+| `permission_reference` | 531 | 2,551 |
+| `policy_search` | 3,872 | 45 |
+| `tag_based_policy_search` | 1,600 | 45 |
+| `oke_workload_identity_search` | 1,050 | 45 |
+| `policy_search_set` | 7,261 | 45 |
+| `policy_history_search` | 515 | 45 |
+| `identity_search` | 1,251 | 45 |
+| `data_operations` | 250 | 45 |
+| `cross_tenancy_search` | 383 | 45 |
 
 ### Example Natural Language Queries
 
@@ -591,6 +592,69 @@ Per-tool schema footprint using `o200k_base`:
 ---
 
 The OCI Policy Analysis MCP Server exposes the following tools for querying OCI IAM data:
+
+### Reference discovery and reverse lookup
+
+Use these three read-only tools to resolve terminology before searching policy
+statements. They read the bundled reference catalog; they do not load tenancy
+data or call OCI. Qt's managed endpoint exposes the same tools once its snapshot
+host is running. Their results describe policy resource **types**, not deployed
+Compute instances or other live resources.
+
+| Tool | Required input | Optional controls | Results |
+| --- | --- | --- | --- |
+| `resource_reference` | `query` | `kind`: resource/family/either; `verb`: inspect/read/use/manage | Catalog identifier, source spelling, aliases, family membership and cumulative allow-verb permissions |
+| `operation_reference` | `query` | `api_group`, such as core or objectstorage | Qualified API name, request.operation value, fixed requirements, conditional notes, related checks and unmapped permissions |
+| `permission_reference` | `query` | Exact resource identifier/alias in `resource` | Resource/family associations, lowest granting verb per resource, additional permissions at that verb and related API operations |
+
+All three also accept `match` (`search` by default or `exact`), `limit` (default
+10, maximum 25), and `cursor`. Queries contain 1–200 non-whitespace characters;
+unrecognized input fields and invalid enum values are rejected. Search returns
+ranked identifier, alias, curated search-term or text matches. Exact mode accepts
+identifiers and declared aliases, not descriptive search terms. Bare operation
+names can return several API groups; qualify the name rather than silently
+choosing one.
+
+For example:
+
+```json
+{"query": "virtual machines", "kind": "resource"}
+```
+
+Call `resource_reference` with that request to discover `instances` and its
+family. Then use the returned identifiers with policy-search tools.
+
+```json
+{"query": "launch instance", "api_group": "core"}
+```
+
+Call `operation_reference` to inspect `core:LaunchInstance`, its primary
+permissions, conditional requirements and separate subnet check. Catalog API
+groups qualify names; they are not SDK class names or REST endpoint paths.
+
+```json
+{"query": "INSTANCE_CREATE", "match": "exact"}
+```
+
+Call `permission_reference` to find resource/verb mappings and operations that
+require that permission. The lowest granting verb is a per-resource catalog
+mapping. Its additional permissions expose broader access at that verb; it is
+not a complete least-privilege policy or proof of authorization.
+
+Every response has `matches`, `total_matches`, `next_cursor`, `catalog_id`,
+`catalog_version` and `warnings`. Pass `next_cursor` with the same query/filters;
+cursors are invalid for different queries or catalog contents. Nested membership,
+permission and operation lists are bounded to 50 items and report totals and
+truncation. Narrow the query to inspect a specific entry. The catalog fingerprint
+identifies the actual data; the package version alone may not identify local edits.
+Restart the server after updating the catalog.
+
+Empty mappings remain explicit. `audit-events` at inspect is a documented empty
+expansion; `cloud-shell` has no published named mapping in its linked access
+guide. An operation-only permission remains searchable when its resource/verb
+mapping is unavailable. Source notes, catalog review status and related checks
+must remain part of the answer. A no-match result does not establish that the
+resource or permission does not exist in OCI. See [reference catalog coverage](reference_catalog.md).
 
 ### policy_search
 Primary policy-analysis tool. Use it for one statement search.

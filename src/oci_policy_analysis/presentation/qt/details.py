@@ -161,6 +161,7 @@ class DetailsDrawer(QFrame):
         super().__init__(parent)
         self.setObjectName('detailsDrawer')
         self.record = None
+        self._grouped = True
         self._closing = False
         self.animation = QPropertyAnimation(self, b'pos', self)
         self.animation.setDuration(180)
@@ -216,15 +217,31 @@ class DetailsDrawer(QFrame):
         parent.installEventFilter(self)
         self.hide()
 
-    def show_record(self, record: dict | None, title: str = 'Statement details') -> None:
-        """Render retained fields and animate the first opening of the drawer."""
+    def show_finding(self, record: dict | None) -> None:
+        """Show all backing-service finding fields without collapsible sections.
+
+        Args:
+            record: Finding dictionary, or None to clear the drawer.
+        """
+        self.show_record(record, 'Recommendation details', grouped=False)
+
+    def show_record(self, record: dict | None, title: str = 'Statement details', *, grouped: bool = True) -> None:
+        """Render retained fields and animate the first opening of the drawer.
+
+        Args:
+            record: Source or finding dictionary, or None to clear the drawer.
+            title: Drawer heading.
+            grouped: Group source evidence into sections. False shows every field,
+                including empty values, in backing-service insertion order.
+        """
         if record is None:
             self.clear()
             return
-        if record is self.record and self.isVisible() and not self._closing:
+        if record is self.record and grouped == self._grouped and self.isVisible() and not self._closing:
             return
         opening = self.isHidden() or self._closing
         self.record = record
+        self._grouped = grouped
         self._closing = False
         self.animation.stop()
         self.title.setText(title)
@@ -235,7 +252,8 @@ class DetailsDrawer(QFrame):
         parsed = record.get('parsed')
         parsed_status = 'Yes' if parsed is True else 'No' if parsed is False else 'Not recorded'
         self.status.setText(f'{validity} · Parsed: {parsed_status}' if 'statement_text' in record else validity)
-        self.invalid_notice.setVisible(valid is False)
+        self.status.setVisible(grouped)
+        self.invalid_notice.setVisible(grouped and valid is False)
         if valid is False:
             reasons = [record[key] for key in ('invalid_reasons', 'invalid_reason', 'parse_errors') if record.get(key)]
             if not reasons and record.get('parsing_notes'):
@@ -310,11 +328,13 @@ class DetailsDrawer(QFrame):
                     ('Type', 'Severity', 'Policy Name', 'Issue', 'Statement Text', 'source_ids', 'related_statements'),
                 )
             ]
-        consolidation_finding = 'Opportunity ID' in record and 'Evidence' in record
+        consolidation_finding = grouped and 'Opportunity ID' in record and 'Evidence' in record
         if consolidation_finding:
             groups = [('Recommendation', tuple(record))]
         display_groups = list(groups)
-        if not cross_tenancy_finding and not consolidation_finding:
+        if not grouped:
+            display_groups = [('', tuple(record))]
+        elif not cross_tenancy_finding and not consolidation_finding:
             display_groups.append(
                 (
                     'Additional Details',
@@ -329,13 +349,7 @@ class DetailsDrawer(QFrame):
             selected = [
                 key
                 for key in keys
-                if key in record
-                and key not in seen
-                and record[key] is not None
-                and record[key] != ''
-                and record[key] != []
-                and record[key] != {}
-                and record[key] != ()
+                if key in record and key not in seen and (not grouped or record[key] not in (None, '', [], {}, ()))
             ]
             if not selected:
                 continue
@@ -381,14 +395,23 @@ class DetailsDrawer(QFrame):
                     )
                     text.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
                 elif isinstance(value, dict):
-                    text = QPlainTextEdit()
-                    text.setReadOnly(True)
-                    text.setPlainText(json.dumps(value, indent=2, ensure_ascii=False, default=str))
-                    text.setFixedHeight(115 if value else 55)
+                    rendered = json.dumps(value, indent=2, ensure_ascii=False, default=str)
+                    if grouped:
+                        text = QPlainTextEdit()
+                        text.setReadOnly(True)
+                        text.setPlainText(rendered)
+                        text.setFixedHeight(115 if value else 55)
+                    else:
+                        text = label(rendered, wrap=True)
+                        text.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
                 else:
                     text = label(str(value) if value is not None else 'Not recorded', wrap=True)
                     text.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
                 values.addWidget(text)
+            if not grouped:
+                values.setContentsMargins(0, 0, 0, 0)
+                fields.addWidget(group)
+                continue
             section = CollapsibleSection(name, group)
             section.button.setChecked(
                 name

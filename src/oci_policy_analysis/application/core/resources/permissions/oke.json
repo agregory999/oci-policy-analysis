@@ -9,96 +9,128 @@
                     "CLUSTER_READ"
                 ],
                 "use": [
-                    "CLUSTER_UPDATE",
-                    "CLUSTER_UPGRADE",
-                    "CLUSTER_ADDON_MANAGE",
-                    "CLUSTER_KUBE_CONFIG"
+                    "CLUSTER_USE"
                 ],
                 "manage": [
                     "CLUSTER_CREATE",
                     "CLUSTER_DELETE",
-                    "CLUSTER_MOVE"
+                    "CLUSTER_UPDATE",
+                    "CLUSTER_MANAGE",
+                    "CLUSTER_JOIN"
                 ]
-            }
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/contengpolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Verb permission increments reviewed against the linked service policy reference; broader verbs include lower-verb permissions."
         },
         "cluster-node-pools": {
             "verbs": {
                 "inspect": [
-                    "NODE_POOL_INSPECT"
+                    "CLUSTER_NODE_POOL_INSPECT"
                 ],
                 "read": [
-                    "NODE_POOL_READ"
+                    "CLUSTER_NODE_POOL_READ"
                 ],
-                "use": [
-                    "NODE_POOL_UPDATE",
-                    "NODE_POOL_SCALE",
-                    "NODE_POOL_UPGRADE"
-                ],
+                "use": [],
                 "manage": [
-                    "NODE_POOL_CREATE",
-                    "NODE_POOL_DELETE",
-                    "NODE_POOL_MOVE"
+                    "CLUSTER_NODE_POOL_CREATE",
+                    "CLUSTER_NODE_POOL_DELETE",
+                    "CLUSTER_NODE_POOL_UPDATE"
                 ]
-            }
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/contengpolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Verb permission increments reviewed against the linked service policy reference; broader verbs include lower-verb permissions."
         },
         "cluster-virtual-node-pools": {
             "verbs": {
                 "inspect": [
-                    "VIRTUAL_NODE_POOL_INSPECT"
+                    "CLUSTER_VIRTUAL_NODE_POOL_INSPECT"
                 ],
                 "read": [
-                    "VIRTUAL_NODE_POOL_READ"
+                    "CLUSTER_VIRTUAL_NODE_POOL_READ"
                 ],
-                "use": [
-                    "VIRTUAL_NODE_POOL_UPDATE"
-                ],
+                "use": [],
                 "manage": [
-                    "VIRTUAL_NODE_POOL_CREATE",
-                    "VIRTUAL_NODE_POOL_DELETE",
-                    "VIRTUAL_NODE_POOL_MOVE"
+                    "CLUSTER_VIRTUAL_NODE_POOL_CREATE",
+                    "CLUSTER_VIRTUAL_NODE_POOL_UPDATE",
+                    "CLUSTER_VIRTUAL_NODE_POOL_DELETE"
                 ]
-            }
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/contengpolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Verb permission increments reviewed against the linked service policy reference; broader verbs include lower-verb permissions."
         },
         "cluster-work-requests": {
             "verbs": {
                 "inspect": [
-                    "WORK_REQUEST_INSPECT"
+                    "CLUSTER_WORK_REQUEST_INSPECT"
                 ],
                 "read": [
-                    "WORK_REQUEST_READ"
+                    "CLUSTER_WORK_REQUEST_READ"
                 ],
                 "use": [],
-                "manage": []
-            }
+                "manage": [
+                    "CLUSTER_WORK_REQUEST_DELETE"
+                ]
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/contengpolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Verb permission increments reviewed against the linked service policy reference; broader verbs include lower-verb permissions."
         },
         "cluster-workload-mappings": {
             "verbs": {
                 "inspect": [
-                    "WORKLOAD_MAPPING_INSPECT"
+                    "CLUSTER_WORKLOAD_MAPPING_INSPECT"
                 ],
                 "read": [
-                    "WORKLOAD_MAPPING_READ"
+                    "CLUSTER_WORKLOAD_MAPPING_READ"
                 ],
                 "use": [
-                    "WORKLOAD_MAPPING_UPDATE"
+                    "CLUSTER_WORKLOAD_MAPPING_UPDATE",
+                    "CLUSTER_WORKLOAD_COMPARTMENT_BIND",
+                    "CLUSTER_WORKLOAD_COMPARTMENT_UNBIND"
                 ],
                 "manage": [
-                    "WORKLOAD_MAPPING_CREATE",
-                    "WORKLOAD_MAPPING_DELETE"
+                    "CLUSTER_WORKLOAD_MAPPING_CREATE",
+                    "CLUSTER_WORKLOAD_MAPPING_DELETE"
                 ]
-            }
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/contengpolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Verb permission increments reviewed against the linked service policy reference; broader verbs include lower-verb permissions."
+        },
+        "cluster-pod-shapes": {
+            "verbs": {
+                "inspect": [
+                    "CLUSTER_VIRTUAL_NODE_POOL_INSPECT"
+                ],
+                "read": [],
+                "use": [],
+                "manage": []
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/contengpolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Verb permission increments reviewed against the linked service policy reference; broader verbs include lower-verb permissions."
         }
     },
     "families": {
-        "container-engine-family": {
+        "cluster-family": {
             "resources": [
                 "clusters",
                 "cluster-node-pools",
+                "cluster-pod-shapes",
                 "cluster-virtual-node-pools",
                 "cluster-work-requests",
                 "cluster-workload-mappings"
             ],
-            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/contengpolicyreference.htm"
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/contengpolicyreference.htm",
+            "aliases": [
+                "container-engine-family",
+                "kubernetes engine",
+                "oke"
+            ],
+            "notes": "cluster-family is the documented OCI aggregate resource type. container-engine-family is retained only as a legacy catalog lookup alias."
         }
     },
     "operations": {

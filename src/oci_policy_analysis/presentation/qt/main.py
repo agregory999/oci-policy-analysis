@@ -205,6 +205,7 @@ class WorkbenchWindow(QMainWindow):
         layout.addLayout(body, 1)
         self.drawer = DetailsDrawer(root)
         self.recommendations_page.details_requested.connect(self.drawer.show_record)
+        self.recommendations_page.finding_details_requested.connect(self.drawer.show_finding)
         self.recommendations_page.consolidation_requested.connect(self._focus_consolidation)
         self.browser_page.details_requested.connect(self.drawer.show_record)
         self.simulation_page.details_requested.connect(self.drawer.show_record)

@@ -248,12 +248,14 @@ class RecommendationsPage(QWidget):
         busy_changed: Shell serialization gate while analysis mutates derived state.
         analysis_finished: Context needing consumer rebinding after success/failure.
         details_requested: Read-only general finding inspection request.
+        finding_details_requested: Policy/statement risk fields shown without sections.
         worker: Retained background worker or None while idle.
     """
 
     busy_changed = Signal(bool)
     analysis_finished = Signal(object)
     details_requested = Signal(object)
+    finding_details_requested = Signal(object)
     consolidation_requested = Signal(dict)
     limits_requested = Signal()
 
@@ -541,6 +543,8 @@ class RecommendationsPage(QWidget):
                 self._clear_dialog()
                 self.dialog = SupersessionDialog(details, self)
                 self.dialog.show()
+        elif key in {'risk_policy', 'risk_statement'}:
+            self.finding_details_requested.emit(record)
         else:
             self.details_requested.emit(record)
 

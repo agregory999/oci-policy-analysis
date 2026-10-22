@@ -1129,11 +1129,11 @@
                 "VNIC_CREATE",
                 "VNIC_ATTACH",
                 "SUBNET_ATTACH",
-                "T",
                 "DB_BACKUP_CREATE",
                 "DATABASE_CONTENT_READ"
             ],
-            "notes": "and and and and and To enable automatic backups for the initial database, also need and"
+            "notes": "Source requirements: DB_SYSTEM_CREATE and DB_HOME_CREATE and DATABASE_CREATE and VNIC_CREATE and VNIC_ATTACH and SUBNET_ATTACH To enable automatic backups for the initial database, also need DB_BACKUP_CREATE and DATABASE_CONTENT_READ",
+            "source_url": "https://docs.oracle.com/iaas/Content/Identity/Reference/dbsystempolicyreference.htm"
         },
         "UpdateDbSystem": {
             "permissions": [
@@ -1240,11 +1240,11 @@
                 "DB_SYSTEM_UPDATE",
                 "DB_HOME_CREATE",
                 "DATABASE_CREATE",
-                "T",
                 "DB_BACKUP_CREATE",
                 "DATABASE_CONTENT_READ"
             ],
-            "notes": "and and and To enable automatic backups for the database, also need and"
+            "notes": "Source requirements: DB_SYSTEM_INSPECT and DB_SYSTEM_UPDATE and DB_HOME_CREATE and DATABASE_CREATE To enable automatic backups for the database, also need DB_BACKUP_CREATE and DATABASE_CONTENT_READ",
+            "source_url": "https://docs.oracle.com/iaas/Content/Identity/Reference/dbsystempolicyreference.htm"
         },
         "UpdateDbHome": {
             "permissions": [
@@ -1257,12 +1257,12 @@
                 "DB_SYSTEM_UPDATE",
                 "DB_HOME_DELETE",
                 "DATABASE_DELETE",
-                "I",
                 "DB_BACKUP_DELETE",
                 "DB_BACKUP_CREATE",
                 "DATABASE_CONTENT_READ"
             ],
-            "notes": "and and If automatic backups are enabled, also need If performing a final backup on termination, also need and"
+            "notes": "Source requirements: DB_SYSTEM_UPDATE and DB_HOME_DELETE and DATABASE_DELETE If automatic backups are enabled, also need DB_BACKUP_DELETE If performing a final backup on termination, also need DB_BACKUP_CREATE and DATABASE_CONTENT_READ",
+            "source_url": "https://docs.oracle.com/iaas/Content/Identity/Reference/dbsystempolicyreference.htm"
         },
         "ListDatabases": {
             "permissions": [
@@ -1279,11 +1279,11 @@
         "UpdateDatabase": {
             "permissions": [
                 "DATABASE_UPDATE",
-                "T",
                 "DB_BACKUP_CREATE",
                 "DATABASE_CONTENT_READ"
             ],
-            "notes": "To enable automatic backups, also need and"
+            "notes": "Source requirements: DATABASE_UPDATE To enable automatic backups, also need DB_BACKUP_CREATE and DATABASE_CONTENT_READ",
+            "source_url": "https://docs.oracle.com/iaas/Content/Identity/Reference/dbsystempolicyreference.htm"
         },
         "ListDbSystemShapes": {
             "permissions": [],

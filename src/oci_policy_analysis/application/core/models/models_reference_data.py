@@ -42,4 +42,6 @@ class OperationPermissionsRow(TypedDict):
     label: str
     permissions: list[str]
     notes: NotRequired[str]
+    mapping_status: NotRequired[str]
+    source_url: NotRequired[str]
     related_checks: NotRequired[list[RelatedPermissionCheck]]

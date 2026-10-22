@@ -1713,6 +1713,9 @@ def test_embedded_mcp_isolated_contexts_reuse_queries_without_mutating_globals(w
                 'cross_tenancy_search',
                 'tag_based_policy_search',
                 'oke_workload_identity_search',
+                'resource_reference',
+                'operation_reference',
+                'permission_reference',
             }
             status, other = await asyncio.gather(one.call_tool('snapshot_status'), two.call_tool('snapshot_status'))
             assert status.data['statements'] == 6
@@ -1756,7 +1759,7 @@ def test_managed_mcp_http_readiness_reload_lock_stop_restart(workbench):
     assert page._running, page.server_status.text()
     endpoint = page.url
     assert endpoint.startswith('http://127.0.0.1:')
-    assert page.tools.model.rowCount() == 7
+    assert page.tools.model.rowCount() == 10
     assert window.settings_page.logging_panel.isEnabled()
 
     async def query():
@@ -1764,6 +1767,8 @@ def test_managed_mcp_http_readiness_reload_lock_stop_restart(workbench):
             result = await client.call_tool('snapshot_status')
             assert result.data['statements'] == 6
             assert result.data['tenancy_name'] == 'Sample workspace'
+            reference = await client.call_tool('resource_reference', {'query': 'virtual machines'})
+            assert reference.structured_content['matches'][0]['canonical_name'] == 'instances'
 
     asyncio.run(query())
     page.stop_button.click()
@@ -4628,11 +4633,26 @@ def test_permissions_analysis_requires_full_then_exposes_sources_and_exclusions(
     page = window.permissions_page
     assert page.tree.topLevelItemCount() == 0
     assert 'Full intelligence' in page.status.text()
+    # Audit is now mapped. Supply explicit unmapped evidence rather than relying
+    # on a catalog defect in the packaged sample to exercise the exclusions UI.
+    repository = window.controller.context.policy_repo
+    source = next(row for row in repository.regular_statements if row.get('resource') == 'audit-events')
+    repository.regular_statements.append(
+        {
+            **source,
+            'internal_id': 'qt-unmapped-cloud-shell',
+            'resource': 'cloud-shell',
+            'verb': 'use',
+            'permission': [],
+            'statement_text': source['statement_text'].replace('read audit-events', 'use cloud-shell'),
+        }
+    )
     window.recommendations_page.run_analysis()
     _wait_for_recommendations(application, window)
     assert page.tree.topLevelItemCount() > 0
     assert page.exclusions.model.rowCount() > 0
     assert all(row.get('category') and row.get('reason') for row in page.exclusions.model.records)
+    assert any(row.get('statement_id') == 'qt-unmapped-cloud-shell' for row in page.exclusions.model.records)
     root = page.tree.topLevelItem(0)
     assert root.childCount() > 0
     page.tree.setCurrentItem(root.child(0))
@@ -4938,3 +4958,48 @@ def test_snapshot_activity_observes_external_clients_and_errors_without_payloads
     _wait_until(application, lambda: page._running or page.host is None, timeout=25)
     assert page._running
     assert len(page.events.toPlainText()) > len(old_host)
+
+
+@pytest.mark.parametrize('section', ['risk_policy', 'risk_statement'])
+def test_recommendation_findings_show_all_service_fields_without_sections(workbench, section):
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QLabel
+
+    from oci_policy_analysis.presentation.qt.widgets import CollapsibleSection
+
+    application, window = workbench
+    window.settings_page.load_sample()
+    _wait_for_load(application, window)
+    page = window.recommendations_page
+    page.run_analysis()
+    _wait_for_recommendations(application, window)
+    record = dict(page.tables[section].model.records[0])
+    record.update(
+        {
+            'Empty finding': [],
+            'Optional finding': None,
+            'Zero score': 0,
+            'False flag': False,
+            'Nested evidence': {'detail': '<literal service data>'},
+        }
+    )
+    before = json.dumps(record, sort_keys=True)
+    page._details(section, record)
+    application.processEvents()
+    drawer = window.drawer
+    assert drawer.title.text() == 'Recommendation details'
+    assert drawer.record is record
+    content = drawer.scroll.widget()
+    assert not content.findChildren(CollapsibleSection)
+    labels = content.findChildren(QLabel)
+    texts = [item.text() for item in labels]
+    for key in record:
+        assert key.replace('_', ' ').title() in texts
+    assert 'Not recorded' in texts and 'None recorded' in texts
+    assert '0' in texts and 'False' in texts
+    assert any('<literal service data>' in text for text in texts)
+    assert all(item.textFormat() == Qt.TextFormat.PlainText for item in labels)
+    assert json.loads(drawer.raw.toPlainText()) == record
+    assert json.dumps(record, sort_keys=True) == before
+    drawer.show_record({'statement_text': 'allow group A to read buckets in tenancy', 'valid': True})
+    assert drawer.scroll.widget().findChildren(CollapsibleSection)

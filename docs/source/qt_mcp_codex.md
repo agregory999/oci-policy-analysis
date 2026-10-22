@@ -187,6 +187,18 @@ validity, conditions, and provenance are retained.
 | `oke_workload_identity_search` | OKE identity coverage evidence |
 | `identity_search` | Known identities and associations |
 | `cross_tenancy_search` | Aliases and cross-tenancy source evidence |
+| `resource_reference` | Discover policy resource/family names and verb expansions |
+| `operation_reference` | Qualified API names, requirements and related checks |
+| `permission_reference` | Reverse permission → resource/verb and operation lookup |
+
+
+There are ten read-only tools: snapshot status and six snapshot queries, plus
+three lookups over the bundled reference catalog. Reference results identify
+catalog coverage separately from tenancy snapshot coverage. Try “What resource
+type represents virtual machines?”, “What does launching an instance require?”
+or “Which resource and verb grant INSTANCE_CREATE?”. See [MCP reference tools](mcp.md#reference-discovery-and-reverse-lookup)
+for schemas, pagination and empty mappings. Restart MCP and reconnect the
+assistant after upgrading so clients refresh their tool catalogs.
 
 `data_operations`, cache/history loading and reload tools are not registered on
 this endpoint. The listener serves snapshot evidence; it does not evaluate
