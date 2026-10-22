@@ -33,7 +33,11 @@ def test_audit_ranges_are_contiguous_end_exclusive_and_at_most_14_days():
     assert args[:4] == ['oci', 'audit', 'event', 'list'] and '--all' not in args
     assert result['fetch_all'] is False
     query = args[args.index('--query') + 1]
-    assert query == 'data[?data."resource-id" == \'ocid1.policy.oc1..example\']'
+    assert query.startswith('data[?data."resource-id" == `"ocid1.policy.oc1..example"`].{')
+    assert 'principal:data.identity."principal-name"' in query
+    assert 'operation:data."event-name"' in query
+    assert 'previous:data."state-change".previous,current:data."state-change".current' in query
+    assert args[args.index('--output') + 1] == 'json'
 
 
 def test_fetch_all_pages_is_an_explicit_opt_in():

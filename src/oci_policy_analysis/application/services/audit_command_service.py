@@ -1,5 +1,6 @@
 """Generate explicit OCI Audit CLI searches without connecting to OCI."""
 
+import json
 import re
 import shlex
 from datetime import UTC, datetime, timedelta
@@ -147,8 +148,16 @@ class AuditCommandService:
                     raise ValueError('Profile and region cannot contain control characters.')
                 if value:
                     args.extend([flag, value])
-            if resource:
-                args.extend(['--query', f'data[?data."resource-id" == \'{resource}\']'])
+            rows = f'data[?data."resource-id" == `{json.dumps(resource)}`]' if resource else 'data[]'
+            projection = (
+                '{time:"event-time",eventType:"event-type",operation:data."event-name",'
+                'resourceName:data."resource-name",resourceId:data."resource-id",'
+                'principal:data.identity."principal-name",caller:data.identity."caller-name",'
+                'ipAddress:data.identity."ip-address",action:data.request.action,path:data.request.path,'
+                'status:data.response.status,message:data.response.message,'
+                'previous:data."state-change".previous,current:data."state-change".current}'
+            )
+            args.extend(['--output', 'json', '--query', f'{rows}.{projection}'])
             commands.append(' '.join(quote(arg) for arg in args))
             windows.append({'start_time': first, 'end_time': last})
             start = stop
