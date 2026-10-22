@@ -1,3 +1,12 @@
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.16](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.15...v7.0.0-7-0-0-policy-corpus-cross-tenancy.16) (2026-10-22)
+
+
+### Bug Fixes
+
+* publish Windows Qt onefile builds as archives only ([cf54199](https://github.com/agregory999/oci-policy-analysis/commit/cf54199e06cc75807c8ec5c4e2fd2d00c51f39c8))
+* resolve desktop build resources from repository paths ([4d6c509](https://github.com/agregory999/oci-policy-analysis/commit/4d6c50953d58d134081f4153045d8bd79ee8c8b0))
+* retain comment-only edits in historical policy comparisons ([b1dbfb5](https://github.com/agregory999/oci-policy-analysis/commit/b1dbfb54e7640f22abbdaacba971d9893a680801))
+
 ## [7.0.0-7-0-0-policy-corpus-cross-tenancy.15](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.14...v7.0.0-7-0-0-policy-corpus-cross-tenancy.15) (2026-10-22)
 
 
