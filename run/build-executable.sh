@@ -56,15 +56,15 @@ print(matches[0] if matches else '')")
       --name="oci-policy-analysis-tk" \
       --windowed \
       --clean --noconfirm --noconsole \
-      --icon=icons/oci-policy-dg-viewer.icns \
+      --icon="$root_dir/icons/oci-policy-dg-viewer.icns" \
       --collect-all=sys \
       --copy-metadata fastmcp \
-      --add-data "src/oci_policy_analysis/version.txt:oci_policy_analysis" \
-      --add-data "src/oci_policy_analysis/application/core/resources/permissions:oci_policy_analysis/application/core/resources/permissions" \
-      --add-data "src/oci_policy_analysis/application/core/resources/mcp_tools_list:oci_policy_analysis/application/core/resources/mcp_tools_list" \
-      --add-data "src/oci_policy_analysis/application/core/resources/parsers:oci_policy_analysis/application/core/resources/parsers" \
+      --add-data "$root_dir/src/oci_policy_analysis/version.txt:oci_policy_analysis" \
+      --add-data "$root_dir/src/oci_policy_analysis/application/core/resources/permissions:oci_policy_analysis/application/core/resources/permissions" \
+      --add-data "$root_dir/src/oci_policy_analysis/application/core/resources/mcp_tools_list:oci_policy_analysis/application/core/resources/mcp_tools_list" \
+      --add-data "$root_dir/src/oci_policy_analysis/application/core/resources/parsers:oci_policy_analysis/application/core/resources/parsers" \
       --add-binary="$PY_LIB:Frameworks/Python" \
-      src/oci_policy_analysis/main.py
+      "$root_dir/src/oci_policy_analysis/main.py"
 
     echo "🍎 Packaging .app → dist/tk/oci-policy-analysis-tk-macos-${VERSION}.app.tar.gz"
     cd dist/tk
@@ -86,15 +86,15 @@ print(matches[0] if matches else '')")
       --name="oci-policy-analysis-tk" \
       --onefile \
       --clean --noconfirm --noconsole \
-      --icon=icons/oci-policy-dg-viewer.png \
+      --icon="$root_dir/icons/oci-policy-dg-viewer.png" \
       --collect-all=sys \
       --copy-metadata fastmcp \
-      --add-data "src/oci_policy_analysis/version.txt:oci_policy_analysis" \
-      --add-data "src/oci_policy_analysis/application/core/resources/permissions:oci_policy_analysis/application/core/resources/permissions" \
-      --add-data "src/oci_policy_analysis/application/core/resources/mcp_tools_list:oci_policy_analysis/application/core/resources/mcp_tools_list" \
-      --add-data "src/oci_policy_analysis/application/core/resources/parsers:oci_policy_analysis/application/core/resources/parsers" \
+      --add-data "$root_dir/src/oci_policy_analysis/version.txt:oci_policy_analysis" \
+      --add-data "$root_dir/src/oci_policy_analysis/application/core/resources/permissions:oci_policy_analysis/application/core/resources/permissions" \
+      --add-data "$root_dir/src/oci_policy_analysis/application/core/resources/mcp_tools_list:oci_policy_analysis/application/core/resources/mcp_tools_list" \
+      --add-data "$root_dir/src/oci_policy_analysis/application/core/resources/parsers:oci_policy_analysis/application/core/resources/parsers" \
       --add-binary="$PY_SO:." \
-      src/oci_policy_analysis/main.py
+      "$root_dir/src/oci_policy_analysis/main.py"
 
     echo "🐧 Packaging → dist/tk/oci-policy-analysis-tk-linux-${VERSION}.tar.gz"
     cd dist/tk
@@ -119,15 +119,15 @@ EOF
       --name "oci-policy-analysis-tk" \
       --onefile \
       --clean --noconfirm --noconsole \
-      --icon "icons/oci-policy-dg-viewer.ico" \
+      --icon "$root_dir/icons/oci-policy-dg-viewer.ico" \
       --collect-all sys \
       --copy-metadata fastmcp \
-      --add-data "src/oci_policy_analysis/version.txt;oci_policy_analysis" \
-      --add-data "src/oci_policy_analysis/application/core/resources/permissions;oci_policy_analysis/application/core/resources/permissions" \
-      --add-data "src/oci_policy_analysis/application/core/resources/mcp_tools_list;oci_policy_analysis/application/core/resources/mcp_tools_list" \
-      --add-data "src/oci_policy_analysis/application/core/resources/parsers;oci_policy_analysis/application/core/resources/parsers" \
+      --add-data "$root_dir/src/oci_policy_analysis/version.txt;oci_policy_analysis" \
+      --add-data "$root_dir/src/oci_policy_analysis/application/core/resources/permissions;oci_policy_analysis/application/core/resources/permissions" \
+      --add-data "$root_dir/src/oci_policy_analysis/application/core/resources/mcp_tools_list;oci_policy_analysis/application/core/resources/mcp_tools_list" \
+      --add-data "$root_dir/src/oci_policy_analysis/application/core/resources/parsers;oci_policy_analysis/application/core/resources/parsers" \
       --add-binary "$PY_DLL;." \
-      src/oci_policy_analysis/main.py
+      "$root_dir/src/oci_policy_analysis/main.py"
 
     echo "🪟 Packaging → dist/tk/oci-policy-analysis-tk-windows-${VERSION}.zip"
     cd dist/tk
