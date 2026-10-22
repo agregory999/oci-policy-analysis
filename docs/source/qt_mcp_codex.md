@@ -3,8 +3,10 @@
 The **MCP & assistant** navigation page hosts a query-only FastMCP endpoint over
 the currently loaded context, optional native Codex and Claude Code conversations, and
 launchers for separately configured Claude Desktop, ChatGPT Desktop, and Codex
-Desktop apps. Neither server nor Codex starts when the application opens or
+Desktop apps. Neither the server nor an embedded assistant starts when the application opens or
 when a snapshot loads.
+
+For the desktop navigation and upgrade overview, see the [7.0 guide](release_7_0.md).
 
 ## Embedded Claude Code
 
@@ -65,7 +67,7 @@ uv sync --extra qt --extra mcp --extra web
 ```
 
 1. Load sample data, OCI, a named cache, an exported snapshot, or CIS output.
-2. Open **MCP & assistant**. Choose a port or use **Automatic**, then **Start MCP**.
+2. Enable **Advanced mode** on Overview & Settings, then open **MCP & Assistant**. Choose a port or use **Automatic**, then **Start MCP**.
    The listener always binds to `127.0.0.1`. The verified URL and available tools
    appear only after MCP initialization, tool discovery, and a snapshot-status
    call succeed.
@@ -159,7 +161,7 @@ not construct another AppContext or load OCI again. Atomic socket binding report
 occupied ports correctly; status is based on a real MCP handshake rather than
 thread liveness.
 
-Loading is locked while MCP starts, runs, or stops, and until its Codex child has
+Loading is locked while MCP starts, runs, or stops, and until its embedded assistant child has
 exited. The controller enforces the same lock for programmatic requests. A
 replacement load also disables server startup, preventing a race where a new
 snapshot publishes while an old one begins serving. Logging remains available

@@ -4,6 +4,8 @@ Analyze OCI IAM policies, compartments, identity domains, groups, users, and dyn
 
 The quick start guide below assumes the minimum setup to run the tool and access an OCI tenancy.  There are several over methods to run the tool.  The [full documentation](https://agregory999.github.io/oci-policy-analysis) covers mode-specific setup, OCI authentication and permissions, CIS compliance imports, web hosting, CLI and MCP usage, troubleshooting, architecture, and API reference.
 
+For the 7.0 upgrade, see [what changed and the Qt preview walkthrough](https://agregory999.github.io/oci-policy-analysis/release_7_0.html). Tkinter remains available through `oci-policy-analysis-ui`; the optional Qt preview uses `oci-policy-analysis-qt`.
+
 ## Quick Start: Download an executable application
 
 Download the latest macOS or Windows application from the [Releases page](https://github.com/agregory999/oci-policy-analysis/releases). If your operating system asks for approval, allow the downloaded application to run.

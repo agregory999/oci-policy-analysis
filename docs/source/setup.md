@@ -6,10 +6,16 @@ This is the central setup guide for OCI Policy Analysis. Choose a run mode, choo
 
 | Mode | Best for | Install |
 |---|---|---|
-| Desktop | Local, single-user interactive analysis | `pip install oci-policy-analysis` |
+| Desktop (Tkinter) | Local, single-user interactive analysis | `pip install oci-policy-analysis` |
+| Qt desktop (preview) | Optional desktop workbench; Tkinter remains available | `pip install "oci-policy-analysis[qt,mcp,web]"` |
 | Web | Browser-based local or team use | `pip install "oci-policy-analysis[web]"` |
 | CLI | Automation, exports, and offline workflows | `pip install oci-policy-analysis` |
 | MCP | AI clients and MCP-based automation | `pip install "oci-policy-analysis[mcp]"` |
+
+For 7.0 changes and the Qt navigation walkthrough, see the [7.0 guide](release_7_0.md).
+Run Tkinter with `oci-policy-analysis-ui`; run Qt with `oci-policy-analysis-qt`.
+Use a package release that includes the Qt preview, or follow the guide to run
+from source.
 
 All pip installs require Python 3.12 or later. Create a virtual environment first:
 

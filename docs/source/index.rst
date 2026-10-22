@@ -5,6 +5,7 @@ Full documentation
    :maxdepth: 1
    :caption: Basics
 
+   release_7_0
    overview
    user_guide
    setup
@@ -18,6 +19,7 @@ Full documentation
 
    simulation
    core_integration
+   qt_desktop
    qt_mcp_codex
    usage_tracking
    consolidation

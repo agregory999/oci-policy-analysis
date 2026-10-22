@@ -1,13 +1,40 @@
 # Embedding and Integrating OCI Policy Analysis
 
-OCI Policy Analysis can be used as more than a desktop application. Its core
-loads, preserves, validates, and analyzes OCI IAM and policy data; the desktop
-app, CLI, web application, and MCP server are first-party adapters over that
-same runtime.
+## Deploy web or MCP directly on OCI
 
-This guide covers the small, supported Python embedding surface for the current
-analysis snapshot. It does not define a persistent corpus, plugin SDK, or OCI
-authorization decision service.
+OCI Policy Analysis supports a ready-to-run **web application, MCP server, or
+combined web/MCP deployment on OCI Container Instances using Resource Principal**.
+Choose this first when you want a hosted interface or agent endpoint over tenancy
+data: no custom Python wrapper or user API key in the running container is needed.
+Grant the workload the required read/inspect permissions and configure networking
+for the clients and OCI APIs it must reach.
+
+Follow [Setup](setup.md#containerized-mcp-on-oci-container-instances) for workload
+permissions and MCP configuration. The canonical
+[run and deployment guide](https://github.com/agregory999/oci-policy-analysis/blob/main/run/README.md#container-instances)
+covers web, MCP, and combined deployments, source versus published-release images,
+health checks, and explicit replacement/rollback. Use the operations guide from
+the same Git revision as your deployment. Deployment scripts manage the named
+Container Instance; IAM, registry, network, Load Balancer, and backends are
+configured separately. Image or runtime changes use delete/create replacement
+with downtime.
+
+### Choose deployment or embedding
+
+| Pattern | What you run | Authentication | What you supply |
+| --- | --- | --- | --- |
+| Hosted web or MCP | Packaged application on OCI Container Instances | Resource Principal | Workload IAM, runtime settings, networking and durable retention if required |
+| Custom OCI Function | Python core and focused services inside your own function image | Function Resource Principal | Function handler, schedule, capacity/timeout validation, output storage and delivery |
+| Scheduled job on an OCI VM | CLI or Python core, optionally alongside a standalone MCP process | Instance Principal | Scheduler, job locking, snapshot retention and report delivery |
+| Offline integration | Python core over saved combined-cache JSON | No OCI authentication for offline loads | Input snapshots, analysis options and output handling |
+
+The Function and scheduled-job patterns below are integration recipes, not
+packaged function deployments or a built-in scheduling service. Oracle documents
+[Function resource-principal access](https://docs.oracle.com/en-us/iaas/Content/Functions/Tasks/functionsaccessingociresources.htm)
+and [recurring Function invocation through Resource Scheduler](https://docs.oracle.com/en-us/iaas/Content/Functions/Tasks/functionsschedulingfunctions-about.htm).
+A Function starts a bounded analysis job; a web/MCP container keeps a service
+available between requests. Size the job for actual tenancy collection and
+analysis time; use a VM or other worker when that exceeds the function's limits.
 
 ## The current analysis snapshot
 
@@ -49,6 +76,23 @@ in validation, permission mappings, and analysis can legitimately change derived
 results when the same snapshot is processed by a newer version.
 
 ## Python embedding
+
+The [application core API reference](api/oci_policy_analysis.application_core.rst)
+documents the context, load, query, report and historical-analysis services used here.
+
+Constructing `AppContext` loads bundled reference data but does not authenticate,
+collect tenancy data, or compile a corpus. `LoadService` replaces the active
+snapshot and derived engines/corpora. Read those from the current context after
+each load; serialize loads, queries, and mutable analysis operations rather than
+sharing a context across concurrent jobs. A fresh context per scheduled run is
+the simplest boundary.
+
+| Post-load profile | Use when | Result |
+| --- | --- | --- |
+| `minimal` | Focused queries, inventory reports, MCP | Query foundations and regular/cross-tenancy corpora; no full recommendation or permissions report |
+| `full` | Recommendations, permissions reports, simulation workflows | Full post-load intelligence, corpora, permissions report and simulation preparation |
+| `none` | Collection-only workflows | Skips enrichment; derived analysis must be prepared before use |
+
 
 `AppContext` is the reusable application wiring used by non-desktop consumers.
 Construct it from settings, load data through `LoadService`, then use a focused
@@ -120,248 +164,115 @@ needed and offline queries never rewrite source files.
 
 ### Qt desktop exploration
 
-The optional `presentation.qt` package is a small PySide6 Widgets prototype over
-the same services. Install and launch it from this checkout:
+Qt is an optional presentation adapter over the same services. See the
+[7.0 guide](release_7_0.md) for the navigation walkthrough and breaking changes,
+the [Qt desktop guide](qt_desktop.md) for loading and evidence inspection, and
+[Qt MCP and assistants](qt_mcp_codex.md) for the managed snapshot endpoint.
+`oci-policy-analysis-ui` remains Tkinter; `oci-policy-analysis-qt` runs the preview.
+Neither presentation layer is required for embedding.
 
-```bash
-uv sync --extra qt --extra web --extra mcp
-.venv/bin/oci-policy-analysis-qt --sample
+## Scheduled reporting and retained history
+
+### Weekly dynamic-group review
+
+A custom weekly job can collect IAM/policy data, find dynamic groups with no known
+policy references, and write a review artifact. After the cache-load example
+above, the same context supports:
+
+```python
+from oci_policy_analysis.application.core.models.models_iam import DynamicGroupSearch
+from oci_policy_analysis.application.services.reports_service import ReportsService
+
+unreferenced = MCPQueryService(context).search_dynamic_groups(DynamicGroupSearch(in_use=False))
+reports = ReportsService(context)
+inventory = reports.get_report('policy-inventory')
+artifacts = reports.export_formats(inventory)  # json, markdown, html strings
 ```
 
-`oci-policy-analysis-qt` is the optional Qt console command; install the `qt`
-extra and refresh the editable install with `uv sync --extra qt --extra mcp --extra web`
-if the command is absent. `python -m oci_policy_analysis.presentation.qt` is
-equivalent. The existing `oci-policy-analysis-ui` command remains Tkinter.
+`unreferenced` is input to your own report; it is not a built-in report ID.
+The loaded `in_use` field means known policy-reference status, not recent use by
+resources or OCI Audit activity. Missing inventory, unresolved references, or
+collection failures can make absence inconclusive. Include collection scope,
+load warnings, source timestamp and matching rules in the review; do not turn
+this list into automatic deletion instructions. See [Reports](reports.md) for
+built-in reports and their enrichment prerequisites.
 
-Omit `--sample` to start empty. The profile selector reads section names from
-`~/.oci/config` and accepts a manually entered name. **Load from OCI** uses
-profile authentication, the selected policy recursion setting, and identity-domain
-depth (1=root; 2=root plus immediate children). Authentication only starts on an
-explicit load. **Open snapshot** accepts an exported combined-cache JSON file;
-**Sample data** imports clearly fictional evidence through `LoadService`. The
-packaged sample contains 100 policies / 325 statements, 25 groups, 50 users with
-one to four memberships each, 12 dynamic groups, and a 22-compartment landing
-zone hierarchy. Public policy patterns were reconstructed from an anonymized
-CIS landing-zone snapshot; all names, identifiers, memberships and inventory are
-fictional. Resource-principal and OKE examples and three intentionally invalid
-records exercise the filters. This is demo evidence, not a deployable CIS
-template. Runtime sample loading never reads operator caches.
+For a live Function-based job, replace the offline load with:
 
-The sidebar contains Overview & Settings, Policy browser, Policy graph, Dynamic groups,
-MCP & assistant, and Resource principals. Every page except Overview is disabled
-until the first successful load; a failed reload retains the previous snapshot
-and keeps its pages available.
-A prominent **Advanced mode** toggle on Overview persists the Qt experience
-preference. Recommendations and Tools stay in Standard mode; Advanced adds
-Prospective statements, Simulation, Consolidation and Tools → Maintenance.
-Recommendations provides the shared read-only finding dashboard and explicit
-full analysis; Consolidation and Maintenance remain planned. Logging in Tools
-reuses the existing dock/settings. The other Tools tabs are Condition Tester
-and Reports. Mode changes never run operations or reload data.
-
-`experience.py` supplies one shared mode object: pages register advanced widgets
-with `bind_advanced` / `bind_advanced_tab` or subscribe to `changed` for alternate
-layouts. Navigation visibility is declared in the shell's `page_specs` registry.
-A separate data-availability check still disables all non-Overview pages until
-loading succeeds. Turning off Advanced on a hidden page returns to Overview.
-
-`selection_table.py` supplies native check-state models and a checked table over
-the shared record view/proxy. Inclusion follows stable service IDs through sort
-and filter, independently of highlighted rows. Visible-only bulk actions show
-hidden-checked counts; missing IDs are uncheckable, duplicate IDs reject a reset,
-and source records are unchanged. Downstream services remain responsible for
-eligibility and explicit operations. Recommendation display rows without IDs
-remain read-only rather than receiving invented action identifiers.
-
-Only the tenancy-loading area and experience toggle are expanded initially. Logging, MCP, Intelligence,
-and Look and Feel are independent collapsed sections. Snapshot results appear
-only after a successful load. The tenancy controls include profile, instance
-principal, and resource principal authentication, policy recursion, user loading,
-and identity-domain depth. OCI profile/authentication and Load from OCI share
-one row, followed by scope options. Horizontal separators identify saved
-cache/exported-snapshot and CIS Compliance output as independent load sources.
-Named caches load through `LoadService.load_from_cache`; CIS selects an unzipped
-`--raw` output directory and calls `load_from_compliance_output`. The latter
-retains the core's existing automatic cache-save behavior after successful
-processing. Cache listing refreshes after a successful load. All load modes use
-the background worker and retain the previous displayed snapshot on failure.
-
-Snapshot counts are compact and grouped: policies/statements/invalid statements
-in one card; users/groups/dynamic groups together; resource-principal evidence;
-and compartments. The resource-principal count is explicitly provisional: it
-counts source statements whose parsed subject type is `any-user` or `any-group`,
-including invalid statements that retain those subject types. It does not count
-distinct resources, workloads, or proven resource principals. Invalid counts include source
-statements explicitly marked `valid=False`; missing flags are not inferred to be
-invalid. The footer shows the loaded repository's `data_as_of`, with an explicit
-unrecorded state for older data. Coverage details remain on Overview.
-
-The browser has a local text filter plus a collapsible set of core-backed filters:
-policy name, compartment, subject, resource, permission, condition text, effective
-path, statement text, effect, verb, and validity. Core fields combine with AND;
-pipe-separated alternatives use the existing search-builder semantics. Original
-source records, including invalid statements, remain available in the inspector.
-Text edits apply automatically after a 200 ms pause; dropdowns apply immediately.
-The local text filter updates immediately across the displayed columns.
-
-Right-click a statement in either table and select **Statement details** to open
-the shared animated right-side drawer. Ordinary clicks only select rows.
-It groups source, validity, parsed fields, conditions, and additional fields,
-retains every supplied field, and includes raw JSON plus copy actions. Missing
-validity/parse flags are labeled as unrecorded. Close or Escape hides the drawer;
-the context-menu action reopens it. Navigation and successful reloads clear it.
-
-**Dynamic groups** filters known inventory by domain, name, matching rule, OCID,
-and in-use status. **All / In Use only / Not Used** is an exclusive button group
-that applies immediately. Right-click a row for **Dynamic group details** to
-inspect its matching rule; ordinary selection updates related statements. Ctrl/Cmd-click or
-Shift-click selects several groups. The lower table shows the union of their
-statements via `PrincipalAnalysisService.by_exact_dynamic_groups`, including
-legacy ID-based references. Empty selection produces no statements. Inventory
-filtering retains only visible selected groups, and the lower text search narrows
-the displayed statements. Right-click a dynamic-group statement and choose
-**Focus on Dynamic Group** to open this page, clear inventory filters, and select
-the referenced known groups. Named navigation matches domain/name exactly without
-case distinctions; opaque IDs retain their spelling. Missing inventory produces
-an explicit coverage message. This page does not evaluate dynamic membership or
-conditions against live resources.
-
-The graph uses native Qt Graphics View items over `PolicyGraphService`, the same
-service used by the existing graph interfaces. It shows principal → source grant
-→ compartment path, with twelve grants per page, principal/path/resource or
-permission/text/effect filters, pan, zoom, Fit, and selection-based evidence.
-Conditions and source provenance remain in the inspector. Corpus exclusions are
-shown separately (first 200, with an explicit count); all original statements
-remain in the browser. Edges represent direct contributions, not inheritance or
-evaluated allow/deny results.
-
-The **Logging** section lists declared application loggers (including unloaded
-Tk/web/MCP modules) and registered runtime loggers in two compact columns, with
-search and Refresh list. Discovery reads source declarations without importing
-optional interfaces. Changing Global resets every component selector; **Apply
-and save log levels** applies the result and saves it in the existing shared
-application settings file. Component overrides can then be chosen independently.
-Startup reads the saved INFO/WARNING/ERROR/CRITICAL global level and overrides;
-without a saved choice, Qt defaults to INFO. Runtime loggers use a separate
-`qt_runtime_log_levels` setting so their names are not remapped into the
-application namespace. Unrelated application preferences are preserved.
-
-Global DEBUG remains startup-only via `--verbose` (or `--debug`); its controls are
-locked for that session and the startup override is not saved. Component DEBUG
-is available during normal sessions, with output to shell/app.log only. The UI
-handler rejects records below INFO before formatting/queueing, including direct
-handler calls. The UI sink polls every 200 ms, batches at most 100 records per
-tick, retains at most 5,000 pending records and 2,000 displayed lines, and reports
-any overflow. The original core logger verbose behavior is unchanged.
-
-**Show live log** or **View → Logs** opens a dock with Live log and Load activity
-tabs. It opens only on explicit request, including when a load fails, and remains
-usable across pages and during loading. Hiding it does not stop log capture.
-Load failure messages remain visible on Overview and in the status bar. The window detaches
-its UI handler and stops its timer on close. Choose all application components
-or Qt-only output in the dock; file and shell handlers remain in place.
-
-```bash
-.venv/bin/python -m oci_policy_analysis.presentation.qt --verbose
+```python
+loaded = LoadService(context).load_from_tenancy(
+    use_instance_principal=False,
+    use_resource_principal=True,
+    recursive=True,
+    compartment_domain_search_depth=2,
+    post_load_profile='minimal',
+    save_cache_after_load=False,
+)
+if not loaded.success:
+    raise RuntimeError(loaded.message)
 ```
 
-**Intelligence** selects minimal query foundations (the default) or full post-load
-intelligence, registered strategy checkboxes, and the same WHERE/service-principal
-risk reductions used by desktop/web. Apply affects the next load, not the current
-snapshot. **Look and Feel** applies and saves Light/Dark appearance, a separate
-Forest/Ocean/Plum/Slate color palette, text size, and table density. The selectors
-use compact widths. The sidebar never shows a horizontal scrollbar. A shared Fusion palette and stylesheet cover all current pages,
-menus, selectors, scroll areas, log widgets, and the details drawer. Graph colors
-are updated explicitly without reloading or querying the snapshot. File/directory
-pickers use Qt dialogs so the selected theme also applies there.
-**MCP** uses host/port defaults and copies an explicit standalone server launch
-command with the selected authentication and scope. It does not start a server or
-share the Qt context. The separate **MCP & assistant** page starts a managed
-loopback FastMCP server over the currently loaded context, lists seven query-only
-tools, and provides an optional native Codex chat over app-server stdio. Loading
-is locked while it serves that snapshot; Stop and window close shut down its
-listener and child process. Connecting starts no model turn; questions are sent
-only by pressing Send. See [Qt MCP and Codex](qt_mcp_codex.md) for setup, lifecycle,
-configuration isolation, and validation limits.
+This is the core call inside a handler you provide, not a complete Function
+handler or deployment. Create the context with explicit job settings, configure
+writable application storage/logging, and store outputs in your chosen durable
+location. Use `full` if the requested reports require full enrichment. Domain
+depth 2 covers root plus immediate children; increase deliberately for deeper
+identity-domain coverage. It is independent of recursive policy loading.
+On an OCI VM use `use_instance_principal=True` and
+`use_resource_principal=False` instead.
 
-The application/window icon uses the existing packaged PNG. The PNG is included
-in the wheel. Packaged native executables additionally need platform metadata:
-use the existing `.icns` for macOS and `.ico` for Windows when configuring
-`pyside6-deploy`. Source-run OS application identity can still belong to Python;
-the runtime icon does not replace native bundle/executable metadata. See
-[Qt application icons](https://doc.qt.io/qtforpython-6/overviews/qtdoc-appicon.html).
+### Weekly refresh with historical comparisons
 
-### Qt module ownership
+1. Keep a dated baseline combined-cache export in durable storage, with the
+   collection scope, timestamp, diagnostics and application version.
+2. Run a scheduled collection with the same intended scope. A core/CLI job can
+   save/export the new snapshot. Alternatively, an authenticated MCP client can
+   request `data_operations(operation='reload')` from a **live standalone MCP
+   server**. When OAuth update scopes are configured, the caller needs that scope.
+3. Retain the resulting combined-cache snapshot under a new dated identity and
+   check that the expected sections were actually collected. A successful reload
+   and the server's current snapshot are not, by themselves, a retention policy.
+4. Compare baseline and target through `HistoricalAnalysisService.compare_snapshots`
+   or Qt **Historical Comparison**. Store the comparison alongside both inputs,
+   then deliver the report through your own workflow.
 
-- `presentation/qt/main.py`: shell, page composition, navigation, and close handling.
-- `controller.py`: active context and asynchronous load lifecycle.
-- `loading.py`: worker-owned candidate context and `LoadService` calls.
-- `pages/overview.py`, `browser.py`, `graph.py`, `dynamic_groups.py`, `mcp.py`, `activity.py`: independent pages.
-- `mcp_host.py`, `codex_client.py`: managed loopback listener and native app-server transport.
-- `logging_panel.py`: INFO+ log controls, bounded batching, and live log view.
-- `settings_panels.py`: MCP, Intelligence, and Look and Feel controls.
-- `tables.py`, `details.py`: reusable sortable tables, context menus, and source-record drawer.
-- `themes.py`, `preferences.py`: shared palette/styles and saved Qt preferences.
-- `logger_catalog.py`: optional-interface-safe discovery of declared and active loggers.
-- `icons.py`: packaged runtime application icon.
-- `profiles.py`, `widgets.py`, `sample_data.py`: focused helpers and fictional data.
+The standalone reload path saves a cache after loading; arranging durable storage,
+export/backup, unique retention names, retries and scheduling remains your job.
+Container replacement or Function termination must not remove the only copy of
+history. For example, an integration can explicitly upload snapshots and reports
+to Object Storage, with separate write permissions for that output location.
+MCP status/reload responses are summaries, not downloadable snapshot artifacts.
+Serialize refreshes and readers at your orchestration boundary; the shared context
+is not an automatic concurrency boundary.
 
-Pages receive the newly published context after every successful load. They do
-not retain old engines/corpora across reloads. The shell does not implement data
-queries, table filtering, graph projection, or profile discovery.
+Qt's embedded MCP endpoint is query-only and pins the loaded snapshot. It exposes
+neither `data_operations` nor reload/history tools; stop it before loading another
+snapshot. Use the standalone service or a separate collection job for unattended
+refresh. See [MCP](mcp.md) and [historical analysis](usage.md#historical-comparison-tab).
 
-**Resource principals** follows the existing desktop/web workload-principal flow.
-Choose combined any-user/any-group, either subject alone, Dynamic Group, or OKE
-Workload Identity. Resource types and OKE selector suggestions come from the
-loaded conditions; OKE selectors also accept typed values. Resource compartment
-filtering uses the principal's compartment OCID. Dynamic Group mode offers
-multi-selection above the related policy table. Text search filters displayed
-source evidence automatically. Right-click opens the shared detail drawer with
-all conditions, validity, match confidence/reasons, and residual constraints;
-dynamic-group statements also offer Focus on Dynamic Group. Counts represent
-matching statements, not distinct resources or authorization decisions.
+Once your job has read the two combined-cache JSON objects, compare them without
+loading either into the active context:
 
-### Current Tkinter comparison
+```python
+from oci_policy_analysis.application.services.historical_analysis_service import HistoricalAnalysisService
 
-| Capability | Qt exploration |
-| --- | --- |
-| Profile authentication, policy recursion, identity-domain depth | Available on Overview & Settings |
-| Exported snapshot loading | Available; original file is not rewritten |
-| Named cache loading | Available; management/history remains outside this page |
-| CIS Compliance output | Directory-based loading through the shared core |
-| Instance/resource principal | Available; explicit session-token controls remain to be explored |
-| Policy filtering | Common core filters available; full identity/tag filter UI remains to be explored |
-| Dynamic groups | Live inventory filters, exact multi-selection, related statements, and cross-page focus |
-| Resource principals | Broad any-user/any-group evidence, resource type/compartment selectors, exact DG multi-selection, OKE selectors, confidence and right-click details |
-| Statement details | Shared animated drawer, full source/parsed/validity fields, raw JSON and copy |
-| Policy graph | Direct source grants, exclusions, filters, paging, and native evidence selection |
-| Intelligence | Minimal/full loading and strategy/risk settings; dedicated results pages remain to be explored |
-| Simulation, consolidation, report UI | Native simulation, Recommendations with explicit full enrichment, and on-demand Reports under Tools; consolidation remains planned |
-| Logging | All declared/registered loggers, saved global/component controls, INFO+ live view |
-| Appearance | Saved Light/Dark appearance, color palette, text sizes through Extra Large, optional fixed-width tables/Overview, and table density |
-| Embedded MCP and assistant | Managed query-only snapshot host; optional native Codex chat; loading locked during serving |
+comparison = HistoricalAnalysisService(context.cache).compare_snapshots(
+    baseline_snapshot,
+    target_snapshot,
+    left_name='Previous week',
+    right_name='This week',
+    meaningful_only=True,
+)
+```
 
-### Qt load lifecycle
+Historical comparisons show differences between collected evidence, not a complete
+OCI change log. Known different tenancy OCIDs are rejected; incomplete sections
+remain qualified or unavailable. Meaningful mode ignores ephemeral identifiers
+while retaining source changes: comment-only statement edits are modifications;
+grant or condition changes appear as removal/addition. No source snapshot is
+rewritten by comparison.
 
-A worker creates a fresh `AppContext` and runs the selected minimal or full
-post-load profile. Only a successful load replaces the displayed context; failed
-loads retain the previous snapshot. Closing while loading is blocked until the
-worker finishes; the prototype does not implement cancellation of OCI calls.
-During embedded MCP serving, all load sources and controller requests are locked.
-Closing with MCP/Codex active first shuts them down, then closes automatically.
-
-This preview saves explicit appearance/settings choices through existing application settings. Opening a
-snapshot does not rewrite its source file. Standard core cache-directory creation
-and process-wide logging still apply; their isolation is separate future work.
-Counts and successful loads do not establish complete inventory or an
-OCI-authoritative authorization decision. Full recommendations and permissions
-reports are built only when the full profile is selected.
-
-PySide6 is confined to the `qt` extra and presentation package. Existing desktop,
-CLI, web, and MCP commands remain unchanged. Native Nuitka builds and their offline Qt/MCP smoke test are documented in
-`run/README.md`; they package the same source and core as this preview.
-
-### Extension checklist
+## Extension checklist
 
 1. Create a context and load one input source.
 2. Run the post-load profile appropriate to the caller (`minimal` for focused
@@ -426,51 +337,7 @@ checked IDs. Matching denies, conditions and inventory/reference coverage remain
 constraints after any suggested allow. The current reverse mapping uses greedy
 catalog coverage rather than proving globally minimal privilege.
 
-### Policy limit controls
-
-Qt Recommendations → Limits shows tenancy policy-object and compartment-hierarchy
-statement limits, with their source, and recalculates inventory status when the
-values change. Fetch limits from OCI is available only when the current repository
-was live loaded and retains an OCI Limits client. Merely attaching a client to an
-imported snapshot does not enable the action. Policy Inventory enforces the same
-source check and shares the existing asynchronous worker and serialization gate.
-
-For cache, exported JSON, CIS, or sample snapshots, Enter known limits opens a modal
-with positive whole-number validation. It explains how to find the Identity limits
-in Console → Limits, Quotas and Usage and supplies copyable OCI CLI commands:
-
-```bash
-oci limits value list --compartment-id TENANCY_OCID --service-name identity --name policies-count --all
-oci limits value list --compartment-id TENANCY_OCID --service-name identity --name policy-statements-per-compartment-chain-count --all
-```
-
-See the [OCI CLI reference](https://docs.oracle.com/en-us/iaas/tools/oci-cli/latest/oci_cli_docs/cmdref/limits/value/list.html)
-and [service limit documentation](https://docs.oracle.com/en-us/iaas/Content/General/service-limits/default.htm).
-Use the actual tenancy values; the application does not assume 500.
-
-`PolicyLimitsService` centralizes eligibility and explicit manual application.
-Manual values update only the active snapshot and, for a named cache, its existing
-optional `tenancy_policy_limits` metadata. Failure to save restores both in-memory
-limit representations. Export/CIS source files and global preferences are not
-rewritten. Cancel has no effect. The version-2/schema-3 format is unchanged and
-older caches without limits remain supported; no migration is required.
-
-Live `LoadService` collection automatically retrieves all Identity limit pages
-before enrichment and cache saving, including minimal/none profiles. A missing
-Limits permission or unavailable value produces a load warning and leaves limits
-unknown; it does not fail otherwise successful policy collection. Both Qt views
-are populated on initial publication. Fetch limits from OCI remains available as
-an explicit refresh for live sessions.
-
-Policy Inventory now uses the same manual-entry modal as Recommendations for
-non-live snapshots; it no longer has separate inline limit editors. Recommendations
-keeps a single limit summary and shows its feedback row only for progress or
-errors. Snapshot resets clear previous limit metadata and the active cache name
-so a new live load cannot inherit another snapshot's limits. Serialization stays
-version 2/schema 3 with the existing optional metadata; no migration is required.
-
-
-### 7.0 desktop simplification and tag inventory
+## 7.0 integration changes and tag inventory
 
 `AppContext.ai` and the desktop OCI Generative AI backend were removed in 7.0; callers
 should remove AI repository/model setup. Existing saved AI settings are inert. This does

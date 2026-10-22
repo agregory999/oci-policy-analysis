@@ -304,14 +304,14 @@ Named principal keys are case-folded to lowercase, including domain and identity
 
 ## Optional Qt presentation
 
-The exploratory `presentation.qt` adapter composes independent overview/settings,
-policy-browser, policy-graph, dynamic-group, resource-principal, and MCP/assistant pages in a navigation shell, with a separate
-INFO+ log/load-activity dock.
+The optional `presentation.qt` preview composes inspection and workbench pages
+in a navigation shell, with a separate INFO+ log/load-activity dock.
 `WorkbenchController` owns the current context and serializes background loads;
 a worker constructs a fresh context for each attempt and publishes it only after
 `LoadService` succeeds. Pages rebind to the current context after publication.
-Only Overview is enabled before the first successful load; failed reloads retain
-the current snapshot and available navigation.
+Overview, Tools, and Advanced Historical Comparison are available before the
+first successful load; data-dependent pages require a loaded snapshot. Failed
+reloads retain the current snapshot and available navigation.
 Filtering and graph projection call `AnalysisService` and `PolicyGraphService`.
 Dynamic-group inventory uses repository filters, and selected groups query
 `PrincipalAnalysisService.by_exact_dynamic_groups`. The resource-principal page
@@ -326,11 +326,12 @@ and logging preferences use the existing settings storage. OCI, named-cache,
 exported-snapshot, and CIS loads all publish through the same worker lifecycle.
 Embedded MCP pins a successful context with request-local binding, reuses the
 existing query tool schemas, and excludes data mutation/reload tools. Its owned
-listener locks loading until shutdown. The optional Codex adapter uses a child
-process and native JSONL streaming; model turns require explicit Send.
+listener locks loading until shutdown. The optional Codex and Claude Code
+adapters use child processes and JSONL streaming; model turns require explicit Send. External desktop launchers leave
+conversation and MCP configuration in the selected app.
 The core has no PySide6 dependency. See
-[Qt integration and scope](core_integration.md#qt-desktop-exploration) for the
-current comparison with Tkinter and the remaining lifecycle limitations.
+[Qt desktop guide](qt_desktop.md) for lifecycle details and the
+[7.0 guide](release_7_0.md) for current navigation and compatibility.
 
 The Qt presentation's `ExperienceMode` owns the saved Standard/Advanced display
 preference. Navigation access is declared in `page_specs`, while individual
