@@ -1,3 +1,10 @@
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.19](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.18...v7.0.0-7-0-0-policy-corpus-cross-tenancy.19) (2026-10-22)
+
+
+### Bug Fixes
+
+* bound Audit command paging by default ([bc510fa](https://github.com/agregory999/oci-policy-analysis/commit/bc510fa680ceb3bc67f93168e601f8c401bfb61f))
+
 ## [7.0.0-7-0-0-policy-corpus-cross-tenancy.18](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.17...v7.0.0-7-0-0-policy-corpus-cross-tenancy.18) (2026-10-22)
 
 
