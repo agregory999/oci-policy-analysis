@@ -1,3 +1,10 @@
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.13](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.12...v7.0.0-7-0-0-policy-corpus-cross-tenancy.13) (2026-10-22)
+
+
+### Features
+
+* add external desktop assistant launch options to Qt ([a220062](https://github.com/agregory999/oci-policy-analysis/commit/a22006209e89cf3c4785d7ef2d5e94e64b2ef64b))
+
 ## [7.0.0-7-0-0-policy-corpus-cross-tenancy.12](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.11...v7.0.0-7-0-0-policy-corpus-cross-tenancy.12) (2026-10-21)
 
 
