@@ -135,11 +135,22 @@ tick, retains at most 5,000 pending records and 2,000 displayed lines, and repor
 any overflow. The original core logger verbose behavior is unchanged.
 
 **Show live log** or **View → Logs** opens a dock with Live log, Load activity and API Calls
-tabs. It opens only on explicit request, including when a load fails, and remains
+tabs. Resize it, drag its title bar to float it as a separate window, or dock it
+at the top or bottom. It opens only on explicit request, including when a load fails, and remains
 usable across pages and during loading. Hiding it does not stop log capture.
 Load failure messages remain visible on Overview and in the status bar. The window detaches
 its UI handler and stops its timer on close. Choose all application components
 or Qt-only output in the dock; file and shell handlers remain in place.
+
+**API Calls** separates completed OCI request metadata from the live text log.
+It captures calls independently of log levels: sort by time or duration, search,
+select **Errors only**, and enable **Show details** for endpoints, targets,
+request IDs and error interpretation. Pagination and retry attempts appear
+separately. The in-memory history survives loads and retains up to 5,000 calls,
+favoring errors; **Clear API history** leaves logs and snapshots unchanged.
+See [logging and troubleshooting](logging_and_troubleshooting.md#qt-live-log-dock-and-separate-api-calls)
+for capture scope and retention. MCP client activity has its own stream on
+**MCP & Assistant**.
 
 ```bash
 .venv/bin/python -m oci_policy_analysis.presentation.qt --verbose

@@ -2,6 +2,48 @@
 
 This page provides guidance on logging configuration, debugging, and troubleshooting for the application.
 
+## Qt live log dock and separate API calls
+
+Open **View → Logs**, **Show live log** on Overview & Settings, or
+**Tools → Logging → Show live log**. The resizable Logs dock stays available
+while navigating and loading. Drag its title bar to float it as a separate
+window, or dock it at the top or bottom. Hiding it does not stop capture.
+
+| Tab | What it shows |
+| --- | --- |
+| Live log | Component log messages at INFO and above, subject to logging settings; choose all application components or Qt-only output |
+| Load activity | Load progress and stage messages from the background worker |
+| API Calls | Completed, instrumented OCI SDK requests in a sortable table, independent of component log levels |
+
+Qt separates routine API success/timing messages from the live text log so a
+large collection does not bury other messages. Those text messages use DEBUG in
+Qt; the **API Calls** table still captures the metadata without enabling DEBUG
+or **Always log API calls**. Other application diagnostics and failures can still
+appear in the component log.
+
+In **API Calls**, search by operation, target, status, reason or request ID; use
+**Errors only** to focus on failures. Columns show UTC start time, operation,
+duration, outcome, HTTP status, service code and reason. Enable **Show details**
+and select a row for the target, endpoint, method, tenancy, request ID and any
+available error interpretation. Drag the divider to resize the details area.
+Pagination requests and retry attempts appear separately. A call appears when it
+completes, so this is not a list of currently running requests.
+
+API history lasts for the application process and survives successful or failed
+loads. It retains up to 5,000 records, favoring errors over successes when full;
+the counters show retained, filtered and omitted/evicted calls. **Clear API
+history** clears only this in-memory journal. It does not clear log files, change
+the snapshot or write a cache. Request/response bodies, credentials and raw
+headers are not stored in the journal; diagnostic metadata can contain tenancy
+and resource identifiers.
+
+This table covers instrumented OCI requests made by this application process.
+For client requests to the snapshot MCP endpoint, use the activity tab on
+**MCP & Assistant**, which includes external MCP clients. Model-provider API
+traffic from separate assistant applications is not captured here. See
+[Qt MCP and assistants](qt_mcp_codex.md) for that activity stream and the
+[Qt desktop guide](qt_desktop.md#logging-and-appearance) for logging controls.
+
 ## Global logging by component
 
 You can enable or adjust logging granularity across different components within the system. Logging levels can typically be set (ERROR, WARNING, INFO, DEBUG) to control verbosity.
@@ -10,7 +52,7 @@ You can enable or adjust logging granularity across different components within 
 - Logs may be viewed on the console shell or UI Console tab if started via command line 
 - If started via an executable, there is not a shell, so the Console UI tab provides logs
 
-The Console UI has a tab, available via Settings -> Show Console/Debugger Tab, which shows all logs depending on configured level for each component.
+In the Tkinter desktop, the Console UI has a tab, available via Settings -> Show Console/Debugger Tab, which shows all logs depending on configured level for each component.
 
 There is a single Global Logger dropdown, which if set, will change the log level for all componenets to the configured level.
 
@@ -39,6 +81,8 @@ Due to the volume of logging, DEBUG output, if set, is only available on the she
 **NOTE:** Global DEBUG is very noisy, so only do this if you really need to.
 
 ### API and timing logging
+
+The Qt API Calls journal described above is independent of these text-log settings.
 
 In addition to standard component-based logging levels, the application offers dedicated logging for specific events such as API calls (external integrations, requests to OCI, etc.) and timing/performance data.
 

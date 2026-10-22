@@ -125,6 +125,13 @@ tenancy; data-dependent actions still require their inputs. Other navigation
 pages require a successful load. See the [Qt desktop guide](qt_desktop.md) for
 logging, load lifecycle and policy-limit controls.
 
+Open **View → Logs** or **Show live log** for the resizable, floatable log dock.
+Its **Live log**, **Load activity** and **API Calls** tabs separate component
+messages, load progress and completed OCI requests. API Calls captures metadata
+independently of log levels, with search, sorting, **Errors only** and optional
+request details. History stays in memory across loads; clearing it leaves the
+snapshot and log files unchanged. See [logging and troubleshooting](logging_and_troubleshooting.md#qt-live-log-dock-and-separate-api-calls).
+
 ## Assistants, hosting and automation
 
 **MCP & Assistant** serves seven query-only tools over a fixed loaded snapshot.
