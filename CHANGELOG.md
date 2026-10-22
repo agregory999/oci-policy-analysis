@@ -1,3 +1,10 @@
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.17](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.16...v7.0.0-7-0-0-policy-corpus-cross-tenancy.17) (2026-10-22)
+
+
+### Features
+
+* add MCP reference lookup tools ([593fd87](https://github.com/agregory999/oci-policy-analysis/commit/593fd87d6d9b91449874a62729e2ba2a25379190))
+
 ## [7.0.0-7-0-0-policy-corpus-cross-tenancy.16](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.15...v7.0.0-7-0-0-policy-corpus-cross-tenancy.16) (2026-10-22)
 
 
