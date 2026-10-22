@@ -1808,7 +1808,7 @@ def test_desktop_mode_uses_external_launch_and_keeps_mcp_owned(workbench, monkey
     page.launch_desktop.click()
     assert launches == [(provider, 'C:/Program Files/Claude/Claude.exe')]
     assert 'Launch requested' in page.desktop_status.text()
-    page._connect_codex()
+    page._connect_assistant()
     assert not page.client.active
     page.copy_endpoint.click()
     assert QApplication.clipboard().text() == page.url
@@ -4672,3 +4672,255 @@ def test_audit_dialog_generates_only_on_explicit_action_and_clears_stale_command
     assert '--region us-ashburn-1' in dialog.output.toPlainText()
     dialog.close()
     dialog.deleteLater()
+
+
+def _claude_stub(client, monkeypatch, tmp_path):
+    """Use a real Qt child process for offline Claude protocol checks."""
+    import sys
+
+    stub = tmp_path / 'claude_cli_stub.py'
+    log = tmp_path / 'claude_calls.jsonl'
+    stub.write_text(
+        """import asyncio, json, os, sys, time
+log = sys.argv[1]
+args = sys.argv[2:]
+if args == ['--version']:
+    print('2.1.999 (Claude Code)')
+    sys.exit(0)
+prompt = json.loads(sys.stdin.read())
+with open(log, 'a', encoding='utf-8') as output:
+    output.write(json.dumps({'args': args, 'prompt': prompt}) + '\\n')
+def emit(value):
+    print(json.dumps(value, ensure_ascii=False), flush=True)
+if prompt['question'] == 'fail':
+    emit({'type': 'result', 'subtype': 'error_during_execution', 'is_error': True,
+          'errors': ['Not signed in. sk-ant-fixture-secret']})
+    sys.exit(1)
+if prompt['question'] == 'malformed':
+    print('not JSON', flush=True)
+    time.sleep(30)
+if prompt['question'] in {'wait', 'wait_partial'}:
+    if prompt['question'] == 'wait_partial':
+        print('{', end='', flush=True)
+    time.sleep(30)
+config = json.loads(args[args.index('--mcp-config') + 1])
+name = next(iter(config['mcpServers']))
+async def query():
+    from fastmcp import Client
+    async with Client(config['mcpServers'][name]['url']) as mcp:
+        result = await mcp.call_tool('snapshot_status')
+        assert result.data['statements'] == 6
+asyncio.run(query())
+tools = args[args.index('--allowedTools') + 1].split(',')
+if prompt['question'] == 'foreign':
+    tools.append('Bash')
+emit({'type': 'system', 'subtype': 'init', 'tools': tools,
+      'mcp_servers': [{'name': name, 'status': 'connected'}], 'plugins': []})
+emit({'type': 'stream_event', 'event': {'type': 'content_block_start',
+      'content_block': {'type': 'tool_use', 'name': f'mcp__{name}__snapshot_status',
+                        'input': {'do_not_log': 'private-marker'}}}})
+emit({'type': 'stream_event', 'event': {'type': 'message_start', 'message': {'id': 'answer-1'}}})
+text = 'AppWorkers → snapshot evidence'
+payload = (json.dumps({'type': 'stream_event', 'event': {'type': 'content_block_delta',
+    'delta': {'type': 'text_delta', 'text': text}}}, ensure_ascii=False) + '\\n').encode('utf-8')
+cut = payload.index('→'.encode()) + 1
+sys.stdout.buffer.write(payload[:cut]); sys.stdout.buffer.flush()
+time.sleep(.02)
+sys.stdout.buffer.write(payload[cut:]); sys.stdout.buffer.flush()
+emit({'type': 'assistant', 'message': {'id': 'answer-1', 'content': [{'type': 'text', 'text': text}]}})
+emit({'type': 'result', 'subtype': 'success', 'is_error': False, 'result': text})
+""",
+        encoding='utf-8',
+    )
+    original = client.process.setArguments
+    monkeypatch.setattr(client.process, 'setArguments', lambda args: original([str(stub), str(log), *args]))
+    return sys.executable, log
+
+
+def test_claude_embedded_chat_preserves_cli_auth_streams_and_reuses_context(workbench, monkeypatch, tmp_path):
+    pytest.importorskip('fastmcp')
+    application, window = workbench
+    window.experience.set_advanced(True)
+    page = window.mcp_page
+    page.provider.setCurrentIndex(page.provider.findData('claude'))
+    client = page.client
+    executable, log = _claude_stub(client, monkeypatch, tmp_path)
+    monkeypatch.delenv('ANTHROPIC_API_KEY', raising=False)
+    monkeypatch.setenv('CLAUDE_CODE_USE_BEDROCK', '1')
+    config_root = tmp_path / 'claude-config'
+    config_root.mkdir()
+    monkeypatch.setenv('CLAUDE_CONFIG_DIR', str(config_root))
+    settings_file = config_root / 'settings.json'
+    original_settings = json.dumps({'apiKeyHelper': 'my-login-helper', 'enabledPlugins': {'fixture@local': True}})
+    settings_file.write_text(original_settings)
+    window.settings_page.load_sample()
+    _wait_for_load(application, window)
+    page.port.setValue(0)
+    page.start_server()
+    _wait_until(application, lambda: page._running or page.host is None, timeout=25)
+    assert page._running, page.server_status.text()
+    page.executable.setText(executable)
+    page.connect_button.click()
+    _wait_until(application, lambda: client.ready, timeout=10)
+    assert client.active and not client.busy
+    assert not log.exists(), 'Connect must not make a model request'
+    assert not page.provider.isEnabled()
+    assert page.connect_button.text() == 'Connect Claude'
+    assert page.model.currentData() == 'default'
+    assert page.model.isEditable()
+    assert client.process.processEnvironment().value('CLAUDE_CODE_USE_BEDROCK') == '1'
+    assert not client.process.processEnvironment().contains('ANTHROPIC_API_KEY')
+    page.provider.setCurrentIndex(0)
+    assert page.provider.currentData() == 'claude', 'An active session must retain its selected client'
+    page.question.setPlainText('Find AppWorkers evidence')
+    page.send_button.click()
+    assert client.busy
+    _wait_until(application, lambda: client.ready and not client.busy, timeout=20)
+    page._flush_text()
+    transcript = page.conversation.toPlainText()
+    assert 'Claude' in transcript
+    assert transcript.count('AppWorkers → snapshot evidence') == 1
+    assert '[completed]' in transcript
+    assert 'private-marker' not in page.events.toPlainText()
+    assert 'snapshot_status' in page.events.toPlainText()
+    page.model.setEditText('my-custom-model-id')
+    page.question.setPlainText('What about its conditions?')
+    page.send_button.click()
+    _wait_until(application, lambda: client.ready and not client.busy, timeout=20)
+    calls = [json.loads(line) for line in log.read_text().splitlines()]
+    assert len(calls) == 2
+    assert calls[1]['prompt']['previous_exchanges'] == [
+        {'question': 'Find AppWorkers evidence', 'answer': 'AppWorkers → snapshot evidence'}
+    ]
+    assert calls[1]['args'][-2:] == ['--model', 'my-custom-model-id']
+    args = calls[0]['args']
+    second_args = calls[1]['args']
+    assert args[args.index('--mcp-config') + 1] != second_args[second_args.index('--mcp-config') + 1]
+    assert '--bare' not in args
+    assert args[args.index('--setting-sources') + 1] == 'user'
+    overrides = json.loads(args[args.index('--settings') + 1])
+    assert overrides['enabledPlugins'] == {'fixture@local': False}
+    assert 'apiKeyHelper' not in overrides
+    assert settings_file.read_text() == original_settings
+    assert args[args.index('--tools') + 1] == ''
+    assert '--strict-mcp-config' in args and '--no-session-persistence' in args
+    assert 'Find AppWorkers evidence' not in args
+    assert client.active and page.host is not None
+    scratch = Path(client._scratch.name)
+    page.disconnect_button.click()
+    assert not client.active and not scratch.exists()
+    assert page._running and page.provider.isEnabled()
+    page.provider.setCurrentIndex(0)
+    assert page.client is page._clients['codex']
+    assert page.executable.text() == 'codex'
+    assert not page.model.isEditable()
+
+
+@pytest.mark.parametrize('question', ['fail', 'malformed', 'foreign', 'wait', 'wait_partial'])
+def test_claude_cli_failure_interrupt_and_shutdown(workbench, monkeypatch, tmp_path, question):
+    pytest.importorskip('fastmcp')
+    application, window = workbench
+    window.experience.set_advanced(True)
+    page = window.mcp_page
+    page.provider.setCurrentIndex(page.provider.findData('claude'))
+    client = page.client
+    executable, log = _claude_stub(client, monkeypatch, tmp_path)
+    window.settings_page.load_sample()
+    _wait_for_load(application, window)
+    page.port.setValue(0)
+    page.start_server()
+    _wait_until(application, lambda: page._running or page.host is None, timeout=25)
+    assert page._running
+    client.start(page.url, executable)
+    _wait_until(application, lambda: client.ready)
+    outcomes = []
+    client.turn_finished.connect(outcomes.append)
+    client.send(question, 'default')
+    if question.startswith('wait'):
+        _wait_until(application, log.exists)
+        if question == 'wait_partial':
+            _wait_until(application, lambda: bool(client._buffer))
+        page.interrupt_button.click()
+    _wait_until(application, lambda: not client.busy, timeout=15)
+    assert outcomes == ['interrupted' if question.startswith('wait') else 'failed']
+    assert not client._history
+    if question == 'fail':
+        assert 'Not signed in' in page.assistant_status.text()
+        assert 'sk-ant-fixture-secret' not in page.assistant_status.text()
+        assert client.ready
+    if question in {'foreign', 'malformed'}:
+        assert not client.active
+        assert 'AppWorkers → snapshot evidence' not in page.conversation.toPlainText()
+    page.stop_all()
+    _wait_until(application, lambda: not page.active, timeout=15)
+    assert not client.process.processEnvironment().contains('ANTHROPIC_API_KEY')
+
+
+def test_claude_missing_executable_endpoint_and_config_errors_are_recoverable(workbench, monkeypatch, tmp_path):
+    from oci_policy_analysis.presentation.qt.claude_client import ClaudeClient
+
+    client = ClaudeClient(workbench[1])
+    statuses = []
+    client.status.connect(statuses.append)
+    client.start('http://127.0.0.1:8765/mcp', str(tmp_path / 'missing.exe'))
+    assert not client.active and 'not found' in statuses[-1]
+    import sys
+
+    client.start('https://foreign.example/mcp', sys.executable)
+    assert not client.active and 'Could not prepare' in statuses[-1]
+    monkeypatch.setenv('CLAUDE_CONFIG_DIR', str(tmp_path))
+    (tmp_path / 'settings.json').write_text('bad json')
+    client.start('http://127.0.0.1:8765/mcp', sys.executable)
+    assert not client.active and 'user settings' in statuses[-1]
+
+
+def test_snapshot_activity_observes_external_clients_and_errors_without_payloads(workbench):
+    import asyncio
+    import re
+
+    pytest.importorskip('fastmcp')
+    from fastmcp import Client
+
+    application, window = workbench
+    window.experience.set_advanced(True)
+    page = window.mcp_page
+    page.provider.setCurrentIndex(page.provider.findData('claude-desktop'))
+    window.settings_page.load_sample()
+    _wait_for_load(application, window)
+    page.port.setValue(0)
+    page.start_server()
+    _wait_until(application, lambda: page._running or page.host is None, timeout=25)
+    assert page._running
+    assert not page.client.active
+    page.events.clear()  # Exclude the host's own startup handshake.
+
+    async def query():
+        async with Client(page.url) as first, Client(page.url) as second:
+            await asyncio.gather(first.list_tools(), second.list_tools())
+            await asyncio.gather(first.call_tool('snapshot_status'), second.call_tool('snapshot_status'))
+            await first.call_tool('policy_search', {'limit': 'private-argument-marker'}, raise_on_error=False)
+            await second.call_tool('unknown-private-tool-marker', raise_on_error=False)
+
+    asyncio.run(query())
+    _wait_until(application, lambda: page.events.toPlainText().count('· failed') >= 2)
+    text = page.events.toPlainText()
+    assert 'tools/list · started' in text
+    assert 'snapshot_status · completed' in text
+    assert 'policy_search · failed' in text
+    assert '<unknown tool> · failed' in text
+    assert 'private-argument-marker' not in text
+    assert 'unknown-private-tool-marker' not in text
+    assert 'Sample workspace' not in text
+    sessions = set(re.findall(r'MCP client ([a-f0-9]{6})', text))
+    assert len(sessions) == 2
+    starts = re.findall(r'#(\d+) .* · started', text)
+    finishes = re.findall(r'#(\d+) .* · (?:completed|failed).* · \d+ ms', text)
+    assert sorted(starts) == sorted(finishes)
+    assert len(starts) == 6
+    page.stop_all()
+    _wait_until(application, lambda: not page.active, timeout=15)
+    old_host = text
+    page.start_server()
+    _wait_until(application, lambda: page._running or page.host is None, timeout=25)
+    assert page._running
+    assert len(page.events.toPlainText()) > len(old_host)

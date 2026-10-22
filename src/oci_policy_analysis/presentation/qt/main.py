@@ -763,7 +763,7 @@ class WorkbenchWindow(QMainWindow):
             event.ignore()
         elif self.mcp_page.active:
             self._closing = True
-            self.statusBar().showMessage('Stopping MCP and Codex before closing…')
+            self.statusBar().showMessage('Stopping MCP and assistant before closing…')
             event.ignore()
             self.mcp_page.stop_all()
         else:

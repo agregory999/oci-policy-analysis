@@ -1,10 +1,44 @@
 # Qt MCP and assistants
 
 The **MCP & assistant** navigation page hosts a query-only FastMCP endpoint over
-the currently loaded context, an optional native Codex conversation, and
+the currently loaded context, optional native Codex and Claude Code conversations, and
 launchers for separately configured Claude Desktop, ChatGPT Desktop, and Codex
 Desktop apps. Neither server nor Codex starts when the application opens or
 when a snapshot loads.
+
+## Embedded Claude Code
+
+Set up Claude Code login, billing and model access in a terminal first. Qt uses
+that CLI's existing authentication, user provider settings and inherited
+environment. It does not select an account type, require a particular billing
+method, collect a key, or change the CLI's global configuration. Account and
+model availability remain the CLI's responsibility.
+
+Start MCP, then select **Claude Code · embedded chat**. Enter `claude` or browse
+to your Claude Code `claude.exe`, and press **Connect Claude**. Connecting checks
+the CLI version without inference. Choose **CLI default**, an alias, or enter a
+full model ID. **Send** starts model usage and streams the answer into the Qt
+conversation. Login, billing and model errors are reported there; resolve those
+in the CLI before retrying. Claude Desktop remains a separate external option.
+
+Each question runs a print-mode JSONL child in a temporary working directory,
+with only the served snapshot MCP endpoint and its query tools. Built-in tools,
+skills, user hooks, plugins and unrelated connectors are disabled for that child;
+managed organization policy still applies. Claude's reported tools and server
+connection are checked before displaying assistant output. Questions travel over
+stdin, not command arguments. No question is sent until **Send**.
+
+Successful question/answer pairs provide follow-up context in memory, capped at
+150,000 characters; older exchanges are omitted visibly when needed. Tool traces
+are queried again rather than replayed. CLI session persistence is disabled.
+**Stop answer** ends the current child and retains configuration for another
+question. **Disconnect** clears context; **Stop MCP** and window close also
+terminate the child, with a bounded forced-stop fallback.
+
+The adapter follows Anthropic's [programmatic CLI interface](https://code.claude.com/docs/en/headless)
+and [CLI flags](https://code.claude.com/docs/en/cli-reference). Offline tests use
+a local CLI stub and real snapshot HTTP queries; they do not establish live
+account access or make paid inference requests.
 
 ## Try it
 
@@ -36,12 +70,21 @@ The upper tabs show tool descriptions and connection/tool activity. The lower
 viewer streams plain selectable text, labels completed/failed/interrupted turns,
 and retains bounded output. It does not interpret model/source text as HTML.
 
+The activity tab receives events from the MCP host itself, including calls from
+Claude Desktop and other external clients. Dispatched requests show UTC time,
+an opaque session label, a request number, tool or protocol method, outcome and
+duration. Tool validation failures are included. The host's startup probe also
+appears. Arguments, returned policy evidence and raw error payloads are omitted;
+the viewer retains the latest 500 text blocks. Embedded assistant events appear
+alongside these server events. Provider API traffic made by external apps is not
+MCP traffic and is not observed here.
+
 ## External desktop assistants
 
 The assistant selector offers **Claude Desktop**, **ChatGPT Desktop**, and
 **Codex Desktop**, each labelled **external app**. They open a separate app;
-answers and model selection stay there. Only **Codex · embedded chat** uses the
-Qt conversation viewer. Application paths are kept separately for each desktop
+answers and model selection stay there. **Codex · embedded chat** and **Claude
+Code · embedded chat** use the Qt conversation viewer. Application paths are kept separately for each desktop
 choice during the current workbench session.
 
 On macOS, automatic launch asks the OS to open `Claude`, `ChatGPT`, or `Codex`
@@ -81,16 +124,15 @@ installations can be opened from the Start menu if no usable file is available.
 On macOS, automatic launch uses the registered Claude application.
 
 Chat, login, model selection and permissions stay in Claude Desktop. The Qt
-transcript is available for embedded Codex only. Opening Claude does not verify
+transcript is available for the embedded CLI options. Opening Claude Desktop does not verify
 its MCP connection, rewrite its settings, or send a question. Check the tools in
 Claude itself. Keep the workbench MCP listener running while chatting; stopping
 MCP or closing the workbench leaves Claude open but removes this endpoint.
 The loaded snapshot remains locked while the listener runs in either mode.
 
-The compact Codex executable field is specifically for Codex CLI, which speaks
-the app-server protocol. It is not a general assistant command line. Claude Code
-also requires a separate adapter for its own streaming protocol; entering
-`claude` in the Codex field does not provide embedded Claude chat. See Anthropic's
+The compact executable field selects the CLI for the chosen embedded assistant.
+Codex uses app-server; Claude Code uses print-mode streaming. Entering `claude`
+while **Codex** is selected cannot provide embedded Claude chat. See Anthropic's
 [programmatic Claude Code documentation](https://code.claude.com/docs/en/headless)
 and [Claude Desktop local MCP guidance](https://support.claude.com/en/articles/10949351-getting-started-with-local-mcp-servers-on-claude-desktop).
 

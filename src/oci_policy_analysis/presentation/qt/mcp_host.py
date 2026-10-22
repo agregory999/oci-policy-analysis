@@ -1,8 +1,13 @@
 """Optional managed loopback MCP host; no FastMCP dependency until start."""
 
 import asyncio
+import hashlib
+import itertools
 import socket
 import threading
+import time
+import uuid
+from datetime import UTC, datetime
 
 from PySide6.QtCore import QThread, Signal
 
@@ -18,11 +23,14 @@ class SnapshotMcpHost(QThread):
     Attributes:
         ready: URL and verified tool metadata, emitted only after a real handshake.
         failed: Startup/runtime failure message; finished still signals thread exit.
+        activity: Server-observed MCP operations from every connected client,
+            with correlation, outcome and duration, excluding arguments/results.
         context: Snapshot served for the entire listener lifetime.
     """
 
     ready = Signal(str, object)
     failed = Signal(str)
+    activity = Signal(str)
 
     def __init__(self, context, port: int, parent=None) -> None:
         """Retain a loaded context and desired port; zero selects an unused port."""
@@ -54,6 +62,54 @@ class SnapshotMcpHost(QThread):
         from oci_policy_analysis.mcp_server import create_snapshot_server
 
         server = await create_snapshot_server(self.context)
+        tool_names = set(await server.get_tools())
+        request_numbers = itertools.count(1)
+        host = self
+
+        # Observe the pinned MCP SDK dispatcher rather than FastMCP tool
+        # middleware: schema rejection and unknown-tool errors happen before
+        # that middleware. Wrapping preserves all existing validation/binding.
+        dispatcher = server._mcp_server
+
+        def observe(handler):
+            async def request_activity(request):
+                if request is None:  # Internal tool-cache refresh, not a client request.
+                    return await handler(request)
+                number = next(request_numbers)
+                operation = request.method
+                if operation == 'tools/call':
+                    name = request.params.name
+                    operation += ' ' + (name if name in tool_names else '<unknown tool>')
+                session = dispatcher.request_context.session
+                session_id = getattr(session, '_opa_activity_id', None)
+                if session_id is None:
+                    session_id = uuid.uuid4().hex
+                    session._opa_activity_id = session_id
+                client = hashlib.sha256(session_id.encode()).hexdigest()[:6]
+                timestamp = datetime.now(UTC).strftime('%H:%M:%S')
+                prefix = f'{timestamp}Z · MCP client {client} · #{number} {operation}'
+                started = time.monotonic()
+                host.activity.emit(f'{prefix} · started')
+                outcome = 'completed'
+                try:
+                    result = await handler(request)
+                    if getattr(result.root, 'isError', False):
+                        outcome = 'failed'
+                    return result
+                except asyncio.CancelledError:
+                    outcome = 'cancelled'
+                    raise
+                except Exception as exc:
+                    outcome = f'failed ({type(exc).__name__})'
+                    raise
+                finally:
+                    elapsed = (time.monotonic() - started) * 1000
+                    host.activity.emit(f'{prefix} · {outcome} · {elapsed:.0f} ms')
+
+            return request_activity
+
+        for request_type, handler in list(dispatcher.request_handlers.items()):
+            dispatcher.request_handlers[request_type] = observe(handler)
         app = server.http_app(path='/mcp', transport='streamable-http')
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
             listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)

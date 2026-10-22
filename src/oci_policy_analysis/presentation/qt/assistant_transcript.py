@@ -46,8 +46,13 @@ class AssistantTranscript(QTextBrowser):
         cursor.insertText(text)
         self._trim()
 
-    def begin_answer(self, question):
-        """Append a literal question and an italic assistant role label."""
+    def begin_answer(self, question, assistant='Codex'):
+        """Append a literal question and an italic label for the selected assistant.
+
+        Args:
+            question: User text, never interpreted as markup.
+            assistant: Literal role label for this answer.
+        """
         self.finish_answer()
         self.append_literal('You')
         cursor = self._end_cursor()
@@ -56,7 +61,7 @@ class AssistantTranscript(QTextBrowser):
         cursor.insertBlock(QTextBlockFormat(), QTextCharFormat())
         role = QTextCharFormat()
         role.setFontItalic(True)
-        cursor.insertText('Codex', role)
+        cursor.insertText(assistant, role)
         cursor.insertBlock(QTextBlockFormat(), QTextCharFormat())
         self._answer_start = QTextCursor(cursor)
         self._answer_start.setKeepPositionOnInsert(True)

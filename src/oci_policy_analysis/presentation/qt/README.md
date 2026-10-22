@@ -25,7 +25,7 @@ command is `python -m oci_policy_analysis.presentation.qt`.
 For an installed build that includes Qt, use `python -m pip install
 "oci-policy-analysis[qt]"`, or install that build's wheel with the `qt` extra.
 This branch's additions must be released before they are available from PyPI.
-Add the `mcp` extra only when using embedded MCP. Codex additionally requires its
+Add the `mcp` extra only when using embedded MCP. Embedded assistants require their
 external CLI and the operator's login; it is not installed by either extra.
 The existing `oci-policy-analysis-ui` command continues to launch Tkinter.
 
@@ -58,7 +58,7 @@ framework merely to reduce a few repeated widget layouts.
 | Users / Groups | Group-based and user-based subtabs; live domain/name/OCID filters, multi-selection, per-user membership evidence (including unresolved group IDs), selected group members, related policy statements and right-click details. |
 | Dynamic groups | Known inventory, All/In Use/Not Used, exact domain/ID matching, multi-selection and related statements. |
 | Resource principals | any-user/any-group modes, resource type and principal-compartment selectors, exact DG multi-selection, OKE selectors, confidence and full evidence details. |
-| MCP & assistant (Advanced) | Explicit loopback snapshot server, query-only tools, readiness check, stop/restart; optional model selection and streaming Codex conversation. |
+| MCP & assistant (Advanced) | Explicit loopback snapshot server, query-only tools, readiness check, stop/restart; streaming Codex or Claude Code chat, and external desktop assistant launchers. |
 | Reports (Tools) | Explicit background generation, JSON/Markdown/rendered HTML previews, portable exports and snapshot/task locking. |
 | Logging | Global reset and component controls, saved levels, bounded INFO+ live view. Startup DEBUG and component DEBUG remain in shell/file output. |
 | Appearance | Light/Dark, four accent palettes, Small through Extra Large text sizes, optional fixed-width table/Overview font, responsive Overview rows and row density; shared widget and graph theming. |

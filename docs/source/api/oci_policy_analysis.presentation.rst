@@ -142,6 +142,9 @@ For the ASGI application and server launcher, see :doc:`oci_policy_analysis`.
 .. automodule:: oci_policy_analysis.presentation.qt.codex_client
    :members:
 
+.. automodule:: oci_policy_analysis.presentation.qt.claude_client
+   :members:
+
 .. automodule:: oci_policy_analysis.presentation.qt.pages.resource_principals
    :members:
 
