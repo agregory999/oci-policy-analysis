@@ -1,8 +1,10 @@
-# Qt MCP and Codex assistant
+# Qt MCP and assistants
 
 The **MCP & assistant** navigation page hosts a query-only FastMCP endpoint over
-the currently loaded context and an optional native Codex conversation. Neither
-starts when the application opens or when a snapshot loads.
+the currently loaded context, an optional native Codex conversation, and
+launchers for separately configured Claude Desktop, ChatGPT Desktop, and Codex
+Desktop apps. Neither server nor Codex starts when the application opens or
+when a snapshot loads.
 
 ## Try it
 
@@ -18,7 +20,8 @@ uv sync --extra qt --extra mcp --extra web
    The listener always binds to `127.0.0.1`. The verified URL and available tools
    appear only after MCP initialization, tool discovery, and a snapshot-status
    call succeed.
-3. To use Codex, install Codex CLI and sign in with `codex login` in a terminal.
+3. Select **Codex · embedded chat** to use Codex. Install Codex CLI and sign in
+   with `codex login` in a terminal.
    Enter `codex` or its executable's absolute path, then **Connect Codex**. The
    page reports account/configuration errors and populates a model selector.
 4. Select a model and type a question, such as “Which statements reference the
@@ -32,6 +35,64 @@ uv sync --extra qt --extra mcp --extra web
 The upper tabs show tool descriptions and connection/tool activity. The lower
 viewer streams plain selectable text, labels completed/failed/interrupted turns,
 and retains bounded output. It does not interpret model/source text as HTML.
+
+## External desktop assistants
+
+The assistant selector offers **Claude Desktop**, **ChatGPT Desktop**, and
+**Codex Desktop**, each labelled **external app**. They open a separate app;
+answers and model selection stay there. Only **Codex · embedded chat** uses the
+Qt conversation viewer. Application paths are kept separately for each desktop
+choice during the current workbench session.
+
+On macOS, automatic launch asks the OS to open `Claude`, `ChatGPT`, or `Codex`
+respectively. If Codex is included in your ChatGPT app rather than installed as
+a separate `Codex.app`, select **ChatGPT Desktop**. **Browse…** or a pasted path
+can select a particular application bundle or executable. Automatic desktop
+discovery never substitutes the `codex` or `claude` CLI commands.
+
+For a Codex session in the ChatGPT desktop app, OpenAI documents shared MCP
+configuration with Codex CLI. A separately configured snapshot connection can
+use this entry in `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.opa_snapshot]
+url = "http://127.0.0.1:8765/mcp"
+```
+
+This is an optional manual setup example; the launcher does not write global
+configuration. Use the actual verified endpoint and check tool availability in
+the desktop app before asking a question. A cloud ChatGPT connector has a
+different connection path; opening ChatGPT does not configure a local connector.
+See [OpenAI's MCP documentation](https://learn.chatgpt.com/docs/extend/mcp?surface=cli).
+
+### Claude Desktop
+
+Select **Claude Desktop · external app** after starting MCP. For a pre-configured
+connection on port 8765, choose that port before startup. **Copy MCP URL** copies
+the verified endpoint, such as `http://127.0.0.1:8765/mcp`; the local connection
+in Claude Desktop must use the same address, port and `/mcp` path. **Automatic**
+port selection may require updating your Claude configuration.
+
+**Open Claude Desktop** launches Claude separately. An empty application field
+(or `claude-desktop`) tries common installations. If discovery fails on Windows,
+use **Browse…** to select the installed `Claude.exe` or a Windows shortcut
+(`.lnk`); you can also paste its full path, including spaces. Store-packaged
+installations can be opened from the Start menu if no usable file is available.
+On macOS, automatic launch uses the registered Claude application.
+
+Chat, login, model selection and permissions stay in Claude Desktop. The Qt
+transcript is available for embedded Codex only. Opening Claude does not verify
+its MCP connection, rewrite its settings, or send a question. Check the tools in
+Claude itself. Keep the workbench MCP listener running while chatting; stopping
+MCP or closing the workbench leaves Claude open but removes this endpoint.
+The loaded snapshot remains locked while the listener runs in either mode.
+
+The compact Codex executable field is specifically for Codex CLI, which speaks
+the app-server protocol. It is not a general assistant command line. Claude Code
+also requires a separate adapter for its own streaming protocol; entering
+`claude` in the Codex field does not provide embedded Claude chat. See Anthropic's
+[programmatic Claude Code documentation](https://code.claude.com/docs/en/headless)
+and [Claude Desktop local MCP guidance](https://support.claude.com/en/articles/10949351-getting-started-with-local-mcp-servers-on-claude-desktop).
 
 ## Snapshot and server lifecycle
 

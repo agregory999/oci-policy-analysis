@@ -1,19 +1,23 @@
-"""Managed snapshot MCP controls and an optional native Codex conversation."""
+"""Managed snapshot MCP, native Codex chat, and external desktop assistants."""
 
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
+    QApplication,
     QComboBox,
+    QFileDialog,
     QHBoxLayout,
     QLineEdit,
     QPlainTextEdit,
     QPushButton,
     QSpinBox,
     QSplitter,
+    QStackedWidget,
     QTabWidget,
     QVBoxLayout,
     QWidget,
 )
 
+from oci_policy_analysis.presentation.qt.assistant_launcher import _launch_desktop_assistant
 from oci_policy_analysis.presentation.qt.assistant_transcript import AssistantTranscript
 from oci_policy_analysis.presentation.qt.codex_client import CodexClient
 from oci_policy_analysis.presentation.qt.mcp_host import SnapshotMcpHost
@@ -22,7 +26,7 @@ from oci_policy_analysis.presentation.qt.widgets import label
 
 
 class McpAssistantPage(QWidget):
-    """Operate one loaded snapshot server and an explicitly started Codex client.
+    """Operate a snapshot server with embedded Codex or external desktop apps.
 
     Attributes:
         host: Owned MCP worker, retained until its finished signal.
@@ -48,6 +52,8 @@ class McpAssistantPage(QWidget):
         self.client = CodexClient(self)
         self._pending_text = []
         self._pending_chars = 0
+        self._desktop_paths = {}
+        self._desktop_provider = 'claude-desktop'
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         self.snapshot = label('Load a snapshot on Overview before starting MCP.', 'muted', wrap=True)
@@ -92,10 +98,30 @@ class McpAssistantPage(QWidget):
         assistant = QWidget()
         body = QVBoxLayout(assistant)
         body.setContentsMargins(0, 8, 0, 0)
+        provider_row = QHBoxLayout()
+        provider_row.addWidget(label('Assistant'))
+        self.provider = QComboBox()
+        self.provider.addItem('Codex · embedded chat', 'codex')
+        self.provider.addItem('Claude Desktop · external app', 'claude-desktop')
+        self.provider.addItem('ChatGPT Desktop · external app', 'chatgpt-desktop')
+        self.provider.addItem('Codex Desktop · external app', 'codex-desktop')
+        provider_row.addWidget(self.provider)
+        provider_row.addStretch()
+        body.addLayout(provider_row)
+        self.assistant_pages = QStackedWidget()
+        codex_page = QWidget()
+        codex_body = QVBoxLayout(codex_page)
+        codex_body.setContentsMargins(0, 0, 0, 0)
         connection = QHBoxLayout()
+        connection.addWidget(label('Codex CLI'))
         self.executable = QLineEdit('codex')
         self.executable.setPlaceholderText('Codex executable or absolute path')
-        connection.addWidget(self.executable, 1)
+        self.executable.setMaximumWidth(260)
+        self.executable.setToolTip('Codex CLI only; other assistants use different protocols. No command arguments.')
+        connection.addWidget(self.executable)
+        self.browse_codex = QPushButton('Browse…')
+        self.browse_codex.clicked.connect(lambda: self._browse_application(self.executable, 'Codex CLI'))
+        connection.addWidget(self.browse_codex)
         self.connect_button = QPushButton('Connect Codex')
         self.connect_button.clicked.connect(self._connect_codex)
         connection.addWidget(self.connect_button)
@@ -106,10 +132,11 @@ class McpAssistantPage(QWidget):
         self.model.setMinimumWidth(190)
         self.model.setPlaceholderText('Model after connection')
         connection.addWidget(self.model)
-        body.addLayout(connection)
+        connection.addStretch()
+        codex_body.addLayout(connection)
         self.assistant_status = label('Codex disconnected', 'muted', wrap=True)
-        body.addWidget(self.assistant_status)
-        body.addWidget(
+        codex_body.addWidget(self.assistant_status)
+        codex_body.addWidget(
             label(
                 'Sending a question shares your question and returned policy evidence with the selected model.',
                 'muted',
@@ -119,7 +146,7 @@ class McpAssistantPage(QWidget):
         self.conversation = AssistantTranscript()
         self.conversation.setReadOnly(True)
         self.conversation.setPlaceholderText('Connect Codex, choose a model, and ask about the served snapshot.')
-        body.addWidget(self.conversation, 1)
+        codex_body.addWidget(self.conversation, 1)
         row = QHBoxLayout()
         self.question = QPlainTextEdit()
         self.question.setPlaceholderText('For example: Which statements reference the AppWorkers dynamic group?')
@@ -131,7 +158,52 @@ class McpAssistantPage(QWidget):
         self.interrupt_button = QPushButton('Stop answer')
         self.interrupt_button.clicked.connect(self.client.interrupt)
         row.addWidget(self.interrupt_button)
-        body.addLayout(row)
+        codex_body.addLayout(row)
+        self.assistant_pages.addWidget(codex_page)
+        desktop_page = QWidget()
+        desktop_body = QVBoxLayout(desktop_page)
+        desktop_body.setContentsMargins(0, 0, 0, 0)
+        self.desktop_help = label(
+            'Start MCP above, then chat in your pre-configured desktop app. '
+            'Its local MCP connection must match the verified endpoint, including /mcp. '
+            'Use a fixed port (default 8765) for an existing configuration; Automatic can choose another port.',
+            'muted',
+            wrap=True,
+        )
+        desktop_body.addWidget(self.desktop_help)
+        desktop_row = QHBoxLayout()
+        desktop_row.addWidget(label('Application'))
+        self.desktop_executable = QLineEdit()
+        self.desktop_executable.setMaximumWidth(260)
+        self.desktop_executable.setPlaceholderText('Automatic, or application / shortcut path')
+        self.desktop_executable.setToolTip(
+            'Desktop application, without arguments. Windows shortcuts (.lnk) supported.'
+        )
+        desktop_row.addWidget(self.desktop_executable)
+        self.browse_desktop = QPushButton('Browse…')
+        self.browse_desktop.clicked.connect(
+            lambda: self._browse_application(self.desktop_executable, self._desktop_name())
+        )
+        desktop_row.addWidget(self.browse_desktop)
+        self.launch_desktop = QPushButton('Open Claude Desktop')
+        self.launch_desktop.clicked.connect(self._open_desktop)
+        desktop_row.addWidget(self.launch_desktop)
+        self.copy_endpoint = QPushButton('Copy MCP URL')
+        self.copy_endpoint.clicked.connect(lambda: QApplication.clipboard().setText(self.url))
+        desktop_row.addWidget(self.copy_endpoint)
+        desktop_row.addStretch()
+        desktop_body.addLayout(desktop_row)
+        self.desktop_status = label(
+            'Claude Desktop opens separately and stays open when MCP stops. '
+            'This page does not change or verify its MCP configuration.',
+            'muted',
+            wrap=True,
+        )
+        desktop_body.addWidget(self.desktop_status)
+        desktop_body.addStretch()
+        self.assistant_pages.addWidget(desktop_page)
+        body.addWidget(self.assistant_pages, 1)
+        self.provider.currentIndexChanged.connect(self._provider_changed)
         split.addWidget(assistant)
         split.setSizes([210, 490])
         layout.addWidget(split, 1)
@@ -238,12 +310,60 @@ class McpAssistantPage(QWidget):
         self._emit_idle()
 
     def _connect_codex(self) -> None:
-        if self._running:
+        if self._running and self.provider.currentData() == 'codex':
             self.model.clear()
             self.conversation.finish_answer()
             self.conversation.append_literal('New Codex session')
             self.client.start(self.url, self.executable.text().strip() or 'codex')
             self._update_controls()
+
+    def _provider_changed(self, index: int) -> None:
+        self.assistant_pages.setCurrentIndex(0 if index == 0 else 1)
+        provider = self.provider.currentData()
+        if provider != 'codex':
+            self._desktop_paths[self._desktop_provider] = self.desktop_executable.text()
+            self._desktop_provider = provider
+            self.desktop_executable.setText(self._desktop_paths.get(provider, ''))
+            name = self._desktop_name()
+            self.launch_desktop.setText(f'Open {name}')
+            self.desktop_status.setText(
+                f'{name} opens separately and stays open when MCP stops. '
+                'This page does not change or verify its MCP configuration.'
+                + (
+                    ' If Codex is included in your ChatGPT app, choose ChatGPT Desktop.'
+                    if provider == 'codex-desktop'
+                    else ''
+                )
+            )
+        self._update_controls()
+
+    def _desktop_name(self) -> str:
+        return {
+            'claude-desktop': 'Claude Desktop',
+            'chatgpt-desktop': 'ChatGPT Desktop',
+            'codex-desktop': 'Codex Desktop',
+        }.get(self.provider.currentData(), 'Desktop assistant')
+
+    def _browse_application(self, field: QLineEdit, name: str) -> None:
+        path, _ = QFileDialog.getOpenFileName(self, f'Select {name} application or shortcut', field.text())
+        if path:
+            field.setText(path)
+
+    def _open_desktop(self) -> None:
+        provider = self.provider.currentData()
+        if not self._running or self._shutting_down or provider == 'codex':
+            return
+        name = self._desktop_name()
+        if _launch_desktop_assistant(provider, self.desktop_executable.text()):
+            self.desktop_status.setText(
+                f'Launch requested. Continue in {name} and check its MCP tools for {self.url}. '
+                'Keep MCP running while chatting.'
+            )
+        else:
+            self.desktop_status.setText(
+                f'Could not open {name}. Browse to its installed application or Windows shortcut (.lnk). '
+                'You can also open the app yourself and use Copy MCP URL.'
+            )
 
     def _models(self, models: list) -> None:
         self.model.clear()
@@ -313,6 +433,10 @@ class McpAssistantPage(QWidget):
         self.connect_button.setEnabled(self._running and not self.client.active and not self._shutting_down)
         self.disconnect_button.setEnabled(self.client.active)
         self.executable.setEnabled(not self.client.active)
+        self.browse_codex.setEnabled(not self.client.active)
+        self.provider.setEnabled(not self.client.active)
+        self.launch_desktop.setEnabled(self._running and not self._shutting_down)
+        self.copy_endpoint.setEnabled(self._running and not self._shutting_down)
         self.model.setEnabled(self.client.ready and not self.client.busy)
         self.send_button.setEnabled(
             self._running and self.client.ready and bool(self.model.count()) and not self.client.busy

@@ -1780,6 +1780,166 @@ def test_managed_mcp_http_readiness_reload_lock_stop_restart(workbench):
     _wait_until(application, lambda: not page.active and not window.isVisible(), timeout=15)
 
 
+@pytest.mark.parametrize('provider', ['claude-desktop', 'chatgpt-desktop', 'codex-desktop'])
+def test_desktop_mode_uses_external_launch_and_keeps_mcp_owned(workbench, monkeypatch, provider):
+    pytest.importorskip('fastmcp')
+    application, window = workbench
+    window.experience.set_advanced(True)
+    page = window.mcp_page
+    launches = []
+    monkeypatch.setattr(
+        'oci_policy_analysis.presentation.qt.pages.mcp._launch_desktop_assistant',
+        lambda provider, path: launches.append((provider, path)) or True,
+    )
+    monkeypatch.setattr(page.client, 'start', lambda *_: pytest.fail('Claude must not use the Codex protocol'))
+    page.provider.setCurrentIndex(page.provider.findData(provider))
+    assert page.assistant_pages.currentIndex() == 1
+    assert not page.launch_desktop.isEnabled()
+    assert not page.copy_endpoint.isEnabled()
+    page._open_desktop()
+    assert not launches
+    window.settings_page.load_sample()
+    _wait_for_load(application, window)
+    page.port.setValue(0)
+    page.start_server()
+    _wait_until(application, lambda: page._running or page.host is None, timeout=25)
+    assert page._running, page.server_status.text()
+    page.desktop_executable.setText('C:/Program Files/Claude/Claude.exe')
+    page.launch_desktop.click()
+    assert launches == [(provider, 'C:/Program Files/Claude/Claude.exe')]
+    assert 'Launch requested' in page.desktop_status.text()
+    page._connect_codex()
+    assert not page.client.active
+    page.copy_endpoint.click()
+    assert QApplication.clipboard().text() == page.url
+    assert page.host is not None and window.controller.load_block_reason
+    monkeypatch.setattr('oci_policy_analysis.presentation.qt.pages.mcp._launch_desktop_assistant', lambda *_: False)
+    page.launch_desktop.click()
+    assert 'Could not open' in page.desktop_status.text()
+    assert page._running
+    page.stop_all()
+    _wait_until(application, lambda: not page.active, timeout=15)
+    assert not page.launch_desktop.isEnabled()
+    assert not page.copy_endpoint.isEnabled()
+    page.provider.setCurrentIndex(0)
+    assert page.assistant_pages.currentIndex() == 0
+    assert page.executable.maximumWidth() == 260
+
+
+def test_claude_launcher_detaches_without_codex_arguments_and_handles_spaces(workbench, monkeypatch, tmp_path):
+    from types import SimpleNamespace
+
+    from oci_policy_analysis.presentation.qt import assistant_launcher
+
+    executable = tmp_path / 'Program Files' / 'Claude.exe'
+    executable.parent.mkdir()
+    executable.touch()
+    calls = []
+    monkeypatch.setattr(assistant_launcher, 'sys', SimpleNamespace(platform='win32'))
+    monkeypatch.setattr(
+        assistant_launcher, 'QProcess', SimpleNamespace(startDetached=lambda *args: calls.append(args) or (True, 42))
+    )
+    assert assistant_launcher._launch_desktop_assistant('claude-desktop', f'"{executable}"')
+    assert calls == [(str(executable), [])]
+    code_executable = tmp_path / 'claude.exe'
+    code_executable.touch()
+    monkeypatch.setattr(
+        assistant_launcher.shutil, 'which', lambda name: str(code_executable) if name == 'Claude.exe' else None
+    )
+    monkeypatch.setenv('LOCALAPPDATA', str(tmp_path))
+    assert not assistant_launcher._launch_desktop_assistant('claude-desktop', 'claude-desktop')
+    assert not assistant_launcher._launch_desktop_assistant('claude-desktop', str(tmp_path / 'missing.exe'))
+    assert len(calls) == 1
+    installed = tmp_path / 'AnthropicClaude' / 'claude.exe'
+    installed.parent.mkdir()
+    installed.touch()
+    assert assistant_launcher._launch_desktop_assistant('claude-desktop', 'claude-desktop')
+    assert calls[-1] == (str(installed), [])
+
+
+def test_claude_launcher_opens_windows_shortcuts_through_desktop_services(workbench, monkeypatch, tmp_path):
+    from types import SimpleNamespace
+
+    from oci_policy_analysis.presentation.qt import assistant_launcher
+
+    shortcut = tmp_path / 'Claude Desktop.lnk'
+    shortcut.touch()
+    urls = []
+    monkeypatch.setattr(assistant_launcher, 'sys', SimpleNamespace(platform='win32'))
+    monkeypatch.setattr(
+        assistant_launcher, 'QDesktopServices', SimpleNamespace(openUrl=lambda url: urls.append(url) or True)
+    )
+    monkeypatch.setattr(
+        assistant_launcher, 'QProcess', SimpleNamespace(startDetached=lambda *_: pytest.fail('Shortcut is not an exe'))
+    )
+    assert assistant_launcher._launch_desktop_assistant('claude-desktop', str(shortcut))
+    assert urls[0].toLocalFile() == str(shortcut)
+    assert not assistant_launcher._launch_desktop_assistant('claude-desktop', str(tmp_path / 'missing.lnk'))
+
+
+def test_claude_launcher_uses_macos_application_launch(workbench, monkeypatch, tmp_path):
+    from types import SimpleNamespace
+
+    from oci_policy_analysis.presentation.qt import assistant_launcher
+
+    calls = []
+    monkeypatch.setattr(assistant_launcher, 'sys', SimpleNamespace(platform='darwin'))
+    monkeypatch.setattr(
+        assistant_launcher, 'QProcess', SimpleNamespace(startDetached=lambda *args: calls.append(args) or (True, 42))
+    )
+    assert assistant_launcher._launch_desktop_assistant('claude-desktop', '')
+    assert calls == [('/usr/bin/open', ['-a', 'Claude'])]
+    bundle = tmp_path / 'Claude.app'
+    bundle.mkdir()
+    assert assistant_launcher._launch_desktop_assistant('claude-desktop', str(bundle))
+    assert calls[-1] == ('/usr/bin/open', [str(bundle)])
+    monkeypatch.setattr(assistant_launcher, 'QProcess', SimpleNamespace(startDetached=lambda *_: (False, 0)))
+    assert not assistant_launcher._launch_desktop_assistant('claude-desktop', '')
+
+
+@pytest.mark.parametrize('provider,name', [('chatgpt-desktop', 'ChatGPT'), ('codex-desktop', 'Codex')])
+def test_openai_desktop_launch_uses_app_name_and_never_cli(workbench, monkeypatch, tmp_path, provider, name):
+    from types import SimpleNamespace
+
+    from oci_policy_analysis.presentation.qt import assistant_launcher
+
+    calls = []
+    monkeypatch.setattr(assistant_launcher, 'sys', SimpleNamespace(platform='darwin'))
+    monkeypatch.setattr(
+        assistant_launcher, 'QProcess', SimpleNamespace(startDetached=lambda *args: calls.append(args) or (True, 42))
+    )
+    assert assistant_launcher._launch_desktop_assistant(provider, '')
+    assert assistant_launcher._launch_desktop_assistant(provider, provider)
+    assert calls == [('/usr/bin/open', ['-a', name])] * 2
+    monkeypatch.setattr(assistant_launcher, 'sys', SimpleNamespace(platform='win32'))
+    cli = tmp_path / 'codex.exe'
+    cli.touch()
+    monkeypatch.setattr(
+        assistant_launcher.shutil, 'which', lambda command: str(cli) if command in {'codex', 'codex.exe'} else None
+    )
+    assert not assistant_launcher._launch_desktop_assistant(provider, '')
+    assert not assistant_launcher._launch_desktop_assistant('unknown', '/usr/bin/true')
+    assert len(calls) == 2
+
+
+def test_desktop_selection_keeps_application_paths_separate(workbench):
+    _, window = workbench
+    page = window.mcp_page
+    page.provider.setCurrentIndex(page.provider.findData('claude-desktop'))
+    page.desktop_executable.setText('C:/Claude/Claude.exe')
+    page.provider.setCurrentIndex(page.provider.findData('chatgpt-desktop'))
+    assert not page.desktop_executable.text()
+    assert page.launch_desktop.text() == 'Open ChatGPT Desktop'
+    page.desktop_executable.setText('/Applications/ChatGPT.app')
+    page.provider.setCurrentIndex(page.provider.findData('codex-desktop'))
+    assert not page.desktop_executable.text()
+    assert 'included in your ChatGPT app' in page.desktop_status.text()
+    page.provider.setCurrentIndex(page.provider.findData('claude-desktop'))
+    assert page.desktop_executable.text() == 'C:/Claude/Claude.exe'
+    page.provider.setCurrentIndex(page.provider.findData('chatgpt-desktop'))
+    assert page.desktop_executable.text() == '/Applications/ChatGPT.app'
+
+
 def test_managed_mcp_occupied_port_recovers_without_false_running_state(workbench):
     import socket
 
