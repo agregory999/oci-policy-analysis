@@ -370,9 +370,9 @@
         },
         "GetCertificateBundle": {
             "permissions": [
-                "CERTIFICATE_BUNDLE_READF"
+                "CERTIFICATE_BUNDLE_READ"
             ],
-            "notes": "CERTIFICATE_BUNDLE_READFor details, see leaf-certificate-bundles."
+            "notes": "For details, see leaf-certificate-bundles."
         },
         "ListCaBundles": {
             "permissions": [
