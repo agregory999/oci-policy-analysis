@@ -256,7 +256,7 @@ jobs:
               --add-data "src/oci_policy_analysis/application/core/resources/mcp_tools_list:oci_policy_analysis/application/core/resources/mcp_tools_list" \
               --add-data "src/oci_policy_analysis/application/core/resources/parsers:oci_policy_analysis/application/core/resources/parsers" \
               --add-binary="$PY_LIB:Frameworks/Python" \
-              src/oci_policy_analysis/main.py
+              src/oci_policy_analysis/presentation/tk/main.py
           else
             echo "🐧 Linux build..."
             PY_SO=$(python3 -c "import sysconfig, glob, os; libdir=sysconfig.get_config_var('LIBDIR'); \
@@ -275,7 +275,7 @@ jobs:
               --collect-all=sys \
               --copy-metadata fastmcp \
               --add-binary="$PY_SO:." \
-              src/oci_policy_analysis/main.py
+              src/oci_policy_analysis/presentation/tk/main.py
           fi
 
       - name: Build (Windows)
@@ -300,7 +300,7 @@ jobs:
             --add-data "src\oci_policy_analysis\application\core\resources\mcp_tools_list;oci_policy_analysis\application\core\resources\mcp_tools_list" `
             --add-data "src\oci_policy_analysis\application\core\resources\parsers;oci_policy_analysis\application\core\resources\parsers" `
             --add-binary "$pyDll;." `
-            src\oci_policy_analysis\main.py
+            src\oci_policy_analysis\presentation\tk\main.py
 
       - name: Verify frozen desktop startup (macOS/Linux)
         if: steps.skip_build.outputs.skip != 'true' && runner.os != 'Windows'
