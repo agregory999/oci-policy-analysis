@@ -1,3 +1,10 @@
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.22](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.21...v7.0.0-7-0-0-policy-corpus-cross-tenancy.22) (2026-10-23)
+
+
+### Bug Fixes
+
+* package Tk entry point in GitHub builds ([7384a6b](https://github.com/agregory999/oci-policy-analysis/commit/7384a6b1f440c487bb5b0ddd017ebc402beba5c6))
+
 ## [7.0.0-7-0-0-policy-corpus-cross-tenancy.21](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.20...v7.0.0-7-0-0-policy-corpus-cross-tenancy.21) (2026-10-23)
 
 
