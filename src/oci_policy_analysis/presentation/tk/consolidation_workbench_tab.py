@@ -23,8 +23,8 @@ from tkinter import ttk
 from oci_policy_analysis.application.core.support.logger import get_logger
 from oci_policy_analysis.application.core.support.usage_tracking import get_usage_tracker
 from oci_policy_analysis.application.services.consolidation_workbench_service import ConsolidationWorkbenchService
-from oci_policy_analysis.presentation.desktop.base_tab import BaseUITab
-from oci_policy_analysis.presentation.desktop.data_table import CheckboxTable, DataTable
+from oci_policy_analysis.presentation.tk.base_tab import BaseUITab
+from oci_policy_analysis.presentation.tk.data_table import CheckboxTable, DataTable
 
 
 # Each instance will have self.logger for timing and info

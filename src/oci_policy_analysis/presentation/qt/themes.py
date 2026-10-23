@@ -108,6 +108,8 @@ QToolButton#sectionHeader { text-align: left; padding: 10px; font-weight: 600; b
 QToolButton#multiSelectFilter { padding: 8px 22px 8px 10px; background: white; border: 1px solid #c9d4cd; border-radius: 4px; }
 QToolButton#segment { background: white; border: 1px solid #c9d4cd; padding: 7px 12px; }
 QToolButton#segment:checked { background: #1e6554; color: #ffffff; }
+QPushButton#navigationLog { background: #2b554d; color: #ffffff; border-color: #53726a; text-align: left; }
+QPushButton#navigationLog:hover { background: #287962; }
 QScrollArea, QScrollArea > QWidget > QWidget { background: #f5f6f2; }
 QMenu, QComboBox QAbstractItemView { background: white; color: #243d39; border: 1px solid #c9d4cd; }
 QMenu::item { padding: 7px 18px; }

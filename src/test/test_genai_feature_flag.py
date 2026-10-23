@@ -6,11 +6,11 @@ import pytest
 
 from oci_policy_analysis import main as desktop
 from oci_policy_analysis.application.context import AppContext
-from oci_policy_analysis.presentation.desktop.settings_tab import SettingsTab
+from oci_policy_analysis.presentation.tk.settings_tab import SettingsTab
 
 
 def test_removed_genai_flag_is_rejected_before_gui_startup(monkeypatch, capsys):
-    monkeypatch.setattr('sys.argv', ['oci-policy-analysis-ui', '--enable-genai'])
+    monkeypatch.setattr('sys.argv', ['oci-policy-analysis-legacy-ui', '--enable-genai'])
     monkeypatch.setattr(desktop, 'App', lambda **kwargs: pytest.fail('GUI must not start'))
     with pytest.raises(SystemExit) as error:
         desktop.main()

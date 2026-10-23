@@ -2,7 +2,7 @@
 
 from types import SimpleNamespace
 
-from oci_policy_analysis.presentation.desktop.policy_recommendations_tab import PolicyRecommendationsTab
+from oci_policy_analysis.presentation.tk.policy_recommendations_tab import PolicyRecommendationsTab
 
 
 def _tab(chain_limit, cumulative_count):

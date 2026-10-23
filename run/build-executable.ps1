@@ -1,6 +1,6 @@
 #!/usr/bin/env pwsh
 param(
-    [ValidateSet("desktop", "qt")][string]$Interface = "desktop",
+    [ValidateSet("legacy-ui", "ui", "desktop", "qt")][string]$Interface = "legacy-ui",
     [Parameter(ValueFromRemainingArguments = $true)][string[]]$BuildArgs
 )
 $ErrorActionPreference = "Stop"
@@ -22,7 +22,7 @@ function Assert-BuildPathsUnlocked {
 
 if ($env:OS -eq "Windows_NT") { Assert-BuildPathsUnlocked }
 
-if ($Interface -eq "qt") {
+if ($Interface -in @("ui", "qt")) {
     uv sync --inexact --extra qt --extra qt-build --extra web --extra mcp
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     uv pip check
@@ -75,7 +75,7 @@ pyinstaller `
   --add-data "$Pkg\application\core\resources\mcp_tools_list;oci_policy_analysis\application\core\resources\mcp_tools_list" `
   --add-data "$Pkg\application\core\resources\parsers;oci_policy_analysis\application\core\resources\parsers" `
   --add-binary "$PY_DLL;." `
-  "$Pkg\main.py"
+  "$Pkg\presentation\tk\main.py"
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed with exit code $LASTEXITCODE." }
 
 Write-Host "Packaging dist oci-policy-analysis-tk-windows-$VERSION.zip"

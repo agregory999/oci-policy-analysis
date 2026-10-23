@@ -1,9 +1,9 @@
 import inspect
 
 from oci_policy_analysis.main import App
-from oci_policy_analysis.presentation.desktop.console_tab import ConsoleTab
-from oci_policy_analysis.presentation.desktop.settings_tab import SettingsTab
-from oci_policy_analysis.presentation.desktop.workload_principals_tab import WorkloadPrincipalsTab
+from oci_policy_analysis.presentation.tk.console_tab import ConsoleTab
+from oci_policy_analysis.presentation.tk.settings_tab import SettingsTab
+from oci_policy_analysis.presentation.tk.workload_principals_tab import WorkloadPrincipalsTab
 
 
 def test_condition_tester_is_not_in_advanced_toggle():
@@ -50,7 +50,7 @@ def test_console_tab_uses_current_logger_names_only():
     assert 'workload_principals_tab' in source
     assert 'permissions_report_tab' in source
     assert 'limits_tab' in source
-    assert 'presentation.desktop.console_tab' in source
+    assert 'presentation.tk.console_tab' in source
     assert 'web_routes' in source
     assert 'web_auth' in source
     assert "'Core Repo / Engine / Parser'" in source

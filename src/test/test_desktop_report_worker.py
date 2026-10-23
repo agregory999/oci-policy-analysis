@@ -3,7 +3,7 @@
 import threading
 from types import SimpleNamespace
 
-from oci_policy_analysis.presentation.desktop import reports_tab
+from oci_policy_analysis.presentation.tk import reports_tab
 
 
 def test_report_generation_runs_off_gui_and_publishes_only_when_complete(monkeypatch):

@@ -54,6 +54,10 @@ Models
    :members:
    :show-inheritance:
 
+.. automodule:: oci_policy_analysis.application.core.models.models_mcp
+   :members:
+   :show-inheritance:
+
 Repositories and parsing
 ------------------------
 
@@ -180,9 +184,6 @@ Support
 .. automodule:: oci_policy_analysis.application.services.usage_service
    :members:
    :show-inheritance:
-
-.. automodule:: oci_policy_analysis.application.core.support.usage_tracking
-   :members:
 
 .. automodule:: oci_policy_analysis.application.core.support.api_calls
    :members:

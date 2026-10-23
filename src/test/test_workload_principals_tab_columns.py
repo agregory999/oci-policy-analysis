@@ -1,4 +1,4 @@
-from oci_policy_analysis.presentation.desktop.workload_principals_tab import (
+from oci_policy_analysis.presentation.tk.workload_principals_tab import (
     ALL_POLICY_COLUMNS,
     BASIC_POLICY_COLUMNS,
     POLICY_COLUMN_WIDTHS,

@@ -19,7 +19,7 @@ from tkinter.scrolledtext import ScrolledText
 from oci_policy_analysis.application.core.support.logger import get_logger
 from oci_policy_analysis.application.core.support.usage_tracking import get_usage_tracker
 from oci_policy_analysis.application.services.condition_tester_service import ConditionTesterService
-from oci_policy_analysis.presentation.desktop.base_tab import BaseUITab
+from oci_policy_analysis.presentation.tk.base_tab import BaseUITab
 
 logger = get_logger('condition_tester_tab')
 

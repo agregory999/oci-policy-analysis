@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 from fastapi.testclient import TestClient
 
 from oci_policy_analysis.application.core.policy_corpus import CorpusProvenance, PolicyCorpus, PolicyCorpusFact
-from oci_policy_analysis.presentation.desktop.policy_graph_tab import PolicyGraphTab
+from oci_policy_analysis.presentation.tk.policy_graph_tab import PolicyGraphTab
 from oci_policy_analysis.presentation.web.api import routes_core
 from oci_policy_analysis.presentation.web.main import app
 
@@ -193,7 +193,7 @@ def test_graph_condition_handoff_populates_visible_tester_before_generating_inpu
     from functools import partial
 
     from oci_policy_analysis.main import App
-    from oci_policy_analysis.presentation.desktop.condition_tester_tab import ConditionTesterTab
+    from oci_policy_analysis.presentation.tk.condition_tester_tab import ConditionTesterTab
 
     tab = _tab(_corpus())
     condition = "request.permission = 'OBJECT_CREATE'"

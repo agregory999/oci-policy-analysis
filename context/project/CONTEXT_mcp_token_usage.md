@@ -188,7 +188,7 @@ Recommended logging point:
 Example log shape:
 
 ```python
-logger.warning("Policy search principal plan: %s", safe_principal_plan)
+logger.warning('Policy search principal plan: %s', safe_principal_plan)
 ```
 
 For `policy_search_set`, log one normalized plan per child search so a multi-search service installation check can be traced without guessing which principal key was used.
@@ -876,7 +876,7 @@ Implementation should proceed in this order:
    - Fold remaining `logic` package assets into `application/core/resources`; update `pyproject.toml` package-data paths and all `importlib.resources` callers.
    - Remove `consumers` unless the sample apps are still useful as docs examples. If retained, move them outside the importable package or into docs/examples.
    - Move current `presentation/formatters.py` under `application/presentation` or keep `presentation` top-level as the UI boundary, but do not leave formatter code importing back through `common`.
-   - Move current `ui` under `presentation/desktop`.
+   - Move current `ui` under `presentation/tk`.
    - Move current `web` under `presentation/web`.
    - Keep top-level console-script entrypoints as thin compatibility shims so pip commands do not expose the internal package layout.
 

@@ -12,7 +12,7 @@ This document describes the contract and architecture that underpins how the pol
   These are single-responsibility, protocol-driven Python classes implementing specific analyses—such as risk scoring, overlap checks, or cleanup detection. Strategies are completely decoupled from the engine and UI. Adding a new strategy is a matter of subclassing and registering.
 - **PolicyIntelligence Overlay Model** ([`common/models.py`](../../../src/oci_policy_analysis/common/models.py)):
   All analytics output is attached to a single overlay dictionary (see `PolicyIntelligence` TypedDict). Keys include: `risk_scores`, `overlaps`, `consolidations`, `cleanup_items`, `recommendations`, etc., each matching their analytics category and documented canonical shape.
-- **Recommendations UI Tab** ([`presentation/desktop/policy_recommendations_tab.py`](../../../src/oci_policy_analysis/presentation/desktop/policy_recommendations_tab.py)):
+- **Recommendations UI Tab** ([`presentation/tk/policy_recommendations_tab.py`](../../../src/oci_policy_analysis/presentation/tk/policy_recommendations_tab.py)):
   A multi-subtab UI notebook that simply **renders the overlay**. Each subtab selects/filters/presents a specific overlay key or overlay-internal section. The UI never recomputes analytics itself—it responds to overlay updates and (re)loads by re-pulling from the model.
 
 ---
@@ -125,7 +125,7 @@ The normalization rules implemented by
 2. **Any-user / Any-group / Service**
 
    ```python
-   subject_type in {"any-user", "any-group", "service"}
+   subject_type in {'any-user', 'any-group', 'service'}
    ```
 
    - The domain component is always the literal string `"None"` in the
@@ -294,15 +294,17 @@ Each subtab in the unified recommendations UI directly reflects an overlay key o
    from oci_policy_analysis.logic.intelligence_strategies.base import IntelligenceStrategy
    from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
 
+
    @dataclass(frozen=True)
    class MyNewStrategy:
-       strategy_id: str = "my_new_check"
-       display_name: str = "Custom Check"
-       category: str = "cleanup"  # Or risk, overlap, etc.
+       strategy_id: str = 'my_new_check'
+       display_name: str = 'Custom Check'
+       category: str = 'cleanup'  # Or risk, overlap, etc.
+
        def run(self, repo: PolicyAnalysisRepository, overlay: dict, params: dict | None = None) -> None:
            # Compute whatever analytics desired
-           results = ... # list of dicts, TypedDict, etc.
-           overlay.setdefault("cleanup_items", {})[self.strategy_id] = results
+           results = ...  # list of dicts, TypedDict, etc.
+           overlay.setdefault('cleanup_items', {})[self.strategy_id] = results
    ```
 2. **Register the Strategy**
    Add your class to the return list in `get_default_intelligence_strategies()` in `logic/intelligence_strategies/__init__.py`, placing it appropriately in run order.
@@ -351,8 +353,8 @@ sequenceDiagram
 - **Engine:** [`src/oci_policy_analysis/logic/policy_intelligence.py`](../../../src/oci_policy_analysis/logic/policy_intelligence.py)
 - **Strategies/Registry/Protocol:** [`src/oci_policy_analysis/logic/intelligence_strategies/`](../../../src/oci_policy_analysis/logic/intelligence_strategies/)
 - **Overlay Data Models:** [`src/oci_policy_analysis/common/models.py`](../../../src/oci_policy_analysis/common/models.py)
-- **Recommendations Tab UI:** [`src/oci_policy_analysis/presentation/desktop/policy_recommendations_tab.py`](../../../src/oci_policy_analysis/presentation/desktop/policy_recommendations_tab.py)
-- **Consolidation Workbench (proposal/demo):** [`src/oci_policy_analysis/presentation/desktop/consolidation_workbench_tab.py`](../../../src/oci_policy_analysis/presentation/desktop/consolidation_workbench_tab.py)
+- **Recommendations Tab UI:** [`src/oci_policy_analysis/presentation/tk/policy_recommendations_tab.py`](../../../src/oci_policy_analysis/presentation/tk/policy_recommendations_tab.py)
+- **Consolidation Workbench (proposal/demo):** [`src/oci_policy_analysis/presentation/tk/consolidation_workbench_tab.py`](../../../src/oci_policy_analysis/presentation/tk/consolidation_workbench_tab.py)
 
 ---
 

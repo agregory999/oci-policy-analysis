@@ -28,8 +28,8 @@ from oci_policy_analysis.application.core.repo import PolicyAnalysisRepository
 from oci_policy_analysis.application.core.support.logger import get_logger
 from oci_policy_analysis.application.services.principal_analysis_service import PrincipalAnalysisService
 from oci_policy_analysis.presentation import for_display_policy
-from oci_policy_analysis.presentation.desktop.base_tab import BaseUITab
-from oci_policy_analysis.presentation.desktop.data_table import DataTable
+from oci_policy_analysis.presentation.tk.base_tab import BaseUITab
+from oci_policy_analysis.presentation.tk.data_table import DataTable
 
 # Global logger for this module
 logger = get_logger(component='users_tab')

@@ -7,14 +7,14 @@ def main() -> None:
     """Import the desktop/MCP startup chain and exercise typed tool metadata."""
     from mcp.server.fastmcp.utilities.func_metadata import func_metadata
 
-    import oci_policy_analysis.main
+    from oci_policy_analysis.presentation.tk.main import App as TkApp
 
     def smoke_tool(value: str) -> str:
         return value
 
     metadata = func_metadata(smoke_tool)
     assert metadata.arg_model.model_validate({'value': 'smoke'}).value == 'smoke'
-    assert oci_policy_analysis.main.App is not None
+    assert TkApp is not None
     print(
         'Desktop startup imports passed: '
         + ', '.join(f'{name}={version(name)}' for name in ('pydantic', 'mcp', 'fastmcp'))

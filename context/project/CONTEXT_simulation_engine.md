@@ -10,7 +10,7 @@ The PolicySimulationEngine serves as the single source of truth for all permissi
 
 - **Engine location:** `src/oci_policy_analysis/logic/simulation_engine.py`
 - **Driven by:**
-  - **UI:** `src/oci_policy_analysis/presentation/desktop/simulation_tab.py`
+  - **UI:** `src/oci_policy_analysis/presentation/tk/simulation_tab.py`
   - **MCP:** `src/oci_policy_analysis/mcp_server.py`
 - **Data Schemas:** `src/oci_policy_analysis/common/models.py`
 - **Demo usage:** `docs/source/simulation_engine_usage_examples.py`
@@ -126,15 +126,15 @@ The UI’s Simulation experience is now organized into **three subtabs** that to
 ```python
 # SimulationPrepareRequest Example
 {
-  "compartment_path": "ROOT/Finance",
-  "principal_type": "user", # Must be one of Literals "service", "user", "group", "dynamic-group", "any-user", "any-group"
-  "principal": ["Default", "anita"] # Optional - don't pass if type is any-user or any-group
+    'compartment_path': 'ROOT/Finance',
+    'principal_type': 'user',  # Must be one of Literals "service", "user", "group", "dynamic-group", "any-user", "any-group"
+    'principal': ['Default', 'anita'],  # Optional - don't pass if type is any-user or any-group
 }
 
 # SimulationPrepareResponse Example
 {
-  "required_where_fields": ["user.department", "request.time"],
-  "principal_key": "user:Default/anita" # Let the engien calculate this internally
+    'required_where_fields': ['user.department', 'request.time'],
+    'principal_key': 'user:Default/anita',  # Let the engien calculate this internally
 }
 ```
 
@@ -313,7 +313,7 @@ orchestration, delegating persistence to
 ## 9. References
 
 - [`simulation_engine.py`](../../../src/oci_policy_analysis/logic/simulation_engine.py)
-- [`simulation_tab.py`](../../../src/oci_policy_analysis/presentation/desktop/simulation_tab.py)
+- [`simulation_tab.py`](../../../src/oci_policy_analysis/presentation/tk/simulation_tab.py)
 - [`mcp_server.py`](../../../src/oci_policy_analysis/mcp_server.py)
 - [`common/models.py`](../../../src/oci_policy_analysis/common/models.py)
 - [Simulation usage examples](../../../docs/source/simulation_engine_usage_examples.py)

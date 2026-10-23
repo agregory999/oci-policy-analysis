@@ -51,7 +51,7 @@ every regular policy fact in this iteration.
   and marks associations as deduced. Both UIs use this service, but the desktop
   still adds its own interpretation.
 - The desktop `CrossTenancyTab` at
-  `src/oci_policy_analysis/presentation/desktop/cross_tenancy_tab.py` currently
+  `src/oci_policy_analysis/presentation/tk/cross_tenancy_tab.py` currently
   has a local tenancy panel, tenancy table, statement table, Findings notebook
   page, JSON popup details, and a Refresh button. It does not draw the graph.
   Its text filter searches serialized rows, unlike the web page's statement-only
@@ -72,7 +72,7 @@ every regular policy fact in this iteration.
   authorization facts and exclusions. Cross-tenancy needs a separate corpus
   because unresolved, ambiguous, special, and partially parsed statements must
   remain visible in the graph and diagnostics.
-- `DebuggerTab` at `src/oci_policy_analysis/presentation/desktop/debugger_tab.py`
+- `DebuggerTab` at `src/oci_policy_analysis/presentation/tk/debugger_tab.py`
   already has `Policy Corpus` as a source and both Text and lazy Tree modes.
   Its `_get_source_data()` calls `corpus.to_dict()` repeatedly, including on
   tree expansion; keep large data conversion costs in mind.

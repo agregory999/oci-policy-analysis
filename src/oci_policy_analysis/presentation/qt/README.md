@@ -1,9 +1,10 @@
-# Qt workbench status
+# Modern desktop app status
 
-The Qt workbench is an optional desktop presentation of the existing analysis
-core. It is a working exploration of a replacement for Tkinter, with working analysis/settings pages and clearly labeled planned workflows. It is not yet a complete replacement or a separately released desktop
-package. Keep this file current when adding a page, changing a core dependency,
-or closing one of the gaps below.
+The modern desktop app uses the same analysis core as the original Tkinter
+desktop, CLI, web app, and MCP server. Both desktop apps are maintained; the
+modern app will be the default desktop experience going forward. Keep this file
+current when adding a page, changing a core dependency, or closing one of the
+gaps below.
 
 ## Start
 
@@ -12,14 +13,13 @@ From a source checkout, install the Qt extra and refresh the console commands:
 ```bash
 uv sync --extra qt --extra web --extra mcp
 source .venv/bin/activate
-oci-policy-analysis-qt
-oci-policy-analysis-qt --sample
-oci-policy-analysis-qt --verbose
+oci-policy-analysis-ui
+oci-policy-analysis-ui --verbose
 ```
 
 On Windows, activate with `.venv\Scripts\Activate.ps1`. Without activation, use
-`.venv/bin/oci-policy-analysis-qt` on macOS/Linux, or
-`.venv\Scripts\oci-policy-analysis-qt.exe` on Windows. The equivalent module
+`.venv/bin/oci-policy-analysis-ui` on macOS/Linux, or
+`.venv\Scripts\oci-policy-analysis-ui.exe` on Windows. The equivalent module
 command is `python -m oci_policy_analysis.presentation.qt`.
 
 For an installed build that includes Qt, use `python -m pip install
@@ -27,7 +27,7 @@ For an installed build that includes Qt, use `python -m pip install
 This branch's additions must be released before they are available from PyPI.
 Add the `mcp` extra only when using embedded MCP. Embedded assistants require their
 external CLI and the operator's login; it is not installed by either extra.
-The existing `oci-policy-analysis-ui` command continues to launch Tkinter.
+The legacy `oci-policy-analysis-legacy-ui` command continues to launch the Tkinter desktop.
 
 ## Design goals and current assessment
 
@@ -342,7 +342,7 @@ For focused checks, run `python -m pytest src/test/test_qt_launcher.py
 src/test/test_qt_workbench.py -q`. Before release, run the full project checks in
 [AGENTS.md](../../../../AGENTS.md), build a wheel and verify it from a directory
 outside the checkout. See [embedding and lifecycle guidance](../../../../docs/source/core_integration.md)
-and the [MCP/Codex guide](../../../../docs/source/qt_mcp_codex.md).
+and the [MCP & Assistant overview](../../../../docs/source/usage.md#mcp-assistant).
 
 Update on 2026-10-16: added the saved central experience-mode switch, navigation
 registry and planned workflow destinations, native Tools tabs, and reusable
@@ -512,7 +512,7 @@ not a stored snapshot field, and requires no cache migration.
 
 ## Local Qt executable builds
 
-Use `run/build-executable.sh qt` or `run/build-executable.ps1 qt` to build the
+Use `run/build-executable.sh ui` or `run/build-executable.ps1 ui` to build the
 checked-out source with Nuitka and its PySide6 plugin. `--mode onefile` selects a
 single executable on the native platform; macOS standalone builds produce an app bundle.
 `--dry-run` prints the exact command. The shared Python builder runs source
@@ -601,26 +601,6 @@ confirmation. Cache selectors refresh after changes; the loaded snapshot stays i
 memory. Mutations are blocked during loads, analysis, reports, simulation, historical
 comparison and embedded MCP. Combined-cache version 2/schema 3 and index field
 names are unchanged; no migration is required and old snapshots remain readable.
-
-
-## Usage publication and companion analytics
-
-Overview & settings includes a Usage tracking section. Publication defaults on
-while preserving an existing shared opt-out; disabling immediately discards
-pending data. The launcher creates a UsageSession; embedding WorkbenchWindow
-keeps publication off unless `record_usage=True` is explicit. Events use fixed
-page/subview identifiers and aggregate counts; no user input or policy contents
-are recorded by the Qt adapter. Background uploads occur on exit and tenancy
-changes; there is no disk spool or retry.
-
-Run `python -m oci_policy_analysis.analytics.qt` or `oci-policy-analysis-analytics`
-for the companion Qt viewer. The native executable supports `--analytics` and
-`--days 0` for all history. It requires a separate runtime read/list PAR via
-`OCI_POLICY_ANALYSIS_ANALYTICS_PAR_URL` or its masked input, or local JSON exports.
-It uses shared models and aggregations, keeps old documents readable, reports
-partial reads, follows listing pagination, and never publishes tracking. The
-frozen smoke check covers both windows offline. Full review and setup details
-are in `docs/source/usage_tracking.md`.
 
 
 ## Startup preferences and policy browser presentation

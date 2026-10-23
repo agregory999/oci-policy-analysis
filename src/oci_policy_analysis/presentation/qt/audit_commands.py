@@ -2,7 +2,6 @@
 
 from PySide6.QtWidgets import (
     QApplication,
-    QCheckBox,
     QComboBox,
     QDialog,
     QFormLayout,
@@ -28,7 +27,7 @@ class AuditCommandsDialog(QDialog):
 
     def __init__(self, change, metadata, parent=None):
         super().__init__(parent)
-        self.setWindowTitle('Find OCI Audit Records')
+        self.setWindowTitle('Find OCI Audit Records (Logging Search)')
         self.resize(1000, 690)
         layout = QVBoxLayout(self)
         layout.addWidget(label(AuditCommandService.NOTE, 'notice', wrap=True))
@@ -36,7 +35,7 @@ class AuditCommandsDialog(QDialog):
         defaults = AuditCommandService.defaults(change, metadata)
         self.fields = {}
         for key, title in [
-            ('compartment_id', 'Compartment OCID'),
+            ('compartment_id', 'Policy/resource compartment OCID'),
             ('resource_id', 'Resource OCID (optional)'),
             ('start_time', 'Start (inclusive, UTC/offset)'),
             ('end_time', 'End (exclusive, UTC/offset)'),
@@ -50,8 +49,6 @@ class AuditCommandsDialog(QDialog):
         self.shell.addItem('POSIX shell', 'posix')
         self.shell.addItem('PowerShell', 'powershell')
         form.addRow('Command shell', self.shell)
-        self.fetch_all = QCheckBox('Fetch every page (--all; may be slow)')
-        form.addRow('Result pages', self.fetch_all)
         layout.addLayout(form)
         self.status = label(
             'Generate contiguous windows of at most 14 days. Times expand to minute boundaries.', 'muted', wrap=True
@@ -74,7 +71,6 @@ class AuditCommandsDialog(QDialog):
         for field in self.fields.values():
             field.textChanged.connect(self._invalidate)
         self.shell.currentIndexChanged.connect(self._invalidate)
-        self.fetch_all.toggled.connect(self._invalidate)
 
     def _invalidate(self, *_):
         self.output.clear()
@@ -87,7 +83,6 @@ class AuditCommandsDialog(QDialog):
                 {
                     **{key: field.text() for key, field in self.fields.items()},
                     'shell': self.shell.currentData(),
-                    'fetch_all': self.fetch_all.isChecked(),
                 }
             )
         except ValueError as exc:
@@ -96,7 +91,7 @@ class AuditCommandsDialog(QDialog):
             return
         self.output.setPlainText('\n\n'.join(result['commands']))
         self.copy.setEnabled(True)
-        paging = 'All result pages; may be slow.' if result['fetch_all'] else 'First page per window.'
+        paging = f'At most {result["limit"]} results per window; additional pages may exist.'
         self.status.setText(
             f'{len(result["commands"])} commands · {paging} · Start inclusive, end exclusive · No OCI calls performed.'
         )

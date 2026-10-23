@@ -3,7 +3,7 @@
 from types import SimpleNamespace
 
 from oci_policy_analysis.application.services.historical_analysis_service import HistoricalAnalysisService
-from oci_policy_analysis.presentation.desktop.historical_tab import HistoricalTab
+from oci_policy_analysis.presentation.tk.historical_tab import HistoricalTab
 
 
 class _Tree:

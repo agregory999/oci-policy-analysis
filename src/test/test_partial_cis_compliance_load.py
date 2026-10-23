@@ -19,9 +19,9 @@ from oci_policy_analysis.application.core.repo.policy_analysis_repository import
 from oci_policy_analysis.application.services.recommendations_service import RecommendationsService
 from oci_policy_analysis.application.services.reports_service import ReportsService
 from oci_policy_analysis.main import App
-from oci_policy_analysis.presentation.desktop.consolidation_workbench_tab import ConsolidationWorkbenchTab
-from oci_policy_analysis.presentation.desktop.policy_recommendations_tab import PolicyRecommendationsTab
-from oci_policy_analysis.presentation.desktop.workload_principals_tab import WorkloadPrincipalsTab
+from oci_policy_analysis.presentation.tk.consolidation_workbench_tab import ConsolidationWorkbenchTab
+from oci_policy_analysis.presentation.tk.policy_recommendations_tab import PolicyRecommendationsTab
+from oci_policy_analysis.presentation.tk.workload_principals_tab import WorkloadPrincipalsTab
 
 
 def _write_csv(path: Path, fieldnames: list[str], rows: list[dict[str, str]]) -> None:

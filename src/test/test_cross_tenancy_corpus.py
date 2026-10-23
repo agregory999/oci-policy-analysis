@@ -10,7 +10,7 @@ from oci_policy_analysis.application.core.engine.intelligence_strategies.cross_t
 )
 from oci_policy_analysis.application.core.engine.policy_intelligence_engine import PolicyIntelligenceEngine
 from oci_policy_analysis.application.services.cross_tenancy_analysis_service import CrossTenancyAnalysisService
-from oci_policy_analysis.presentation.desktop.cross_tenancy_tab import selected_rows
+from oci_policy_analysis.presentation.tk.cross_tenancy_tab import selected_rows
 
 
 def _repo():

@@ -172,7 +172,7 @@ def test_policy_graph_component_is_configurable_in_both_interfaces(monkeypatch):
     assert settings['log_levels'][component] == 'INFO'
     assert (component, 'INFO') in calls
     package = Path(__file__).parents[1] / 'oci_policy_analysis'
-    for relative in ('presentation/desktop/console_tab.py', 'presentation/web/static/logging.html'):
+    for relative in ('presentation/tk/console_tab.py', 'presentation/web/static/logging.html'):
         assert f"'{component}'" in (package / relative).read_text()
 
 

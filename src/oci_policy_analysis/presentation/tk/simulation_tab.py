@@ -25,14 +25,14 @@ from tkinter import ttk
 from oci_policy_analysis.application.core.engine import PolicySimulationEngine
 from oci_policy_analysis.application.core.support.logger import get_logger
 from oci_policy_analysis.application.core.support.usage_tracking import get_usage_tracker
-from oci_policy_analysis.presentation.desktop.base_tab import BaseUITab
-from oci_policy_analysis.presentation.desktop.data_table import CheckboxTable
+from oci_policy_analysis.presentation.tk.base_tab import BaseUITab
+from oci_policy_analysis.presentation.tk.data_table import CheckboxTable
 
 # NOTE: ProspectiveEditorWindow is now the primary editor for prospective
 # (what-if) policy statements. The inline editor embedded in this tab is
 # deprecated and kept only as a non-interactive preview until it is fully
 # removed.
-from oci_policy_analysis.presentation.desktop.prospective_editor_window import ProspectiveEditorWindow
+from oci_policy_analysis.presentation.tk.prospective_editor_window import ProspectiveEditorWindow
 
 logger = get_logger(component='simulation_tab')
 

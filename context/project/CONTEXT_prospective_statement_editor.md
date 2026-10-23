@@ -102,11 +102,11 @@ The service is the canonical, tenancy‑scoped API for what‑if statements.
 ```python
 @dataclass
 class ProspectiveStatementRecord:
-    id: str                 # UUID (stable across edits)
+    id: str  # UUID (stable across edits)
     tenancy_ocid: str
-    compartment_path: str   # e.g. "ROOT/Finance"
-    description: str        # human‑friendly label
-    statement_text: str     # full OCI IAM statement
+    compartment_path: str  # e.g. "ROOT/Finance"
+    description: str  # human‑friendly label
+    statement_text: str  # full OCI IAM statement
     parsed: bool = False
     valid: bool = False
     invalid_reasons: list[str] = field(default_factory=list)
@@ -142,9 +142,9 @@ class ProspectiveStatementRecord:
 
     ```python
     {
-        "compartment_path": "ROOT/Finance",
-        "description": "Finance what‑if",
-        "statement_text": "Allow ...",
+        'compartment_path': 'ROOT/Finance',
+        'description': 'Finance what‑if',
+        'statement_text': 'Allow ...',
     }
     ```
 
@@ -168,13 +168,13 @@ class ProspectiveStatementRecord:
 
       ```python
       {
-          "compartment_path": rec.compartment_path,
-          "description": rec.description,
-          "statement_text": rec.statement_text,
-          "parsed": rec.parsed,
-          "valid": rec.valid,
-          "invalid_reasons": [...],
-          "normalized": {...},
+          'compartment_path': rec.compartment_path,
+          'description': rec.description,
+          'statement_text': rec.statement_text,
+          'parsed': rec.parsed,
+          'valid': rec.valid,
+          'invalid_reasons': [...],
+          'normalized': {...},
       }
       ```
 
@@ -423,13 +423,13 @@ shared source of truth for prospective what‑if statements.
 - Prospective service and model:
   - `src/oci_policy_analysis/logic/prospective_statements_service.py`
 - Prospective editor window (this UI):
-  - `src/oci_policy_analysis/presentation/desktop/prospective_editor_window.py`
+  - `src/oci_policy_analysis/presentation/tk/prospective_editor_window.py`
 - Simulation engine and prospective behavior:
   - [`CONTEXT_simulation_engine.md`](CONTEXT_simulation_engine.md)
   - `src/oci_policy_analysis/logic/simulation_engine.py`
 - Policies tab (prospective view and editor entry point):
   - [`CONTEXT_policies_tab.md`](CONTEXT_policies_tab.md)
-  - `src/oci_policy_analysis/presentation/desktop/policies_tab.py`
+  - `src/oci_policy_analysis/presentation/tk/policies_tab.py`
 - Tag‑based Access tab (builder integration):
   - [`CONTEXT_tag_based_access_tab.md`](CONTEXT_tag_based_access_tab.md)
-  - `src/oci_policy_analysis/presentation/desktop/tag_based_access_tab.py`
+  - `src/oci_policy_analysis/presentation/tk/tag_based_access_tab.py`

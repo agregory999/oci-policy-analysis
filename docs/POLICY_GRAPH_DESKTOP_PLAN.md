@@ -53,7 +53,7 @@ inherited grants or claim that conditions and denies have been evaluated.
 
 ## Prototype implementation
 
-1. Create `presentation/desktop/policy_graph_tab.py` as a `BaseUITab`. Use the
+1. Create `presentation/tk/policy_graph_tab.py` as a `BaseUITab`. Use the
    web title and byline, context help, standard font settings, and documentation
    link. Place the tab beside Policy Analysis.
 2. Provide Principal, Resource or permission, Effective path, Policy or

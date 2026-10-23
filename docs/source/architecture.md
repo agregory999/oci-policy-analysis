@@ -1,6 +1,6 @@
 # Architecture
 
-OCI Policy Analysis has four interfaces—desktop, CLI, FastAPI web, and FastMCP—over shared application services, repositories, and analysis engines. The application loads a snapshot of OCI IAM and policy data, retains the original evidence, and derives models for search, reporting, and simulation. These models represent the tool’s understanding of that snapshot; they are not the OCI policy engine and do not make authoritative OCI authorization decisions.
+OCI Policy Analysis has four interfaces — desktop, CLI, FastAPI web, and FastMCP—over shared application services, repositories, and analysis engines. The application loads a snapshot of OCI IAM and policy data, retains the original evidence, and derives models for search, reporting, and simulation. These models represent the tool’s understanding of that snapshot; they are not the OCI policy engine and do not make authoritative OCI authorization decisions.
 
 The overview diagram shows the major components:
 
@@ -50,7 +50,7 @@ Modules under `application/core/` contain the repository, permission reference d
 
 **Platform support**
 
-Configuration, cache storage, logging, and usage tracking support each consumer. OCI client operations use the official SDK; presentation adapters do not need their own policy grammar or permission expansion logic.
+Configuration, cache storage, and logging support each consumer. OCI client operations use the official SDK; presentation adapters do not need their own policy grammar or permission expansion logic.
 
 ---
 
@@ -228,14 +228,12 @@ flowchart TB
         CFG["Settings and Config"]
         CACHE["CacheManager"]
         LOG["Logging System"]
-        TRACK["Usage Tracking"]
     end
 
     subgraph X[External Sources and Sinks]
         direction TB
         OCI["OCI Python SDK"]
         CIS["CIS Compliance CSV Output"]
-        OBJ["Object Storage Bucket<br/>usage tracking artifacts"]
     end
 
     D --> M
@@ -253,10 +251,9 @@ flowchart TB
     REPO --> CIS
     CFG --> CACHE
     CFG --> LOG
-    TRACK --> OBJ
 ```
 
-### Cross-Cutting Operations (Settings, Logging, Usage)
+### Cross-Cutting Operations (Settings and Logging)
 
 ```mermaid
 flowchart TB
@@ -272,11 +269,9 @@ flowchart TB
         direction TB
         CFG["Settings and Config"]
         LOG["Logging System"]
-        TRACK["Usage Tracking"]
         CACHE["CacheManager"]
     end
 
-    OBJ["Object Storage Bucket"]
 
     UI --> CFG
     WEB --> CFG
@@ -288,13 +283,8 @@ flowchart TB
     CLI --> LOG
     MCP --> LOG
 
-    UI --> TRACK
-    WEB --> TRACK
-    CLI --> TRACK
-    MCP --> TRACK
 
     CFG --> CACHE
-    TRACK --> OBJ
 ```
 
 ## Canonical principal identity
@@ -330,7 +320,7 @@ listener locks loading until shutdown. The optional Codex and Claude Code
 adapters use child processes and JSONL streaming; model turns require explicit Send. External desktop launchers leave
 conversation and MCP configuration in the selected app.
 The core has no PySide6 dependency. See
-[Qt desktop guide](qt_desktop.md) for lifecycle details and the
+[new desktop usage guide](usage.md) for workflow details and the
 [7.0 guide](release_7_0.md) for current navigation and compatibility.
 
 The Qt presentation's `ExperienceMode` owns the saved Standard/Advanced display
@@ -452,15 +442,6 @@ boundary. The Qt adapter explicitly enables observed differences for incomplete
 collections, with per-section warnings in the result, inspector and exports. This
 does not override missing-section, inherited-IAM or scope checks. An all-skipped
 comparison is presented as unperformed rather than a zero-change finding.
-
-The Qt launcher owns a `UsageSession` over the shared usage tracker. It records
-fixed UI identifiers and aggregate counts, rotates on tenancy changes and queues
-best-effort uploads outside the GUI thread. Direct `WorkbenchWindow` embedding
-does not activate publishing unless requested. The independent Qt analytics
-window reuses the existing read models and aggregators over a read/list PAR or
-local JSON; it never initializes usage publication. Writer schema additions are
-optional and require no historical-object migration. See [Usage tracking and
-analytics](usage_tracking.md) for the compatibility assessment and lifecycle.
 
 Qt restores load controls from the existing settings keys and merges only changed
 preferences on save. Debounced load-control edits are flushed before a live load

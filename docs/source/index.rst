@@ -11,6 +11,7 @@ Full documentation
    setup
    architecture
    usage
+   usage_legacy
    logging_and_troubleshooting
 
 .. toctree::
@@ -19,9 +20,6 @@ Full documentation
 
    simulation
    core_integration
-   qt_desktop
-   qt_mcp_codex
-   usage_tracking
    consolidation
    recommendations
    reports
@@ -35,8 +33,8 @@ Full documentation
 
    cli
    mcp
-   mcp_examples
    mcp_oauth
+   mcp_assistant
 
 .. toctree::
    :maxdepth: 1

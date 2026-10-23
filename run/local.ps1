@@ -2,7 +2,7 @@
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "common.ps1")
 
-$Mode = if ($env:LOCAL_MODE) { $env:LOCAL_MODE } else { "desktop" }
+$Mode = if ($env:LOCAL_MODE) { $env:LOCAL_MODE } else { "ui" }
 $HostBind = if ($env:LOCAL_HOST) { $env:LOCAL_HOST } else { "127.0.0.1" }
 $PortBind = $null
 $Reload = $false
@@ -38,7 +38,7 @@ for ($i = 0; $i -lt $args.Count; $i++) {
         }
         default {
             Write-Host "❌ Unknown argument: $($args[$i])"
-            Write-Host "Usage: ./local-run.ps1 --mode desktop|web|cli|mcp [--host HOST] [--port PORT] [--reload] [--transport stdio|streamable-http] [-- <extra args>]"
+            Write-Host "Usage: ./local-run.ps1 --mode ui|legacy-ui|web|cli|mcp [--host HOST] [--port PORT] [--reload] [--transport stdio|streamable-http] [-- <extra args>]"
             exit 1
         }
     }
@@ -72,8 +72,11 @@ Write-Host "🚀 Running OCI Policy Analysis..."
 Write-Host "-----------------------------------------------"
 
 switch ($Mode) {
-    "desktop" {
-        python -m oci_policy_analysis.main $Passthrough
+    { $_ -in "ui", "desktop" } {
+        oci-policy-analysis-ui @Passthrough
+    }
+    { $_ -in "legacy-ui", "legacy-desktop" } {
+        oci-policy-analysis-legacy-ui @Passthrough
     }
     "web" {
         $WebArgs = @("--host", $HostBind, "--port", "$PortBind")
@@ -94,7 +97,7 @@ switch ($Mode) {
     }
     default {
         Write-Host "❌ Invalid mode: $Mode"
-        Write-Host "   Valid modes: desktop, web, cli, mcp"
+        Write-Host "   Valid modes: ui, legacy-ui, web, cli, mcp"
         exit 1
     }
 }

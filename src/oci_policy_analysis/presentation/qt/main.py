@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QListWidget,
     QMainWindow,
     QProgressBar,
+    QPushButton,
     QSizePolicy,
     QStackedWidget,
     QTableView,
@@ -88,7 +89,7 @@ class WorkbenchWindow(QMainWindow):
             record_usage: Activate usage lifecycle; the launcher enables this, embedding defaults off.
         """
         super().__init__()
-        self.setWindowTitle('OCI Policy Analysis · Preview')
+        self.setWindowTitle('OCI Policy Analysis')
         self.setWindowIcon(application_icon())
         self.resize(1440, 900)
         self.setMinimumSize(1100, 760)
@@ -164,6 +165,9 @@ class WorkbenchWindow(QMainWindow):
         self.navigation.setWordWrap(True)
         self.navigation.setTextElideMode(Qt.TextElideMode.ElideNone)
         self.navigation.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        # Let the list use the sidebar's remaining height. Its own vertical
+        # scrollbar appears only when the visible items exceed that space.
+        self.navigation.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         # Navigation order and Standard/Advanced access policy live in this registry.
         self.page_specs = [
             ('overview', 'Overview & Settings', self.settings_page, False),
@@ -180,12 +184,16 @@ class WorkbenchWindow(QMainWindow):
             ('permissions', 'Permissions Analysis', self.permissions_page, True),
             ('prospective', 'Prospective Statements', self.prospective_page, True),
             ('simulation', 'Simulation', self.simulation_page, True),
-            ('consolidation', 'Consolidation', self.consolidation_page, True),
+            ('consolidation', 'Consolidation Workbench', self.consolidation_page, True),
             ('historical', 'Historical Comparison', self.historical_page, True),
             ('tools', 'Tools', self.tools_page, False),
         ]
         self.navigation.addItems([title for key, title, _page, _advanced in self.page_specs])
-        side.addWidget(self.navigation)
+        side.addWidget(self.navigation, 1)
+        self.live_log_button = QPushButton('Live Log')
+        self.live_log_button.setObjectName('navigationLog')
+        self.live_log_button.setToolTip('Open the live application log and load activity.')
+        side.addWidget(self.live_log_button)
         layout.addWidget(sidebar)
         body = QVBoxLayout()
         body.setContentsMargins(30, 28, 30, 16)
@@ -249,6 +257,7 @@ class WorkbenchWindow(QMainWindow):
         self.log_dock.hide()
         self.menuBar().addMenu('View').addAction(self.log_dock.toggleViewAction())
         self.settings_page.show_log_requested.connect(self._show_logs)
+        self.live_log_button.clicked.connect(self._show_logs)
         self.settings_page.usage_changed.connect(self._usage_changed)
         self.settings_page.appearance_panel.changed.connect(self._apply_appearance)
         self.tools_page.show_logs.connect(self._show_logs)
@@ -768,6 +777,7 @@ class WorkbenchWindow(QMainWindow):
             event.ignore()
             self.mcp_page.stop_all()
         else:
+            self.graph_page.cancel_pending_selection()
             self.settings_page.save_load_preferences()
             if self.usage:
                 self.usage.close(wait=False)
@@ -787,13 +797,12 @@ def main(argv: list[str] | None = None) -> int:
         int: Qt application exit code.
 
     Notes:
-        --sample loads fictional data through LoadService. OCI authentication
-        occurs only after the user requests a live load on Overview & settings.
+        Sample data is loaded from Overview & Settings after the window opens.
+        OCI authentication occurs only after the user requests a live load.
     """
-    parser = argparse.ArgumentParser(description='OCI Policy Analysis Qt desktop preview')
+    parser = argparse.ArgumentParser(description='OCI Policy Analysis desktop application')
     parser.add_argument('--analytics', action='store_true', help='Open the standalone usage analytics viewer')
     parser.add_argument('--days', type=int, default=30, help='Analytics initial date window; 0 means all history')
-    parser.add_argument('--sample', action='store_true', help='Load fictional data without contacting OCI')
     parser.add_argument(
         '--verbose', '--debug', action='store_true', help='DEBUG to shell/app.log; in-app logs remain INFO+'
     )
@@ -805,12 +814,10 @@ def main(argv: list[str] | None = None) -> int:
     application = QApplication.instance() or QApplication([sys.argv[0]])
     application.setStyle('Fusion')
     application.setApplicationName('OCI Policy Analysis')
-    application.setApplicationDisplayName('OCI Policy Analysis · Preview')
+    application.setApplicationDisplayName('OCI Policy Analysis')
     application.setWindowIcon(application_icon())
     window = WorkbenchWindow(verbose=args.verbose, record_usage=True)
     window.show()
-    if args.sample:
-        window.settings_page.load_sample()
     try:
         return application.exec()
     finally:

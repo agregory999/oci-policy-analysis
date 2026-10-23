@@ -6,7 +6,7 @@
   "snapshot_kind": "synthetic-demo",
   "inventory_complete": false,
   "data_as_of": "Synthetic sample — no OCI collection",
-  "sample_provenance": "Reconstructed from anonymized CIS landing-zone policy patterns. All names, identifiers, memberships and inventory are fictional; not a deployment template.",
+  "sample_provenance": "All names, identifiers, memberships and inventory are fictional. Demonstrates a Landing Zone, a separate Corporate IT compartment tree, Default and Secondary identity domains, root visibility grants, and an opt-in IAM deny-policy example; not a deployment template.",
   "policies": [
     {
       "policy_name": "Security-LandingZone-01",
@@ -707,6 +707,41 @@
       "compartment_ocid": "ocid1.compartment.oc1..sample0001",
       "compartment_path": "ROOT/LandingZone",
       "description": "Synthetic CIS-style landing-zone example"
+    },
+    {
+      "policy_name": "Tenant Admin Policy",
+      "policy_ocid": "ocid1.policy.oc1..sample0101",
+      "compartment_ocid": "ocid1.tenancy.oc1..sample0001",
+      "compartment_path": "ROOT",
+      "description": "Fictional break-glass access for the built-in Default domain Administrators group."
+    },
+    {
+      "policy_name": "Alternate Domain Administrators",
+      "policy_ocid": "ocid1.policy.oc1..sample0102",
+      "compartment_ocid": "ocid1.tenancy.oc1..sample0001",
+      "compartment_path": "ROOT",
+      "description": "Fictional alternate admin group with broad tenancy permissions; not exempt from deny policies."
+    },
+    {
+      "policy_name": "Corporate IT Administration",
+      "policy_ocid": "ocid1.policy.oc1..sample0103",
+      "compartment_ocid": "ocid1.compartment.oc1..sample0023",
+      "compartment_path": "ROOT/CorporateIT",
+      "description": "Fictional delegated administration for the non-Landing Zone Corporate IT tree."
+    },
+    {
+      "policy_name": "Landing Zone Tenancy Visibility",
+      "policy_ocid": "ocid1.policy.oc1..sample0104",
+      "compartment_ocid": "ocid1.tenancy.oc1..sample0001",
+      "compartment_path": "ROOT",
+      "description": "Fictional root-level grants for selected Landing Zone group visibility."
+    },
+    {
+      "policy_name": "Production Secret Guardrail",
+      "policy_ocid": "ocid1.policy.oc1..sample0105",
+      "compartment_ocid": "ocid1.tenancy.oc1..sample0001",
+      "compartment_path": "ROOT",
+      "description": "Fictional deny policy; OCI IAM deny policies must be enabled for this example to be enforceable."
     }
   ],
   "policy_statements": [
@@ -910,12 +945,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "StorageAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/storageadmins"
+        "group:secondary/storageadmins"
       ],
       "verb": "manage",
       "resource": "tag-namespaces",
@@ -944,7 +979,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group StorageAdmins to manage tag-namespaces in compartment Security",
+      "statement_text": "Allow group 'Secondary'/'StorageAdmins' to manage tag-namespaces in compartment Security",
       "parsed": true
     },
     {
@@ -959,12 +994,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "DatabaseAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/databaseadmins"
+        "group:secondary/databaseadmins"
       ],
       "verb": "manage",
       "resource": "secret-family",
@@ -993,7 +1028,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group DatabaseAdmins to manage secret-family in compartment Security",
+      "statement_text": "Allow group 'Secondary'/'DatabaseAdmins' to manage secret-family in compartment Security",
       "parsed": true
     },
     {
@@ -1008,12 +1043,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ComputeAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/computeadmins"
+        "group:secondary/computeadmins"
       ],
       "verb": "read",
       "resource": "instance-agent-plugins",
@@ -1042,7 +1077,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ComputeAdmins to read instance-agent-plugins in compartment Security",
+      "statement_text": "Allow group 'Secondary'/'ComputeAdmins' to read instance-agent-plugins in compartment Security",
       "parsed": true
     },
     {
@@ -1057,12 +1092,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "AppDevelopers"
         ]
       ],
       "principal_keys": [
-        "group:default/appdevelopers"
+        "group:secondary/appdevelopers"
       ],
       "verb": "read",
       "resource": "keys",
@@ -1091,7 +1126,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group AppDevelopers to read keys in compartment Security",
+      "statement_text": "Allow group 'Secondary'/'AppDevelopers' to read keys in compartment Security",
       "parsed": true
     },
     {
@@ -1106,12 +1141,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ComputeAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/computeadmins"
+        "group:secondary/computeadmins"
       ],
       "verb": "manage",
       "resource": "policies",
@@ -1140,7 +1175,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ComputeAdmins to manage policies in compartment Security",
+      "statement_text": "Allow group 'Secondary'/'ComputeAdmins' to manage policies in compartment Security",
       "parsed": true
     },
     {
@@ -1155,12 +1190,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "AppDevelopers"
         ]
       ],
       "principal_keys": [
-        "group:default/appdevelopers"
+        "group:secondary/appdevelopers"
       ],
       "verb": "manage",
       "resource": "compartments",
@@ -1189,7 +1224,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group AppDevelopers to manage compartments in compartment Security",
+      "statement_text": "Allow group 'Secondary'/'AppDevelopers' to manage compartments in compartment Security",
       "parsed": true
     },
     {
@@ -1204,12 +1239,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "PlatformOperators"
         ]
       ],
       "principal_keys": [
-        "group:default/platformoperators"
+        "group:secondary/platformoperators"
       ],
       "verb": "read",
       "resource": "all-resources",
@@ -1238,7 +1273,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group PlatformOperators to read all-resources in compartment Security",
+      "statement_text": "Allow group 'Secondary'/'PlatformOperators' to read all-resources in compartment Security",
       "parsed": true
     },
     {
@@ -1253,12 +1288,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ReadOnly"
         ]
       ],
       "principal_keys": [
-        "group:default/readonly"
+        "group:secondary/readonly"
       ],
       "verb": "manage",
       "resource": "orm-stacks",
@@ -1287,7 +1322,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ReadOnly to manage orm-stacks in compartment Security",
+      "statement_text": "Allow group 'Secondary'/'ReadOnly' to manage orm-stacks in compartment Security",
       "parsed": true
     },
     {
@@ -1302,12 +1337,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "IdentityAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/identityadmins"
+        "group:secondary/identityadmins"
       ],
       "verb": "manage",
       "resource": "cloud-vmclusters",
@@ -1336,7 +1371,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group IdentityAdmins to manage cloud-vmclusters in compartment Security",
+      "statement_text": "Allow group 'Secondary'/'IdentityAdmins' to manage cloud-vmclusters in compartment Security",
       "parsed": true
     },
     {
@@ -1351,12 +1386,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "KeyAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/keyadmins"
+        "group:secondary/keyadmins"
       ],
       "verb": "manage",
       "resource": "bastion-session",
@@ -1385,7 +1420,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group KeyAdmins to manage bastion-session in compartment Security",
+      "statement_text": "Allow group 'Secondary'/'KeyAdmins' to manage bastion-session in compartment Security",
       "parsed": true
     },
     {
@@ -1400,12 +1435,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "IdentityAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/identityadmins"
+        "group:secondary/identityadmins"
       ],
       "verb": "read",
       "resource": "bucket",
@@ -1434,7 +1469,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group IdentityAdmins to read bucket in compartment Security",
+      "statement_text": "Allow group 'Secondary'/'IdentityAdmins' to read bucket in compartment Security",
       "parsed": true
     },
     {
@@ -1449,12 +1484,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "KeyAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/keyadmins"
+        "group:secondary/keyadmins"
       ],
       "verb": "manage",
       "resource": "object-family",
@@ -1546,7 +1581,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group KeyAdmins to manage object-family in compartment Security where any {request.permission = 'OBJECT_DELETE', request.permission = 'BUCKET_DELETE'}",
+      "statement_text": "Allow group 'Secondary'/'KeyAdmins' to manage object-family in compartment Security where any {request.permission = 'OBJECT_DELETE', request.permission = 'BUCKET_DELETE'}",
       "parsed": true
     },
     {
@@ -1561,12 +1596,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "LoggingAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/loggingadmins"
+        "group:secondary/loggingadmins"
       ],
       "verb": "manage",
       "resource": "volume-family",
@@ -1688,7 +1723,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group LoggingAdmins to manage volume-family in compartment Security where any {request.permission = 'VOLUME_DELETE', request.permission = 'VOLUME_BACKUP_DELETE', request.permission = 'BOOT_VOLUME_BACKUP_DELETE'}",
+      "statement_text": "Allow group 'Secondary'/'LoggingAdmins' to manage volume-family in compartment Security where any {request.permission = 'VOLUME_DELETE', request.permission = 'VOLUME_BACKUP_DELETE', request.permission = 'BOOT_VOLUME_BACKUP_DELETE'}",
       "parsed": true
     },
     {
@@ -1703,12 +1738,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "MonitoringAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/monitoringadmins"
+        "group:secondary/monitoringadmins"
       ],
       "verb": "manage",
       "resource": "file-family",
@@ -2100,7 +2135,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group MonitoringAdmins to manage file-family in compartment Security where any {request.permission = 'FILE_SYSTEM_DELETE', request.permission = 'MOUNT_TARGET_DELETE', request.permission = 'VNIC_DELETE', request.permission = 'SUBNET_DETACH', request.permission = 'VNIC_DETACH', request.permission = 'PRIVATE_IP_DELETE', request.permission = 'PRIVATE_IP_UNASSIGN', request.permission = 'VNIC_UNASSIGN', request.permission = 'EXPORT_SET_UPDATE', request.permission = 'ocid1.compartment.oc1..sample0002', request.permission = 'EXPORT_SET_DELETE', request.permission = 'FILE_SYSTEM_DELETE_SNAPSHOT'}",
+      "statement_text": "Allow group 'Secondary'/'MonitoringAdmins' to manage file-family in compartment Security where any {request.permission = 'FILE_SYSTEM_DELETE', request.permission = 'MOUNT_TARGET_DELETE', request.permission = 'VNIC_DELETE', request.permission = 'SUBNET_DETACH', request.permission = 'VNIC_DETACH', request.permission = 'PRIVATE_IP_DELETE', request.permission = 'PRIVATE_IP_UNASSIGN', request.permission = 'VNIC_UNASSIGN', request.permission = 'EXPORT_SET_UPDATE', request.permission = 'ocid1.compartment.oc1..sample0002', request.permission = 'EXPORT_SET_DELETE', request.permission = 'FILE_SYSTEM_DELETE_SNAPSHOT'}",
       "parsed": true
     },
     {
@@ -2115,12 +2150,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "LoggingAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/loggingadmins"
+        "group:secondary/loggingadmins"
       ],
       "verb": "read",
       "resource": "all-resources",
@@ -2149,7 +2184,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group LoggingAdmins to read all-resources in compartment Security",
+      "statement_text": "Allow group 'Secondary'/'LoggingAdmins' to read all-resources in compartment Security",
       "parsed": true
     },
     {
@@ -2164,12 +2199,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "MonitoringAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/monitoringadmins"
+        "group:secondary/monitoringadmins"
       ],
       "verb": "manage",
       "resource": "repos",
@@ -2198,7 +2233,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group MonitoringAdmins to manage repos in compartment Security",
+      "statement_text": "Allow group 'Secondary'/'MonitoringAdmins' to manage repos in compartment Security",
       "parsed": true
     },
     {
@@ -2213,12 +2248,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "BackupOperators"
         ]
       ],
       "principal_keys": [
-        "group:default/backupoperators"
+        "group:secondary/backupoperators"
       ],
       "verb": "read",
       "resource": "virtual-network-family",
@@ -2247,7 +2282,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group BackupOperators to read virtual-network-family in compartment Security",
+      "statement_text": "Allow group 'Secondary'/'BackupOperators' to read virtual-network-family in compartment Security",
       "parsed": true
     },
     {
@@ -2262,12 +2297,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ContainerAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/containeradmins"
+        "group:secondary/containeradmins"
       ],
       "verb": "read",
       "resource": "database-family",
@@ -2296,7 +2331,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ContainerAdmins to read database-family in compartment Security",
+      "statement_text": "Allow group 'Secondary'/'ContainerAdmins' to read database-family in compartment Security",
       "parsed": true
     },
     {
@@ -2605,12 +2640,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ComplianceReviewers"
         ]
       ],
       "principal_keys": [
-        "group:default/compliancereviewers"
+        "group:secondary/compliancereviewers"
       ],
       "verb": "read",
       "resource": "all-resources",
@@ -2639,7 +2674,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ComplianceReviewers to read all-resources in compartment Security",
+      "statement_text": "Allow group 'Secondary'/'ComplianceReviewers' to read all-resources in compartment Security",
       "parsed": true
     },
     {
@@ -2654,12 +2689,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "IncidentResponders"
         ]
       ],
       "principal_keys": [
-        "group:default/incidentresponders"
+        "group:secondary/incidentresponders"
       ],
       "verb": "read",
       "resource": "audit-events",
@@ -2688,7 +2723,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group IncidentResponders to read audit-events in compartment Security",
+      "statement_text": "Allow group 'Secondary'/'IncidentResponders' to read audit-events in compartment Security",
       "parsed": true
     },
     {
@@ -2703,12 +2738,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ProdOperators"
         ]
       ],
       "principal_keys": [
-        "group:default/prodoperators"
+        "group:secondary/prodoperators"
       ],
       "verb": "manage",
       "resource": "metrics",
@@ -2737,7 +2772,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ProdOperators to manage metrics in compartment Security",
+      "statement_text": "Allow group 'Secondary'/'ProdOperators' to manage metrics in compartment Security",
       "parsed": true
     },
     {
@@ -2752,12 +2787,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "TestOperators"
         ]
       ],
       "principal_keys": [
-        "group:default/testoperators"
+        "group:secondary/testoperators"
       ],
       "verb": "read",
       "resource": "logging-family",
@@ -2786,7 +2821,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group TestOperators to read logging-family in compartment Security",
+      "statement_text": "Allow group 'Secondary'/'TestOperators' to read logging-family in compartment Security",
       "parsed": true
     },
     {
@@ -3237,12 +3272,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "SandboxDevelopers"
         ]
       ],
       "principal_keys": [
-        "group:default/sandboxdevelopers"
+        "group:secondary/sandboxdevelopers"
       ],
       "verb": "manage",
       "resource": "generative-ai-response",
@@ -3271,7 +3306,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group SandboxDevelopers to manage generative-ai-response in compartment Security",
+      "statement_text": "Allow group 'Secondary'/'SandboxDevelopers' to manage generative-ai-response in compartment Security",
       "parsed": true
     },
     {
@@ -3286,12 +3321,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "CostReviewers"
         ]
       ],
       "principal_keys": [
-        "group:default/costreviewers"
+        "group:secondary/costreviewers"
       ],
       "verb": "manage",
       "resource": "generative-ai-family",
@@ -3320,7 +3355,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group CostReviewers to manage generative-ai-family in compartment Security",
+      "statement_text": "Allow group 'Secondary'/'CostReviewers' to manage generative-ai-family in compartment Security",
       "parsed": true
     },
     {
@@ -3335,12 +3370,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "Helpdesk"
         ]
       ],
       "principal_keys": [
-        "group:default/helpdesk"
+        "group:secondary/helpdesk"
       ],
       "verb": "manage",
       "resource": "object-family",
@@ -3369,7 +3404,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group Helpdesk to manage object-family in compartment Security",
+      "statement_text": "Allow group 'Secondary'/'Helpdesk' to manage object-family in compartment Security",
       "parsed": true
     },
     {
@@ -3433,12 +3468,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "Auditors"
         ]
       ],
       "principal_keys": [
-        "group:default/auditors"
+        "group:secondary/auditors"
       ],
       "verb": "read",
       "resource": "vaults",
@@ -3467,7 +3502,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group Auditors to read vaults in compartment Security",
+      "statement_text": "Allow group 'Secondary'/'Auditors' to read vaults in compartment Security",
       "parsed": true
     },
     {
@@ -3482,12 +3517,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "SecurityAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/securityadmins"
+        "group:secondary/securityadmins"
       ],
       "verb": "manage",
       "resource": "secret-family",
@@ -3516,7 +3551,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group SecurityAdmins to manage secret-family in compartment Security",
+      "statement_text": "Allow group 'Secondary'/'SecurityAdmins' to manage secret-family in compartment Security",
       "parsed": true
     },
     {
@@ -3866,12 +3901,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "DatabaseAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/databaseadmins"
+        "group:secondary/databaseadmins"
       ],
       "verb": "manage",
       "resource": "tag-namespaces",
@@ -3900,7 +3935,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group DatabaseAdmins to manage tag-namespaces in compartment Network",
+      "statement_text": "Allow group 'Secondary'/'DatabaseAdmins' to manage tag-namespaces in compartment Network",
       "parsed": true
     },
     {
@@ -3915,12 +3950,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ComputeAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/computeadmins"
+        "group:secondary/computeadmins"
       ],
       "verb": "manage",
       "resource": "secret-family",
@@ -3949,7 +3984,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ComputeAdmins to manage secret-family in compartment Network",
+      "statement_text": "Allow group 'Secondary'/'ComputeAdmins' to manage secret-family in compartment Network",
       "parsed": true
     },
     {
@@ -3964,12 +3999,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "AppDevelopers"
         ]
       ],
       "principal_keys": [
-        "group:default/appdevelopers"
+        "group:secondary/appdevelopers"
       ],
       "verb": "read",
       "resource": "instance-agent-plugins",
@@ -3998,7 +4033,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group AppDevelopers to read instance-agent-plugins in compartment Network",
+      "statement_text": "Allow group 'Secondary'/'AppDevelopers' to read instance-agent-plugins in compartment Network",
       "parsed": true
     },
     {
@@ -4013,12 +4048,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "PlatformOperators"
         ]
       ],
       "principal_keys": [
-        "group:default/platformoperators"
+        "group:secondary/platformoperators"
       ],
       "verb": "read",
       "resource": "keys",
@@ -4047,7 +4082,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group PlatformOperators to read keys in compartment Network",
+      "statement_text": "Allow group 'Secondary'/'PlatformOperators' to read keys in compartment Network",
       "parsed": true
     },
     {
@@ -4062,12 +4097,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "AppDevelopers"
         ]
       ],
       "principal_keys": [
-        "group:default/appdevelopers"
+        "group:secondary/appdevelopers"
       ],
       "verb": "manage",
       "resource": "policies",
@@ -4096,7 +4131,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group AppDevelopers to manage policies in compartment Network",
+      "statement_text": "Allow group 'Secondary'/'AppDevelopers' to manage policies in compartment Network",
       "parsed": true
     },
     {
@@ -4111,12 +4146,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "PlatformOperators"
         ]
       ],
       "principal_keys": [
-        "group:default/platformoperators"
+        "group:secondary/platformoperators"
       ],
       "verb": "manage",
       "resource": "compartments",
@@ -4145,7 +4180,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group PlatformOperators to manage compartments in compartment Network",
+      "statement_text": "Allow group 'Secondary'/'PlatformOperators' to manage compartments in compartment Network",
       "parsed": true
     },
     {
@@ -4160,12 +4195,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ReadOnly"
         ]
       ],
       "principal_keys": [
-        "group:default/readonly"
+        "group:secondary/readonly"
       ],
       "verb": "read",
       "resource": "all-resources",
@@ -4194,7 +4229,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ReadOnly to read all-resources in compartment Network",
+      "statement_text": "Allow group 'Secondary'/'ReadOnly' to read all-resources in compartment Network",
       "parsed": true
     },
     {
@@ -4209,12 +4244,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "IdentityAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/identityadmins"
+        "group:secondary/identityadmins"
       ],
       "verb": "manage",
       "resource": "orm-stacks",
@@ -4243,7 +4278,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group IdentityAdmins to manage orm-stacks in compartment Network",
+      "statement_text": "Allow group 'Secondary'/'IdentityAdmins' to manage orm-stacks in compartment Network",
       "parsed": true
     },
     {
@@ -4258,12 +4293,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "KeyAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/keyadmins"
+        "group:secondary/keyadmins"
       ],
       "verb": "manage",
       "resource": "cloud-vmclusters",
@@ -4292,7 +4327,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group KeyAdmins to manage cloud-vmclusters in compartment Network",
+      "statement_text": "Allow group 'Secondary'/'KeyAdmins' to manage cloud-vmclusters in compartment Network",
       "parsed": true
     },
     {
@@ -4307,12 +4342,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "LoggingAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/loggingadmins"
+        "group:secondary/loggingadmins"
       ],
       "verb": "manage",
       "resource": "bastion-session",
@@ -4341,7 +4376,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group LoggingAdmins to manage bastion-session in compartment Network",
+      "statement_text": "Allow group 'Secondary'/'LoggingAdmins' to manage bastion-session in compartment Network",
       "parsed": true
     },
     {
@@ -4356,12 +4391,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "KeyAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/keyadmins"
+        "group:secondary/keyadmins"
       ],
       "verb": "read",
       "resource": "bucket",
@@ -4390,7 +4425,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group KeyAdmins to read bucket in compartment Network",
+      "statement_text": "Allow group 'Secondary'/'KeyAdmins' to read bucket in compartment Network",
       "parsed": true
     },
     {
@@ -4405,12 +4440,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "LoggingAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/loggingadmins"
+        "group:secondary/loggingadmins"
       ],
       "verb": "manage",
       "resource": "object-family",
@@ -4502,7 +4537,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group LoggingAdmins to manage object-family in compartment Network where any {request.permission = 'OBJECT_DELETE', request.permission = 'BUCKET_DELETE'}",
+      "statement_text": "Allow group 'Secondary'/'LoggingAdmins' to manage object-family in compartment Network where any {request.permission = 'OBJECT_DELETE', request.permission = 'BUCKET_DELETE'}",
       "parsed": true
     },
     {
@@ -4517,12 +4552,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "MonitoringAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/monitoringadmins"
+        "group:secondary/monitoringadmins"
       ],
       "verb": "manage",
       "resource": "volume-family",
@@ -4644,7 +4679,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group MonitoringAdmins to manage volume-family in compartment Network where any {request.permission = 'VOLUME_DELETE', request.permission = 'VOLUME_BACKUP_DELETE', request.permission = 'BOOT_VOLUME_BACKUP_DELETE'}",
+      "statement_text": "Allow group 'Secondary'/'MonitoringAdmins' to manage volume-family in compartment Network where any {request.permission = 'VOLUME_DELETE', request.permission = 'VOLUME_BACKUP_DELETE', request.permission = 'BOOT_VOLUME_BACKUP_DELETE'}",
       "parsed": true
     },
     {
@@ -4659,12 +4694,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "BackupOperators"
         ]
       ],
       "principal_keys": [
-        "group:default/backupoperators"
+        "group:secondary/backupoperators"
       ],
       "verb": "manage",
       "resource": "file-family",
@@ -5056,7 +5091,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group BackupOperators to manage file-family in compartment Network where any {request.permission = 'FILE_SYSTEM_DELETE', request.permission = 'MOUNT_TARGET_DELETE', request.permission = 'VNIC_DELETE', request.permission = 'SUBNET_DETACH', request.permission = 'VNIC_DETACH', request.permission = 'PRIVATE_IP_DELETE', request.permission = 'PRIVATE_IP_UNASSIGN', request.permission = 'VNIC_UNASSIGN', request.permission = 'EXPORT_SET_UPDATE', request.permission = 'ocid1.compartment.oc1..sample0003', request.permission = 'EXPORT_SET_DELETE', request.permission = 'FILE_SYSTEM_DELETE_SNAPSHOT'}",
+      "statement_text": "Allow group 'Secondary'/'BackupOperators' to manage file-family in compartment Network where any {request.permission = 'FILE_SYSTEM_DELETE', request.permission = 'MOUNT_TARGET_DELETE', request.permission = 'VNIC_DELETE', request.permission = 'SUBNET_DETACH', request.permission = 'VNIC_DETACH', request.permission = 'PRIVATE_IP_DELETE', request.permission = 'PRIVATE_IP_UNASSIGN', request.permission = 'VNIC_UNASSIGN', request.permission = 'EXPORT_SET_UPDATE', request.permission = 'ocid1.compartment.oc1..sample0003', request.permission = 'EXPORT_SET_DELETE', request.permission = 'FILE_SYSTEM_DELETE_SNAPSHOT'}",
       "parsed": true
     },
     {
@@ -5071,12 +5106,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "MonitoringAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/monitoringadmins"
+        "group:secondary/monitoringadmins"
       ],
       "verb": "read",
       "resource": "all-resources",
@@ -5105,7 +5140,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group MonitoringAdmins to read all-resources in compartment Network",
+      "statement_text": "Allow group 'Secondary'/'MonitoringAdmins' to read all-resources in compartment Network",
       "parsed": true
     },
     {
@@ -5120,12 +5155,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "BackupOperators"
         ]
       ],
       "principal_keys": [
-        "group:default/backupoperators"
+        "group:secondary/backupoperators"
       ],
       "verb": "manage",
       "resource": "repos",
@@ -5154,7 +5189,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group BackupOperators to manage repos in compartment Network",
+      "statement_text": "Allow group 'Secondary'/'BackupOperators' to manage repos in compartment Network",
       "parsed": true
     },
     {
@@ -5169,12 +5204,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ContainerAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/containeradmins"
+        "group:secondary/containeradmins"
       ],
       "verb": "read",
       "resource": "virtual-network-family",
@@ -5203,7 +5238,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ContainerAdmins to read virtual-network-family in compartment Network",
+      "statement_text": "Allow group 'Secondary'/'ContainerAdmins' to read virtual-network-family in compartment Network",
       "parsed": true
     },
     {
@@ -5218,12 +5253,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "FunctionDevelopers"
         ]
       ],
       "principal_keys": [
-        "group:default/functiondevelopers"
+        "group:secondary/functiondevelopers"
       ],
       "verb": "read",
       "resource": "database-family",
@@ -5252,7 +5287,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group FunctionDevelopers to read database-family in compartment Network",
+      "statement_text": "Allow group 'Secondary'/'FunctionDevelopers' to read database-family in compartment Network",
       "parsed": true
     },
     {
@@ -5561,12 +5596,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "IncidentResponders"
         ]
       ],
       "principal_keys": [
-        "group:default/incidentresponders"
+        "group:secondary/incidentresponders"
       ],
       "verb": "read",
       "resource": "all-resources",
@@ -5595,7 +5630,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group IncidentResponders to read all-resources in compartment Network",
+      "statement_text": "Allow group 'Secondary'/'IncidentResponders' to read all-resources in compartment Network",
       "parsed": true
     },
     {
@@ -5610,12 +5645,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ProdOperators"
         ]
       ],
       "principal_keys": [
-        "group:default/prodoperators"
+        "group:secondary/prodoperators"
       ],
       "verb": "read",
       "resource": "audit-events",
@@ -5644,7 +5679,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ProdOperators to read audit-events in compartment Network",
+      "statement_text": "Allow group 'Secondary'/'ProdOperators' to read audit-events in compartment Network",
       "parsed": true
     },
     {
@@ -5659,12 +5694,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "TestOperators"
         ]
       ],
       "principal_keys": [
-        "group:default/testoperators"
+        "group:secondary/testoperators"
       ],
       "verb": "manage",
       "resource": "metrics",
@@ -5693,7 +5728,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group TestOperators to manage metrics in compartment Network",
+      "statement_text": "Allow group 'Secondary'/'TestOperators' to manage metrics in compartment Network",
       "parsed": true
     },
     {
@@ -5708,12 +5743,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "SandboxDevelopers"
         ]
       ],
       "principal_keys": [
-        "group:default/sandboxdevelopers"
+        "group:secondary/sandboxdevelopers"
       ],
       "verb": "read",
       "resource": "logging-family",
@@ -5742,7 +5777,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group SandboxDevelopers to read logging-family in compartment Network",
+      "statement_text": "Allow group 'Secondary'/'SandboxDevelopers' to read logging-family in compartment Network",
       "parsed": true
     },
     {
@@ -6193,12 +6228,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "CostReviewers"
         ]
       ],
       "principal_keys": [
-        "group:default/costreviewers"
+        "group:secondary/costreviewers"
       ],
       "verb": "manage",
       "resource": "generative-ai-response",
@@ -6227,7 +6262,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group CostReviewers to manage generative-ai-response in compartment Network",
+      "statement_text": "Allow group 'Secondary'/'CostReviewers' to manage generative-ai-response in compartment Network",
       "parsed": true
     },
     {
@@ -6242,12 +6277,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "Helpdesk"
         ]
       ],
       "principal_keys": [
-        "group:default/helpdesk"
+        "group:secondary/helpdesk"
       ],
       "verb": "manage",
       "resource": "generative-ai-family",
@@ -6276,7 +6311,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group Helpdesk to manage generative-ai-family in compartment Network",
+      "statement_text": "Allow group 'Secondary'/'Helpdesk' to manage generative-ai-family in compartment Network",
       "parsed": true
     },
     {
@@ -6340,12 +6375,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "Auditors"
         ]
       ],
       "principal_keys": [
-        "group:default/auditors"
+        "group:secondary/auditors"
       ],
       "verb": "manage",
       "resource": "database-family",
@@ -6374,7 +6409,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group Auditors to manage database-family in compartment Network",
+      "statement_text": "Allow group 'Secondary'/'Auditors' to manage database-family in compartment Network",
       "parsed": true
     },
     {
@@ -6389,12 +6424,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "SecurityAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/securityadmins"
+        "group:secondary/securityadmins"
       ],
       "verb": "read",
       "resource": "vaults",
@@ -6423,7 +6458,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group SecurityAdmins to read vaults in compartment Network",
+      "statement_text": "Allow group 'Secondary'/'SecurityAdmins' to read vaults in compartment Network",
       "parsed": true
     },
     {
@@ -6438,12 +6473,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "NetworkAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/networkadmins"
+        "group:secondary/networkadmins"
       ],
       "verb": "manage",
       "resource": "secret-family",
@@ -6472,7 +6507,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group NetworkAdmins to manage secret-family in compartment Network",
+      "statement_text": "Allow group 'Secondary'/'NetworkAdmins' to manage secret-family in compartment Network",
       "parsed": true
     },
     {
@@ -6822,12 +6857,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ComputeAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/computeadmins"
+        "group:secondary/computeadmins"
       ],
       "verb": "manage",
       "resource": "tag-namespaces",
@@ -6856,7 +6891,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ComputeAdmins to manage tag-namespaces in compartment SharedServices",
+      "statement_text": "Allow group 'Secondary'/'ComputeAdmins' to manage tag-namespaces in compartment SharedServices",
       "parsed": true
     },
     {
@@ -6871,12 +6906,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "AppDevelopers"
         ]
       ],
       "principal_keys": [
-        "group:default/appdevelopers"
+        "group:secondary/appdevelopers"
       ],
       "verb": "manage",
       "resource": "secret-family",
@@ -6905,7 +6940,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group AppDevelopers to manage secret-family in compartment SharedServices",
+      "statement_text": "Allow group 'Secondary'/'AppDevelopers' to manage secret-family in compartment SharedServices",
       "parsed": true
     },
     {
@@ -6920,12 +6955,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "PlatformOperators"
         ]
       ],
       "principal_keys": [
-        "group:default/platformoperators"
+        "group:secondary/platformoperators"
       ],
       "verb": "read",
       "resource": "instance-agent-plugins",
@@ -6954,7 +6989,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group PlatformOperators to read instance-agent-plugins in compartment SharedServices",
+      "statement_text": "Allow group 'Secondary'/'PlatformOperators' to read instance-agent-plugins in compartment SharedServices",
       "parsed": true
     },
     {
@@ -6969,12 +7004,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ReadOnly"
         ]
       ],
       "principal_keys": [
-        "group:default/readonly"
+        "group:secondary/readonly"
       ],
       "verb": "read",
       "resource": "keys",
@@ -7003,7 +7038,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ReadOnly to read keys in compartment SharedServices",
+      "statement_text": "Allow group 'Secondary'/'ReadOnly' to read keys in compartment SharedServices",
       "parsed": true
     },
     {
@@ -7018,12 +7053,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "PlatformOperators"
         ]
       ],
       "principal_keys": [
-        "group:default/platformoperators"
+        "group:secondary/platformoperators"
       ],
       "verb": "manage",
       "resource": "policies",
@@ -7052,7 +7087,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group PlatformOperators to manage policies in compartment SharedServices",
+      "statement_text": "Allow group 'Secondary'/'PlatformOperators' to manage policies in compartment SharedServices",
       "parsed": true
     },
     {
@@ -7067,12 +7102,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ReadOnly"
         ]
       ],
       "principal_keys": [
-        "group:default/readonly"
+        "group:secondary/readonly"
       ],
       "verb": "manage",
       "resource": "compartments",
@@ -7101,7 +7136,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ReadOnly to manage compartments in compartment SharedServices",
+      "statement_text": "Allow group 'Secondary'/'ReadOnly' to manage compartments in compartment SharedServices",
       "parsed": true
     },
     {
@@ -7116,12 +7151,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "IdentityAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/identityadmins"
+        "group:secondary/identityadmins"
       ],
       "verb": "read",
       "resource": "all-resources",
@@ -7150,7 +7185,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group IdentityAdmins to read all-resources in compartment SharedServices",
+      "statement_text": "Allow group 'Secondary'/'IdentityAdmins' to read all-resources in compartment SharedServices",
       "parsed": true
     },
     {
@@ -7165,12 +7200,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "KeyAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/keyadmins"
+        "group:secondary/keyadmins"
       ],
       "verb": "manage",
       "resource": "orm-stacks",
@@ -7199,7 +7234,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group KeyAdmins to manage orm-stacks in compartment SharedServices",
+      "statement_text": "Allow group 'Secondary'/'KeyAdmins' to manage orm-stacks in compartment SharedServices",
       "parsed": true
     },
     {
@@ -7214,12 +7249,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "LoggingAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/loggingadmins"
+        "group:secondary/loggingadmins"
       ],
       "verb": "manage",
       "resource": "cloud-vmclusters",
@@ -7248,7 +7283,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group LoggingAdmins to manage cloud-vmclusters in compartment SharedServices",
+      "statement_text": "Allow group 'Secondary'/'LoggingAdmins' to manage cloud-vmclusters in compartment SharedServices",
       "parsed": true
     },
     {
@@ -7263,12 +7298,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "MonitoringAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/monitoringadmins"
+        "group:secondary/monitoringadmins"
       ],
       "verb": "manage",
       "resource": "bastion-session",
@@ -7297,7 +7332,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group MonitoringAdmins to manage bastion-session in compartment SharedServices",
+      "statement_text": "Allow group 'Secondary'/'MonitoringAdmins' to manage bastion-session in compartment SharedServices",
       "parsed": true
     },
     {
@@ -7312,12 +7347,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "LoggingAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/loggingadmins"
+        "group:secondary/loggingadmins"
       ],
       "verb": "read",
       "resource": "bucket",
@@ -7346,7 +7381,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group LoggingAdmins to read bucket in compartment SharedServices",
+      "statement_text": "Allow group 'Secondary'/'LoggingAdmins' to read bucket in compartment SharedServices",
       "parsed": true
     },
     {
@@ -7361,12 +7396,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "MonitoringAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/monitoringadmins"
+        "group:secondary/monitoringadmins"
       ],
       "verb": "manage",
       "resource": "object-family",
@@ -7458,7 +7493,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group MonitoringAdmins to manage object-family in compartment SharedServices where any {request.permission = 'OBJECT_DELETE', request.permission = 'BUCKET_DELETE'}",
+      "statement_text": "Allow group 'Secondary'/'MonitoringAdmins' to manage object-family in compartment SharedServices where any {request.permission = 'OBJECT_DELETE', request.permission = 'BUCKET_DELETE'}",
       "parsed": true
     },
     {
@@ -7473,12 +7508,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "BackupOperators"
         ]
       ],
       "principal_keys": [
-        "group:default/backupoperators"
+        "group:secondary/backupoperators"
       ],
       "verb": "manage",
       "resource": "volume-family",
@@ -7600,7 +7635,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group BackupOperators to manage volume-family in compartment SharedServices where any {request.permission = 'VOLUME_DELETE', request.permission = 'VOLUME_BACKUP_DELETE', request.permission = 'BOOT_VOLUME_BACKUP_DELETE'}",
+      "statement_text": "Allow group 'Secondary'/'BackupOperators' to manage volume-family in compartment SharedServices where any {request.permission = 'VOLUME_DELETE', request.permission = 'VOLUME_BACKUP_DELETE', request.permission = 'BOOT_VOLUME_BACKUP_DELETE'}",
       "parsed": true
     },
     {
@@ -7615,12 +7650,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ContainerAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/containeradmins"
+        "group:secondary/containeradmins"
       ],
       "verb": "manage",
       "resource": "file-family",
@@ -8012,7 +8047,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ContainerAdmins to manage file-family in compartment SharedServices where any {request.permission = 'FILE_SYSTEM_DELETE', request.permission = 'MOUNT_TARGET_DELETE', request.permission = 'VNIC_DELETE', request.permission = 'SUBNET_DETACH', request.permission = 'VNIC_DETACH', request.permission = 'PRIVATE_IP_DELETE', request.permission = 'PRIVATE_IP_UNASSIGN', request.permission = 'VNIC_UNASSIGN', request.permission = 'EXPORT_SET_UPDATE', request.permission = 'ocid1.compartment.oc1..sample0004', request.permission = 'EXPORT_SET_DELETE', request.permission = 'FILE_SYSTEM_DELETE_SNAPSHOT'}",
+      "statement_text": "Allow group 'Secondary'/'ContainerAdmins' to manage file-family in compartment SharedServices where any {request.permission = 'FILE_SYSTEM_DELETE', request.permission = 'MOUNT_TARGET_DELETE', request.permission = 'VNIC_DELETE', request.permission = 'SUBNET_DETACH', request.permission = 'VNIC_DETACH', request.permission = 'PRIVATE_IP_DELETE', request.permission = 'PRIVATE_IP_UNASSIGN', request.permission = 'VNIC_UNASSIGN', request.permission = 'EXPORT_SET_UPDATE', request.permission = 'ocid1.compartment.oc1..sample0004', request.permission = 'EXPORT_SET_DELETE', request.permission = 'FILE_SYSTEM_DELETE_SNAPSHOT'}",
       "parsed": true
     },
     {
@@ -8027,12 +8062,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "BackupOperators"
         ]
       ],
       "principal_keys": [
-        "group:default/backupoperators"
+        "group:secondary/backupoperators"
       ],
       "verb": "read",
       "resource": "all-resources",
@@ -8061,7 +8096,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group BackupOperators to read all-resources in compartment SharedServices",
+      "statement_text": "Allow group 'Secondary'/'BackupOperators' to read all-resources in compartment SharedServices",
       "parsed": true
     },
     {
@@ -8076,12 +8111,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ContainerAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/containeradmins"
+        "group:secondary/containeradmins"
       ],
       "verb": "manage",
       "resource": "repos",
@@ -8110,7 +8145,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ContainerAdmins to manage repos in compartment SharedServices",
+      "statement_text": "Allow group 'Secondary'/'ContainerAdmins' to manage repos in compartment SharedServices",
       "parsed": true
     },
     {
@@ -8125,12 +8160,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "FunctionDevelopers"
         ]
       ],
       "principal_keys": [
-        "group:default/functiondevelopers"
+        "group:secondary/functiondevelopers"
       ],
       "verb": "read",
       "resource": "virtual-network-family",
@@ -8159,7 +8194,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group FunctionDevelopers to read virtual-network-family in compartment SharedServices",
+      "statement_text": "Allow group 'Secondary'/'FunctionDevelopers' to read virtual-network-family in compartment SharedServices",
       "parsed": true
     },
     {
@@ -8174,12 +8209,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "DataEngineers"
         ]
       ],
       "principal_keys": [
-        "group:default/dataengineers"
+        "group:secondary/dataengineers"
       ],
       "verb": "read",
       "resource": "database-family",
@@ -8208,7 +8243,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group DataEngineers to read database-family in compartment SharedServices",
+      "statement_text": "Allow group 'Secondary'/'DataEngineers' to read database-family in compartment SharedServices",
       "parsed": true
     },
     {
@@ -8517,12 +8552,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ProdOperators"
         ]
       ],
       "principal_keys": [
-        "group:default/prodoperators"
+        "group:secondary/prodoperators"
       ],
       "verb": "read",
       "resource": "all-resources",
@@ -8551,7 +8586,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ProdOperators to read all-resources in compartment SharedServices",
+      "statement_text": "Allow group 'Secondary'/'ProdOperators' to read all-resources in compartment SharedServices",
       "parsed": true
     },
     {
@@ -8566,12 +8601,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "TestOperators"
         ]
       ],
       "principal_keys": [
-        "group:default/testoperators"
+        "group:secondary/testoperators"
       ],
       "verb": "read",
       "resource": "audit-events",
@@ -8600,7 +8635,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group TestOperators to read audit-events in compartment SharedServices",
+      "statement_text": "Allow group 'Secondary'/'TestOperators' to read audit-events in compartment SharedServices",
       "parsed": true
     },
     {
@@ -8615,12 +8650,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "SandboxDevelopers"
         ]
       ],
       "principal_keys": [
-        "group:default/sandboxdevelopers"
+        "group:secondary/sandboxdevelopers"
       ],
       "verb": "manage",
       "resource": "metrics",
@@ -8649,7 +8684,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group SandboxDevelopers to manage metrics in compartment SharedServices",
+      "statement_text": "Allow group 'Secondary'/'SandboxDevelopers' to manage metrics in compartment SharedServices",
       "parsed": true
     },
     {
@@ -8664,12 +8699,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "CostReviewers"
         ]
       ],
       "principal_keys": [
-        "group:default/costreviewers"
+        "group:secondary/costreviewers"
       ],
       "verb": "read",
       "resource": "logging-family",
@@ -8698,7 +8733,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group CostReviewers to read logging-family in compartment SharedServices",
+      "statement_text": "Allow group 'Secondary'/'CostReviewers' to read logging-family in compartment SharedServices",
       "parsed": true
     },
     {
@@ -9149,12 +9184,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "Helpdesk"
         ]
       ],
       "principal_keys": [
-        "group:default/helpdesk"
+        "group:secondary/helpdesk"
       ],
       "verb": "manage",
       "resource": "generative-ai-response",
@@ -9183,7 +9218,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group Helpdesk to manage generative-ai-response in compartment SharedServices",
+      "statement_text": "Allow group 'Secondary'/'Helpdesk' to manage generative-ai-response in compartment SharedServices",
       "parsed": true
     },
     {
@@ -9247,12 +9282,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "Auditors"
         ]
       ],
       "principal_keys": [
-        "group:default/auditors"
+        "group:secondary/auditors"
       ],
       "verb": "manage",
       "resource": "object-family",
@@ -9281,7 +9316,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group Auditors to manage object-family in compartment SharedServices",
+      "statement_text": "Allow group 'Secondary'/'Auditors' to manage object-family in compartment SharedServices",
       "parsed": true
     },
     {
@@ -9296,12 +9331,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "SecurityAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/securityadmins"
+        "group:secondary/securityadmins"
       ],
       "verb": "manage",
       "resource": "database-family",
@@ -9330,7 +9365,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group SecurityAdmins to manage database-family in compartment SharedServices",
+      "statement_text": "Allow group 'Secondary'/'SecurityAdmins' to manage database-family in compartment SharedServices",
       "parsed": true
     },
     {
@@ -9345,12 +9380,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "NetworkAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/networkadmins"
+        "group:secondary/networkadmins"
       ],
       "verb": "read",
       "resource": "vaults",
@@ -9379,7 +9414,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group NetworkAdmins to read vaults in compartment SharedServices",
+      "statement_text": "Allow group 'Secondary'/'NetworkAdmins' to read vaults in compartment SharedServices",
       "parsed": true
     },
     {
@@ -9394,12 +9429,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "StorageAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/storageadmins"
+        "group:secondary/storageadmins"
       ],
       "verb": "manage",
       "resource": "secret-family",
@@ -9428,7 +9463,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group StorageAdmins to manage secret-family in compartment SharedServices",
+      "statement_text": "Allow group 'Secondary'/'StorageAdmins' to manage secret-family in compartment SharedServices",
       "parsed": true
     },
     {
@@ -9778,12 +9813,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "AppDevelopers"
         ]
       ],
       "principal_keys": [
-        "group:default/appdevelopers"
+        "group:secondary/appdevelopers"
       ],
       "verb": "manage",
       "resource": "tag-namespaces",
@@ -9812,7 +9847,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group AppDevelopers to manage tag-namespaces in compartment Production",
+      "statement_text": "Allow group 'Secondary'/'AppDevelopers' to manage tag-namespaces in compartment Production",
       "parsed": true
     },
     {
@@ -9827,12 +9862,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "PlatformOperators"
         ]
       ],
       "principal_keys": [
-        "group:default/platformoperators"
+        "group:secondary/platformoperators"
       ],
       "verb": "manage",
       "resource": "secret-family",
@@ -9861,7 +9896,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group PlatformOperators to manage secret-family in compartment Production",
+      "statement_text": "Allow group 'Secondary'/'PlatformOperators' to manage secret-family in compartment Production",
       "parsed": true
     },
     {
@@ -9876,12 +9911,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ReadOnly"
         ]
       ],
       "principal_keys": [
-        "group:default/readonly"
+        "group:secondary/readonly"
       ],
       "verb": "read",
       "resource": "instance-agent-plugins",
@@ -9910,7 +9945,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ReadOnly to read instance-agent-plugins in compartment Production",
+      "statement_text": "Allow group 'Secondary'/'ReadOnly' to read instance-agent-plugins in compartment Production",
       "parsed": true
     },
     {
@@ -9925,12 +9960,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "IdentityAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/identityadmins"
+        "group:secondary/identityadmins"
       ],
       "verb": "read",
       "resource": "keys",
@@ -9959,7 +9994,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group IdentityAdmins to read keys in compartment Production",
+      "statement_text": "Allow group 'Secondary'/'IdentityAdmins' to read keys in compartment Production",
       "parsed": true
     },
     {
@@ -9974,12 +10009,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ReadOnly"
         ]
       ],
       "principal_keys": [
-        "group:default/readonly"
+        "group:secondary/readonly"
       ],
       "verb": "manage",
       "resource": "policies",
@@ -10008,7 +10043,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ReadOnly to manage policies in compartment Production",
+      "statement_text": "Allow group 'Secondary'/'ReadOnly' to manage policies in compartment Production",
       "parsed": true
     },
     {
@@ -10023,12 +10058,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "IdentityAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/identityadmins"
+        "group:secondary/identityadmins"
       ],
       "verb": "manage",
       "resource": "compartments",
@@ -10057,7 +10092,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group IdentityAdmins to manage compartments in compartment Production",
+      "statement_text": "Allow group 'Secondary'/'IdentityAdmins' to manage compartments in compartment Production",
       "parsed": true
     },
     {
@@ -10072,12 +10107,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "KeyAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/keyadmins"
+        "group:secondary/keyadmins"
       ],
       "verb": "read",
       "resource": "all-resources",
@@ -10106,7 +10141,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group KeyAdmins to read all-resources in compartment Production",
+      "statement_text": "Allow group 'Secondary'/'KeyAdmins' to read all-resources in compartment Production",
       "parsed": true
     },
     {
@@ -10121,12 +10156,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "LoggingAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/loggingadmins"
+        "group:secondary/loggingadmins"
       ],
       "verb": "manage",
       "resource": "orm-stacks",
@@ -10155,7 +10190,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group LoggingAdmins to manage orm-stacks in compartment Production",
+      "statement_text": "Allow group 'Secondary'/'LoggingAdmins' to manage orm-stacks in compartment Production",
       "parsed": true
     },
     {
@@ -10170,12 +10205,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "MonitoringAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/monitoringadmins"
+        "group:secondary/monitoringadmins"
       ],
       "verb": "manage",
       "resource": "cloud-vmclusters",
@@ -10204,7 +10239,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group MonitoringAdmins to manage cloud-vmclusters in compartment Production",
+      "statement_text": "Allow group 'Secondary'/'MonitoringAdmins' to manage cloud-vmclusters in compartment Production",
       "parsed": true
     },
     {
@@ -10219,12 +10254,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "BackupOperators"
         ]
       ],
       "principal_keys": [
-        "group:default/backupoperators"
+        "group:secondary/backupoperators"
       ],
       "verb": "manage",
       "resource": "bastion-session",
@@ -10253,7 +10288,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group BackupOperators to manage bastion-session in compartment Production",
+      "statement_text": "Allow group 'Secondary'/'BackupOperators' to manage bastion-session in compartment Production",
       "parsed": true
     },
     {
@@ -10268,12 +10303,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "MonitoringAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/monitoringadmins"
+        "group:secondary/monitoringadmins"
       ],
       "verb": "read",
       "resource": "bucket",
@@ -10302,7 +10337,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group MonitoringAdmins to read bucket in compartment Production",
+      "statement_text": "Allow group 'Secondary'/'MonitoringAdmins' to read bucket in compartment Production",
       "parsed": true
     },
     {
@@ -10317,12 +10352,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "BackupOperators"
         ]
       ],
       "principal_keys": [
-        "group:default/backupoperators"
+        "group:secondary/backupoperators"
       ],
       "verb": "manage",
       "resource": "object-family",
@@ -10414,7 +10449,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group BackupOperators to manage object-family in compartment Production where any {request.permission = 'OBJECT_DELETE', request.permission = 'BUCKET_DELETE'}",
+      "statement_text": "Allow group 'Secondary'/'BackupOperators' to manage object-family in compartment Production where any {request.permission = 'OBJECT_DELETE', request.permission = 'BUCKET_DELETE'}",
       "parsed": true
     },
     {
@@ -10429,12 +10464,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ContainerAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/containeradmins"
+        "group:secondary/containeradmins"
       ],
       "verb": "manage",
       "resource": "volume-family",
@@ -10556,7 +10591,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ContainerAdmins to manage volume-family in compartment Production where any {request.permission = 'VOLUME_DELETE', request.permission = 'VOLUME_BACKUP_DELETE', request.permission = 'BOOT_VOLUME_BACKUP_DELETE'}",
+      "statement_text": "Allow group 'Secondary'/'ContainerAdmins' to manage volume-family in compartment Production where any {request.permission = 'VOLUME_DELETE', request.permission = 'VOLUME_BACKUP_DELETE', request.permission = 'BOOT_VOLUME_BACKUP_DELETE'}",
       "parsed": true
     },
     {
@@ -10571,12 +10606,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "FunctionDevelopers"
         ]
       ],
       "principal_keys": [
-        "group:default/functiondevelopers"
+        "group:secondary/functiondevelopers"
       ],
       "verb": "manage",
       "resource": "file-family",
@@ -10968,7 +11003,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group FunctionDevelopers to manage file-family in compartment Production where any {request.permission = 'FILE_SYSTEM_DELETE', request.permission = 'MOUNT_TARGET_DELETE', request.permission = 'VNIC_DELETE', request.permission = 'SUBNET_DETACH', request.permission = 'VNIC_DETACH', request.permission = 'PRIVATE_IP_DELETE', request.permission = 'PRIVATE_IP_UNASSIGN', request.permission = 'VNIC_UNASSIGN', request.permission = 'EXPORT_SET_UPDATE', request.permission = 'ocid1.compartment.oc1..sample0005', request.permission = 'EXPORT_SET_DELETE', request.permission = 'FILE_SYSTEM_DELETE_SNAPSHOT'}",
+      "statement_text": "Allow group 'Secondary'/'FunctionDevelopers' to manage file-family in compartment Production where any {request.permission = 'FILE_SYSTEM_DELETE', request.permission = 'MOUNT_TARGET_DELETE', request.permission = 'VNIC_DELETE', request.permission = 'SUBNET_DETACH', request.permission = 'VNIC_DETACH', request.permission = 'PRIVATE_IP_DELETE', request.permission = 'PRIVATE_IP_UNASSIGN', request.permission = 'VNIC_UNASSIGN', request.permission = 'EXPORT_SET_UPDATE', request.permission = 'ocid1.compartment.oc1..sample0005', request.permission = 'EXPORT_SET_DELETE', request.permission = 'FILE_SYSTEM_DELETE_SNAPSHOT'}",
       "parsed": true
     },
     {
@@ -10983,12 +11018,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ContainerAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/containeradmins"
+        "group:secondary/containeradmins"
       ],
       "verb": "read",
       "resource": "all-resources",
@@ -11017,7 +11052,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ContainerAdmins to read all-resources in compartment Production",
+      "statement_text": "Allow group 'Secondary'/'ContainerAdmins' to read all-resources in compartment Production",
       "parsed": true
     },
     {
@@ -11032,12 +11067,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "FunctionDevelopers"
         ]
       ],
       "principal_keys": [
-        "group:default/functiondevelopers"
+        "group:secondary/functiondevelopers"
       ],
       "verb": "manage",
       "resource": "repos",
@@ -11066,7 +11101,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group FunctionDevelopers to manage repos in compartment Production",
+      "statement_text": "Allow group 'Secondary'/'FunctionDevelopers' to manage repos in compartment Production",
       "parsed": true
     },
     {
@@ -11081,12 +11116,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "DataEngineers"
         ]
       ],
       "principal_keys": [
-        "group:default/dataengineers"
+        "group:secondary/dataengineers"
       ],
       "verb": "read",
       "resource": "virtual-network-family",
@@ -11115,7 +11150,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group DataEngineers to read virtual-network-family in compartment Production",
+      "statement_text": "Allow group 'Secondary'/'DataEngineers' to read virtual-network-family in compartment Production",
       "parsed": true
     },
     {
@@ -11130,12 +11165,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ComplianceReviewers"
         ]
       ],
       "principal_keys": [
-        "group:default/compliancereviewers"
+        "group:secondary/compliancereviewers"
       ],
       "verb": "read",
       "resource": "database-family",
@@ -11164,7 +11199,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ComplianceReviewers to read database-family in compartment Production",
+      "statement_text": "Allow group 'Secondary'/'ComplianceReviewers' to read database-family in compartment Production",
       "parsed": true
     },
     {
@@ -11473,12 +11508,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "TestOperators"
         ]
       ],
       "principal_keys": [
-        "group:default/testoperators"
+        "group:secondary/testoperators"
       ],
       "verb": "read",
       "resource": "all-resources",
@@ -11507,7 +11542,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group TestOperators to read all-resources in compartment Production",
+      "statement_text": "Allow group 'Secondary'/'TestOperators' to read all-resources in compartment Production",
       "parsed": true
     },
     {
@@ -11522,12 +11557,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "SandboxDevelopers"
         ]
       ],
       "principal_keys": [
-        "group:default/sandboxdevelopers"
+        "group:secondary/sandboxdevelopers"
       ],
       "verb": "read",
       "resource": "audit-events",
@@ -11556,7 +11591,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group SandboxDevelopers to read audit-events in compartment Production",
+      "statement_text": "Allow group 'Secondary'/'SandboxDevelopers' to read audit-events in compartment Production",
       "parsed": true
     },
     {
@@ -11571,12 +11606,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "CostReviewers"
         ]
       ],
       "principal_keys": [
-        "group:default/costreviewers"
+        "group:secondary/costreviewers"
       ],
       "verb": "manage",
       "resource": "metrics",
@@ -11605,7 +11640,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group CostReviewers to manage metrics in compartment Production",
+      "statement_text": "Allow group 'Secondary'/'CostReviewers' to manage metrics in compartment Production",
       "parsed": true
     },
     {
@@ -11620,12 +11655,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "Helpdesk"
         ]
       ],
       "principal_keys": [
-        "group:default/helpdesk"
+        "group:secondary/helpdesk"
       ],
       "verb": "read",
       "resource": "logging-family",
@@ -11654,7 +11689,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group Helpdesk to read logging-family in compartment Production",
+      "statement_text": "Allow group 'Secondary'/'Helpdesk' to read logging-family in compartment Production",
       "parsed": true
     },
     {
@@ -12154,12 +12189,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "Auditors"
         ]
       ],
       "principal_keys": [
-        "group:default/auditors"
+        "group:secondary/auditors"
       ],
       "verb": "manage",
       "resource": "generative-ai-family",
@@ -12188,7 +12223,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group Auditors to manage generative-ai-family in compartment Production",
+      "statement_text": "Allow group 'Secondary'/'Auditors' to manage generative-ai-family in compartment Production",
       "parsed": true
     },
     {
@@ -12203,12 +12238,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "SecurityAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/securityadmins"
+        "group:secondary/securityadmins"
       ],
       "verb": "manage",
       "resource": "object-family",
@@ -12237,7 +12272,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group SecurityAdmins to manage object-family in compartment Production",
+      "statement_text": "Allow group 'Secondary'/'SecurityAdmins' to manage object-family in compartment Production",
       "parsed": true
     },
     {
@@ -12252,12 +12287,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "NetworkAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/networkadmins"
+        "group:secondary/networkadmins"
       ],
       "verb": "manage",
       "resource": "database-family",
@@ -12286,7 +12321,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group NetworkAdmins to manage database-family in compartment Production",
+      "statement_text": "Allow group 'Secondary'/'NetworkAdmins' to manage database-family in compartment Production",
       "parsed": true
     },
     {
@@ -12301,12 +12336,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "StorageAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/storageadmins"
+        "group:secondary/storageadmins"
       ],
       "verb": "read",
       "resource": "vaults",
@@ -12335,7 +12370,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group StorageAdmins to read vaults in compartment Production",
+      "statement_text": "Allow group 'Secondary'/'StorageAdmins' to read vaults in compartment Production",
       "parsed": true
     },
     {
@@ -12350,12 +12385,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "DatabaseAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/databaseadmins"
+        "group:secondary/databaseadmins"
       ],
       "verb": "manage",
       "resource": "secret-family",
@@ -12384,7 +12419,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group DatabaseAdmins to manage secret-family in compartment Production",
+      "statement_text": "Allow group 'Secondary'/'DatabaseAdmins' to manage secret-family in compartment Production",
       "parsed": true
     },
     {
@@ -12734,12 +12769,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "PlatformOperators"
         ]
       ],
       "principal_keys": [
-        "group:default/platformoperators"
+        "group:secondary/platformoperators"
       ],
       "verb": "manage",
       "resource": "tag-namespaces",
@@ -12768,7 +12803,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group PlatformOperators to manage tag-namespaces in compartment NonProduction",
+      "statement_text": "Allow group 'Secondary'/'PlatformOperators' to manage tag-namespaces in compartment NonProduction",
       "parsed": true
     },
     {
@@ -12783,12 +12818,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ReadOnly"
         ]
       ],
       "principal_keys": [
-        "group:default/readonly"
+        "group:secondary/readonly"
       ],
       "verb": "manage",
       "resource": "secret-family",
@@ -12817,7 +12852,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ReadOnly to manage secret-family in compartment NonProduction",
+      "statement_text": "Allow group 'Secondary'/'ReadOnly' to manage secret-family in compartment NonProduction",
       "parsed": true
     },
     {
@@ -12832,12 +12867,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "IdentityAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/identityadmins"
+        "group:secondary/identityadmins"
       ],
       "verb": "read",
       "resource": "instance-agent-plugins",
@@ -12866,7 +12901,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group IdentityAdmins to read instance-agent-plugins in compartment NonProduction",
+      "statement_text": "Allow group 'Secondary'/'IdentityAdmins' to read instance-agent-plugins in compartment NonProduction",
       "parsed": true
     },
     {
@@ -12881,12 +12916,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "KeyAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/keyadmins"
+        "group:secondary/keyadmins"
       ],
       "verb": "read",
       "resource": "keys",
@@ -12915,7 +12950,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group KeyAdmins to read keys in compartment NonProduction",
+      "statement_text": "Allow group 'Secondary'/'KeyAdmins' to read keys in compartment NonProduction",
       "parsed": true
     },
     {
@@ -12930,12 +12965,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "IdentityAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/identityadmins"
+        "group:secondary/identityadmins"
       ],
       "verb": "manage",
       "resource": "policies",
@@ -12964,7 +12999,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group IdentityAdmins to manage policies in compartment NonProduction",
+      "statement_text": "Allow group 'Secondary'/'IdentityAdmins' to manage policies in compartment NonProduction",
       "parsed": true
     },
     {
@@ -12979,12 +13014,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "KeyAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/keyadmins"
+        "group:secondary/keyadmins"
       ],
       "verb": "manage",
       "resource": "compartments",
@@ -13013,7 +13048,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group KeyAdmins to manage compartments in compartment NonProduction",
+      "statement_text": "Allow group 'Secondary'/'KeyAdmins' to manage compartments in compartment NonProduction",
       "parsed": true
     },
     {
@@ -13028,12 +13063,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "LoggingAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/loggingadmins"
+        "group:secondary/loggingadmins"
       ],
       "verb": "read",
       "resource": "all-resources",
@@ -13062,7 +13097,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group LoggingAdmins to read all-resources in compartment NonProduction",
+      "statement_text": "Allow group 'Secondary'/'LoggingAdmins' to read all-resources in compartment NonProduction",
       "parsed": true
     },
     {
@@ -13077,12 +13112,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "MonitoringAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/monitoringadmins"
+        "group:secondary/monitoringadmins"
       ],
       "verb": "manage",
       "resource": "orm-stacks",
@@ -13111,7 +13146,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group MonitoringAdmins to manage orm-stacks in compartment NonProduction",
+      "statement_text": "Allow group 'Secondary'/'MonitoringAdmins' to manage orm-stacks in compartment NonProduction",
       "parsed": true
     },
     {
@@ -13126,12 +13161,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "BackupOperators"
         ]
       ],
       "principal_keys": [
-        "group:default/backupoperators"
+        "group:secondary/backupoperators"
       ],
       "verb": "manage",
       "resource": "cloud-vmclusters",
@@ -13160,7 +13195,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group BackupOperators to manage cloud-vmclusters in compartment NonProduction",
+      "statement_text": "Allow group 'Secondary'/'BackupOperators' to manage cloud-vmclusters in compartment NonProduction",
       "parsed": true
     },
     {
@@ -13175,12 +13210,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ContainerAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/containeradmins"
+        "group:secondary/containeradmins"
       ],
       "verb": "manage",
       "resource": "bastion-session",
@@ -13209,7 +13244,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ContainerAdmins to manage bastion-session in compartment NonProduction",
+      "statement_text": "Allow group 'Secondary'/'ContainerAdmins' to manage bastion-session in compartment NonProduction",
       "parsed": true
     },
     {
@@ -13224,12 +13259,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "BackupOperators"
         ]
       ],
       "principal_keys": [
-        "group:default/backupoperators"
+        "group:secondary/backupoperators"
       ],
       "verb": "read",
       "resource": "bucket",
@@ -13258,7 +13293,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group BackupOperators to read bucket in compartment NonProduction",
+      "statement_text": "Allow group 'Secondary'/'BackupOperators' to read bucket in compartment NonProduction",
       "parsed": true
     },
     {
@@ -13273,12 +13308,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ContainerAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/containeradmins"
+        "group:secondary/containeradmins"
       ],
       "verb": "manage",
       "resource": "object-family",
@@ -13370,7 +13405,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ContainerAdmins to manage object-family in compartment NonProduction where any {request.permission = 'OBJECT_DELETE', request.permission = 'BUCKET_DELETE'}",
+      "statement_text": "Allow group 'Secondary'/'ContainerAdmins' to manage object-family in compartment NonProduction where any {request.permission = 'OBJECT_DELETE', request.permission = 'BUCKET_DELETE'}",
       "parsed": true
     },
     {
@@ -13385,12 +13420,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "FunctionDevelopers"
         ]
       ],
       "principal_keys": [
-        "group:default/functiondevelopers"
+        "group:secondary/functiondevelopers"
       ],
       "verb": "manage",
       "resource": "volume-family",
@@ -13512,7 +13547,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group FunctionDevelopers to manage volume-family in compartment NonProduction where any {request.permission = 'VOLUME_DELETE', request.permission = 'VOLUME_BACKUP_DELETE', request.permission = 'BOOT_VOLUME_BACKUP_DELETE'}",
+      "statement_text": "Allow group 'Secondary'/'FunctionDevelopers' to manage volume-family in compartment NonProduction where any {request.permission = 'VOLUME_DELETE', request.permission = 'VOLUME_BACKUP_DELETE', request.permission = 'BOOT_VOLUME_BACKUP_DELETE'}",
       "parsed": true
     },
     {
@@ -13527,12 +13562,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "DataEngineers"
         ]
       ],
       "principal_keys": [
-        "group:default/dataengineers"
+        "group:secondary/dataengineers"
       ],
       "verb": "manage",
       "resource": "file-family",
@@ -13924,7 +13959,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group DataEngineers to manage file-family in compartment NonProduction where any {request.permission = 'FILE_SYSTEM_DELETE', request.permission = 'MOUNT_TARGET_DELETE', request.permission = 'VNIC_DELETE', request.permission = 'SUBNET_DETACH', request.permission = 'VNIC_DETACH', request.permission = 'PRIVATE_IP_DELETE', request.permission = 'PRIVATE_IP_UNASSIGN', request.permission = 'VNIC_UNASSIGN', request.permission = 'EXPORT_SET_UPDATE', request.permission = 'ocid1.compartment.oc1..sample0006', request.permission = 'EXPORT_SET_DELETE', request.permission = 'FILE_SYSTEM_DELETE_SNAPSHOT'}",
+      "statement_text": "Allow group 'Secondary'/'DataEngineers' to manage file-family in compartment NonProduction where any {request.permission = 'FILE_SYSTEM_DELETE', request.permission = 'MOUNT_TARGET_DELETE', request.permission = 'VNIC_DELETE', request.permission = 'SUBNET_DETACH', request.permission = 'VNIC_DETACH', request.permission = 'PRIVATE_IP_DELETE', request.permission = 'PRIVATE_IP_UNASSIGN', request.permission = 'VNIC_UNASSIGN', request.permission = 'EXPORT_SET_UPDATE', request.permission = 'ocid1.compartment.oc1..sample0006', request.permission = 'EXPORT_SET_DELETE', request.permission = 'FILE_SYSTEM_DELETE_SNAPSHOT'}",
       "parsed": true
     },
     {
@@ -13939,12 +13974,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "FunctionDevelopers"
         ]
       ],
       "principal_keys": [
-        "group:default/functiondevelopers"
+        "group:secondary/functiondevelopers"
       ],
       "verb": "read",
       "resource": "all-resources",
@@ -13973,7 +14008,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group FunctionDevelopers to read all-resources in compartment NonProduction",
+      "statement_text": "Allow group 'Secondary'/'FunctionDevelopers' to read all-resources in compartment NonProduction",
       "parsed": true
     },
     {
@@ -13988,12 +14023,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "DataEngineers"
         ]
       ],
       "principal_keys": [
-        "group:default/dataengineers"
+        "group:secondary/dataengineers"
       ],
       "verb": "manage",
       "resource": "repos",
@@ -14022,7 +14057,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group DataEngineers to manage repos in compartment NonProduction",
+      "statement_text": "Allow group 'Secondary'/'DataEngineers' to manage repos in compartment NonProduction",
       "parsed": true
     },
     {
@@ -14037,12 +14072,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ComplianceReviewers"
         ]
       ],
       "principal_keys": [
-        "group:default/compliancereviewers"
+        "group:secondary/compliancereviewers"
       ],
       "verb": "read",
       "resource": "virtual-network-family",
@@ -14071,7 +14106,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ComplianceReviewers to read virtual-network-family in compartment NonProduction",
+      "statement_text": "Allow group 'Secondary'/'ComplianceReviewers' to read virtual-network-family in compartment NonProduction",
       "parsed": true
     },
     {
@@ -14086,12 +14121,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "IncidentResponders"
         ]
       ],
       "principal_keys": [
-        "group:default/incidentresponders"
+        "group:secondary/incidentresponders"
       ],
       "verb": "read",
       "resource": "database-family",
@@ -14120,7 +14155,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group IncidentResponders to read database-family in compartment NonProduction",
+      "statement_text": "Allow group 'Secondary'/'IncidentResponders' to read database-family in compartment NonProduction",
       "parsed": true
     },
     {
@@ -14429,12 +14464,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "SandboxDevelopers"
         ]
       ],
       "principal_keys": [
-        "group:default/sandboxdevelopers"
+        "group:secondary/sandboxdevelopers"
       ],
       "verb": "read",
       "resource": "all-resources",
@@ -14463,7 +14498,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group SandboxDevelopers to read all-resources in compartment NonProduction",
+      "statement_text": "Allow group 'Secondary'/'SandboxDevelopers' to read all-resources in compartment NonProduction",
       "parsed": true
     },
     {
@@ -14478,12 +14513,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "CostReviewers"
         ]
       ],
       "principal_keys": [
-        "group:default/costreviewers"
+        "group:secondary/costreviewers"
       ],
       "verb": "read",
       "resource": "audit-events",
@@ -14512,7 +14547,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group CostReviewers to read audit-events in compartment NonProduction",
+      "statement_text": "Allow group 'Secondary'/'CostReviewers' to read audit-events in compartment NonProduction",
       "parsed": true
     },
     {
@@ -14527,12 +14562,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "Helpdesk"
         ]
       ],
       "principal_keys": [
-        "group:default/helpdesk"
+        "group:secondary/helpdesk"
       ],
       "verb": "manage",
       "resource": "metrics",
@@ -14561,7 +14596,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group Helpdesk to manage metrics in compartment NonProduction",
+      "statement_text": "Allow group 'Secondary'/'Helpdesk' to manage metrics in compartment NonProduction",
       "parsed": true
     },
     {
@@ -15061,12 +15096,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "Auditors"
         ]
       ],
       "principal_keys": [
-        "group:default/auditors"
+        "group:secondary/auditors"
       ],
       "verb": "manage",
       "resource": "generative-ai-response",
@@ -15095,7 +15130,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group Auditors to manage generative-ai-response in compartment NonProduction",
+      "statement_text": "Allow group 'Secondary'/'Auditors' to manage generative-ai-response in compartment NonProduction",
       "parsed": true
     },
     {
@@ -15110,12 +15145,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "SecurityAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/securityadmins"
+        "group:secondary/securityadmins"
       ],
       "verb": "manage",
       "resource": "generative-ai-family",
@@ -15144,7 +15179,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group SecurityAdmins to manage generative-ai-family in compartment NonProduction",
+      "statement_text": "Allow group 'Secondary'/'SecurityAdmins' to manage generative-ai-family in compartment NonProduction",
       "parsed": true
     },
     {
@@ -15159,12 +15194,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "NetworkAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/networkadmins"
+        "group:secondary/networkadmins"
       ],
       "verb": "manage",
       "resource": "object-family",
@@ -15193,7 +15228,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group NetworkAdmins to manage object-family in compartment NonProduction",
+      "statement_text": "Allow group 'Secondary'/'NetworkAdmins' to manage object-family in compartment NonProduction",
       "parsed": true
     },
     {
@@ -15208,12 +15243,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "StorageAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/storageadmins"
+        "group:secondary/storageadmins"
       ],
       "verb": "manage",
       "resource": "database-family",
@@ -15242,7 +15277,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group StorageAdmins to manage database-family in compartment NonProduction",
+      "statement_text": "Allow group 'Secondary'/'StorageAdmins' to manage database-family in compartment NonProduction",
       "parsed": true
     },
     {
@@ -15257,12 +15292,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "DatabaseAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/databaseadmins"
+        "group:secondary/databaseadmins"
       ],
       "verb": "read",
       "resource": "vaults",
@@ -15291,7 +15326,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group DatabaseAdmins to read vaults in compartment NonProduction",
+      "statement_text": "Allow group 'Secondary'/'DatabaseAdmins' to read vaults in compartment NonProduction",
       "parsed": true
     },
     {
@@ -15306,12 +15341,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ComputeAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/computeadmins"
+        "group:secondary/computeadmins"
       ],
       "verb": "manage",
       "resource": "secret-family",
@@ -15340,7 +15375,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ComputeAdmins to manage secret-family in compartment NonProduction",
+      "statement_text": "Allow group 'Secondary'/'ComputeAdmins' to manage secret-family in compartment NonProduction",
       "parsed": true
     },
     {
@@ -15690,12 +15725,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ReadOnly"
         ]
       ],
       "principal_keys": [
-        "group:default/readonly"
+        "group:secondary/readonly"
       ],
       "verb": "manage",
       "resource": "tag-namespaces",
@@ -15724,7 +15759,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ReadOnly to manage tag-namespaces in compartment Sandbox",
+      "statement_text": "Allow group 'Secondary'/'ReadOnly' to manage tag-namespaces in compartment Sandbox",
       "parsed": true
     },
     {
@@ -15739,12 +15774,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "IdentityAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/identityadmins"
+        "group:secondary/identityadmins"
       ],
       "verb": "manage",
       "resource": "secret-family",
@@ -15773,7 +15808,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group IdentityAdmins to manage secret-family in compartment Sandbox",
+      "statement_text": "Allow group 'Secondary'/'IdentityAdmins' to manage secret-family in compartment Sandbox",
       "parsed": true
     },
     {
@@ -15788,12 +15823,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "KeyAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/keyadmins"
+        "group:secondary/keyadmins"
       ],
       "verb": "read",
       "resource": "instance-agent-plugins",
@@ -15822,7 +15857,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group KeyAdmins to read instance-agent-plugins in compartment Sandbox",
+      "statement_text": "Allow group 'Secondary'/'KeyAdmins' to read instance-agent-plugins in compartment Sandbox",
       "parsed": true
     },
     {
@@ -15837,12 +15872,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "LoggingAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/loggingadmins"
+        "group:secondary/loggingadmins"
       ],
       "verb": "read",
       "resource": "keys",
@@ -15871,7 +15906,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group LoggingAdmins to read keys in compartment Sandbox",
+      "statement_text": "Allow group 'Secondary'/'LoggingAdmins' to read keys in compartment Sandbox",
       "parsed": true
     },
     {
@@ -15886,12 +15921,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "KeyAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/keyadmins"
+        "group:secondary/keyadmins"
       ],
       "verb": "manage",
       "resource": "policies",
@@ -15920,7 +15955,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group KeyAdmins to manage policies in compartment Sandbox",
+      "statement_text": "Allow group 'Secondary'/'KeyAdmins' to manage policies in compartment Sandbox",
       "parsed": true
     },
     {
@@ -15935,12 +15970,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "LoggingAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/loggingadmins"
+        "group:secondary/loggingadmins"
       ],
       "verb": "manage",
       "resource": "compartments",
@@ -15969,7 +16004,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group LoggingAdmins to manage compartments in compartment Sandbox",
+      "statement_text": "Allow group 'Secondary'/'LoggingAdmins' to manage compartments in compartment Sandbox",
       "parsed": true
     },
     {
@@ -15984,12 +16019,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "MonitoringAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/monitoringadmins"
+        "group:secondary/monitoringadmins"
       ],
       "verb": "read",
       "resource": "all-resources",
@@ -16018,7 +16053,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group MonitoringAdmins to read all-resources in compartment Sandbox",
+      "statement_text": "Allow group 'Secondary'/'MonitoringAdmins' to read all-resources in compartment Sandbox",
       "parsed": true
     },
     {
@@ -16033,12 +16068,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "BackupOperators"
         ]
       ],
       "principal_keys": [
-        "group:default/backupoperators"
+        "group:secondary/backupoperators"
       ],
       "verb": "manage",
       "resource": "orm-stacks",
@@ -16067,7 +16102,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group BackupOperators to manage orm-stacks in compartment Sandbox",
+      "statement_text": "Allow group 'Secondary'/'BackupOperators' to manage orm-stacks in compartment Sandbox",
       "parsed": true
     },
     {
@@ -16082,12 +16117,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ContainerAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/containeradmins"
+        "group:secondary/containeradmins"
       ],
       "verb": "manage",
       "resource": "cloud-vmclusters",
@@ -16116,7 +16151,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ContainerAdmins to manage cloud-vmclusters in compartment Sandbox",
+      "statement_text": "Allow group 'Secondary'/'ContainerAdmins' to manage cloud-vmclusters in compartment Sandbox",
       "parsed": true
     },
     {
@@ -16131,12 +16166,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "FunctionDevelopers"
         ]
       ],
       "principal_keys": [
-        "group:default/functiondevelopers"
+        "group:secondary/functiondevelopers"
       ],
       "verb": "manage",
       "resource": "bastion-session",
@@ -16165,7 +16200,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group FunctionDevelopers to manage bastion-session in compartment Sandbox",
+      "statement_text": "Allow group 'Secondary'/'FunctionDevelopers' to manage bastion-session in compartment Sandbox",
       "parsed": true
     },
     {
@@ -16180,12 +16215,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ContainerAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/containeradmins"
+        "group:secondary/containeradmins"
       ],
       "verb": "read",
       "resource": "bucket",
@@ -16214,7 +16249,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ContainerAdmins to read bucket in compartment Sandbox",
+      "statement_text": "Allow group 'Secondary'/'ContainerAdmins' to read bucket in compartment Sandbox",
       "parsed": true
     },
     {
@@ -16229,12 +16264,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "FunctionDevelopers"
         ]
       ],
       "principal_keys": [
-        "group:default/functiondevelopers"
+        "group:secondary/functiondevelopers"
       ],
       "verb": "manage",
       "resource": "object-family",
@@ -16326,7 +16361,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group FunctionDevelopers to manage object-family in compartment Sandbox where any {request.permission = 'OBJECT_DELETE', request.permission = 'BUCKET_DELETE'}",
+      "statement_text": "Allow group 'Secondary'/'FunctionDevelopers' to manage object-family in compartment Sandbox where any {request.permission = 'OBJECT_DELETE', request.permission = 'BUCKET_DELETE'}",
       "parsed": true
     },
     {
@@ -16341,12 +16376,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "DataEngineers"
         ]
       ],
       "principal_keys": [
-        "group:default/dataengineers"
+        "group:secondary/dataengineers"
       ],
       "verb": "manage",
       "resource": "volume-family",
@@ -16468,7 +16503,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group DataEngineers to manage volume-family in compartment Sandbox where any {request.permission = 'VOLUME_DELETE', request.permission = 'VOLUME_BACKUP_DELETE', request.permission = 'BOOT_VOLUME_BACKUP_DELETE'}",
+      "statement_text": "Allow group 'Secondary'/'DataEngineers' to manage volume-family in compartment Sandbox where any {request.permission = 'VOLUME_DELETE', request.permission = 'VOLUME_BACKUP_DELETE', request.permission = 'BOOT_VOLUME_BACKUP_DELETE'}",
       "parsed": true
     },
     {
@@ -16483,12 +16518,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ComplianceReviewers"
         ]
       ],
       "principal_keys": [
-        "group:default/compliancereviewers"
+        "group:secondary/compliancereviewers"
       ],
       "verb": "manage",
       "resource": "file-family",
@@ -16880,7 +16915,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ComplianceReviewers to manage file-family in compartment Sandbox where any {request.permission = 'FILE_SYSTEM_DELETE', request.permission = 'MOUNT_TARGET_DELETE', request.permission = 'VNIC_DELETE', request.permission = 'SUBNET_DETACH', request.permission = 'VNIC_DETACH', request.permission = 'PRIVATE_IP_DELETE', request.permission = 'PRIVATE_IP_UNASSIGN', request.permission = 'VNIC_UNASSIGN', request.permission = 'EXPORT_SET_UPDATE', request.permission = 'ocid1.compartment.oc1..sample0007', request.permission = 'EXPORT_SET_DELETE', request.permission = 'FILE_SYSTEM_DELETE_SNAPSHOT'}",
+      "statement_text": "Allow group 'Secondary'/'ComplianceReviewers' to manage file-family in compartment Sandbox where any {request.permission = 'FILE_SYSTEM_DELETE', request.permission = 'MOUNT_TARGET_DELETE', request.permission = 'VNIC_DELETE', request.permission = 'SUBNET_DETACH', request.permission = 'VNIC_DETACH', request.permission = 'PRIVATE_IP_DELETE', request.permission = 'PRIVATE_IP_UNASSIGN', request.permission = 'VNIC_UNASSIGN', request.permission = 'EXPORT_SET_UPDATE', request.permission = 'ocid1.compartment.oc1..sample0007', request.permission = 'EXPORT_SET_DELETE', request.permission = 'FILE_SYSTEM_DELETE_SNAPSHOT'}",
       "parsed": true
     },
     {
@@ -16895,12 +16930,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "DataEngineers"
         ]
       ],
       "principal_keys": [
-        "group:default/dataengineers"
+        "group:secondary/dataengineers"
       ],
       "verb": "read",
       "resource": "all-resources",
@@ -16929,7 +16964,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group DataEngineers to read all-resources in compartment Sandbox",
+      "statement_text": "Allow group 'Secondary'/'DataEngineers' to read all-resources in compartment Sandbox",
       "parsed": true
     },
     {
@@ -16944,12 +16979,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ComplianceReviewers"
         ]
       ],
       "principal_keys": [
-        "group:default/compliancereviewers"
+        "group:secondary/compliancereviewers"
       ],
       "verb": "manage",
       "resource": "repos",
@@ -16978,7 +17013,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ComplianceReviewers to manage repos in compartment Sandbox",
+      "statement_text": "Allow group 'Secondary'/'ComplianceReviewers' to manage repos in compartment Sandbox",
       "parsed": true
     },
     {
@@ -16993,12 +17028,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "IncidentResponders"
         ]
       ],
       "principal_keys": [
-        "group:default/incidentresponders"
+        "group:secondary/incidentresponders"
       ],
       "verb": "read",
       "resource": "virtual-network-family",
@@ -17027,7 +17062,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group IncidentResponders to read virtual-network-family in compartment Sandbox",
+      "statement_text": "Allow group 'Secondary'/'IncidentResponders' to read virtual-network-family in compartment Sandbox",
       "parsed": true
     },
     {
@@ -17042,12 +17077,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ProdOperators"
         ]
       ],
       "principal_keys": [
-        "group:default/prodoperators"
+        "group:secondary/prodoperators"
       ],
       "verb": "read",
       "resource": "database-family",
@@ -17076,7 +17111,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ProdOperators to read database-family in compartment Sandbox",
+      "statement_text": "Allow group 'Secondary'/'ProdOperators' to read database-family in compartment Sandbox",
       "parsed": true
     },
     {
@@ -17385,12 +17420,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "CostReviewers"
         ]
       ],
       "principal_keys": [
-        "group:default/costreviewers"
+        "group:secondary/costreviewers"
       ],
       "verb": "read",
       "resource": "all-resources",
@@ -17419,7 +17454,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group CostReviewers to read all-resources in compartment Sandbox",
+      "statement_text": "Allow group 'Secondary'/'CostReviewers' to read all-resources in compartment Sandbox",
       "parsed": true
     },
     {
@@ -17434,12 +17469,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "Helpdesk"
         ]
       ],
       "principal_keys": [
-        "group:default/helpdesk"
+        "group:secondary/helpdesk"
       ],
       "verb": "read",
       "resource": "audit-events",
@@ -17468,7 +17503,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group Helpdesk to read audit-events in compartment Sandbox",
+      "statement_text": "Allow group 'Secondary'/'Helpdesk' to read audit-events in compartment Sandbox",
       "parsed": true
     },
     {
@@ -17532,12 +17567,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "Auditors"
         ]
       ],
       "principal_keys": [
-        "group:default/auditors"
+        "group:secondary/auditors"
       ],
       "verb": "read",
       "resource": "logging-family",
@@ -17566,7 +17601,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group Auditors to read logging-family in compartment Sandbox",
+      "statement_text": "Allow group 'Secondary'/'Auditors' to read logging-family in compartment Sandbox",
       "parsed": true
     },
     {
@@ -18017,12 +18052,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "SecurityAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/securityadmins"
+        "group:secondary/securityadmins"
       ],
       "verb": "manage",
       "resource": "generative-ai-response",
@@ -18051,7 +18086,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group SecurityAdmins to manage generative-ai-response in compartment Sandbox",
+      "statement_text": "Allow group 'Secondary'/'SecurityAdmins' to manage generative-ai-response in compartment Sandbox",
       "parsed": true
     },
     {
@@ -18066,12 +18101,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "NetworkAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/networkadmins"
+        "group:secondary/networkadmins"
       ],
       "verb": "manage",
       "resource": "generative-ai-family",
@@ -18100,7 +18135,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group NetworkAdmins to manage generative-ai-family in compartment Sandbox",
+      "statement_text": "Allow group 'Secondary'/'NetworkAdmins' to manage generative-ai-family in compartment Sandbox",
       "parsed": true
     },
     {
@@ -18115,12 +18150,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "StorageAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/storageadmins"
+        "group:secondary/storageadmins"
       ],
       "verb": "manage",
       "resource": "object-family",
@@ -18149,7 +18184,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group StorageAdmins to manage object-family in compartment Sandbox",
+      "statement_text": "Allow group 'Secondary'/'StorageAdmins' to manage object-family in compartment Sandbox",
       "parsed": true
     },
     {
@@ -18164,12 +18199,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "DatabaseAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/databaseadmins"
+        "group:secondary/databaseadmins"
       ],
       "verb": "manage",
       "resource": "database-family",
@@ -18198,7 +18233,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group DatabaseAdmins to manage database-family in compartment Sandbox",
+      "statement_text": "Allow group 'Secondary'/'DatabaseAdmins' to manage database-family in compartment Sandbox",
       "parsed": true
     },
     {
@@ -18213,12 +18248,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ComputeAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/computeadmins"
+        "group:secondary/computeadmins"
       ],
       "verb": "read",
       "resource": "vaults",
@@ -18247,7 +18282,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ComputeAdmins to read vaults in compartment Sandbox",
+      "statement_text": "Allow group 'Secondary'/'ComputeAdmins' to read vaults in compartment Sandbox",
       "parsed": true
     },
     {
@@ -18262,12 +18297,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "AppDevelopers"
         ]
       ],
       "principal_keys": [
-        "group:default/appdevelopers"
+        "group:secondary/appdevelopers"
       ],
       "verb": "manage",
       "resource": "secret-family",
@@ -18296,7 +18331,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group AppDevelopers to manage secret-family in compartment Sandbox",
+      "statement_text": "Allow group 'Secondary'/'AppDevelopers' to manage secret-family in compartment Sandbox",
       "parsed": true
     },
     {
@@ -18646,12 +18681,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "IdentityAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/identityadmins"
+        "group:secondary/identityadmins"
       ],
       "verb": "manage",
       "resource": "tag-namespaces",
@@ -18680,7 +18715,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group IdentityAdmins to manage tag-namespaces in compartment DataPlatform",
+      "statement_text": "Allow group 'Secondary'/'IdentityAdmins' to manage tag-namespaces in compartment DataPlatform",
       "parsed": true
     },
     {
@@ -18695,12 +18730,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "KeyAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/keyadmins"
+        "group:secondary/keyadmins"
       ],
       "verb": "manage",
       "resource": "secret-family",
@@ -18729,7 +18764,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group KeyAdmins to manage secret-family in compartment DataPlatform",
+      "statement_text": "Allow group 'Secondary'/'KeyAdmins' to manage secret-family in compartment DataPlatform",
       "parsed": true
     },
     {
@@ -18744,12 +18779,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "LoggingAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/loggingadmins"
+        "group:secondary/loggingadmins"
       ],
       "verb": "read",
       "resource": "instance-agent-plugins",
@@ -18778,7 +18813,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group LoggingAdmins to read instance-agent-plugins in compartment DataPlatform",
+      "statement_text": "Allow group 'Secondary'/'LoggingAdmins' to read instance-agent-plugins in compartment DataPlatform",
       "parsed": true
     },
     {
@@ -18793,12 +18828,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "MonitoringAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/monitoringadmins"
+        "group:secondary/monitoringadmins"
       ],
       "verb": "read",
       "resource": "keys",
@@ -18827,7 +18862,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group MonitoringAdmins to read keys in compartment DataPlatform",
+      "statement_text": "Allow group 'Secondary'/'MonitoringAdmins' to read keys in compartment DataPlatform",
       "parsed": true
     },
     {
@@ -18842,12 +18877,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "LoggingAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/loggingadmins"
+        "group:secondary/loggingadmins"
       ],
       "verb": "manage",
       "resource": "policies",
@@ -18876,7 +18911,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group LoggingAdmins to manage policies in compartment DataPlatform",
+      "statement_text": "Allow group 'Secondary'/'LoggingAdmins' to manage policies in compartment DataPlatform",
       "parsed": true
     },
     {
@@ -18891,12 +18926,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "MonitoringAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/monitoringadmins"
+        "group:secondary/monitoringadmins"
       ],
       "verb": "manage",
       "resource": "compartments",
@@ -18925,7 +18960,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group MonitoringAdmins to manage compartments in compartment DataPlatform",
+      "statement_text": "Allow group 'Secondary'/'MonitoringAdmins' to manage compartments in compartment DataPlatform",
       "parsed": true
     },
     {
@@ -18940,12 +18975,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "BackupOperators"
         ]
       ],
       "principal_keys": [
-        "group:default/backupoperators"
+        "group:secondary/backupoperators"
       ],
       "verb": "read",
       "resource": "all-resources",
@@ -18974,7 +19009,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group BackupOperators to read all-resources in compartment DataPlatform",
+      "statement_text": "Allow group 'Secondary'/'BackupOperators' to read all-resources in compartment DataPlatform",
       "parsed": true
     },
     {
@@ -18989,12 +19024,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ContainerAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/containeradmins"
+        "group:secondary/containeradmins"
       ],
       "verb": "manage",
       "resource": "orm-stacks",
@@ -19023,7 +19058,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ContainerAdmins to manage orm-stacks in compartment DataPlatform",
+      "statement_text": "Allow group 'Secondary'/'ContainerAdmins' to manage orm-stacks in compartment DataPlatform",
       "parsed": true
     },
     {
@@ -19038,12 +19073,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "FunctionDevelopers"
         ]
       ],
       "principal_keys": [
-        "group:default/functiondevelopers"
+        "group:secondary/functiondevelopers"
       ],
       "verb": "manage",
       "resource": "cloud-vmclusters",
@@ -19072,7 +19107,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group FunctionDevelopers to manage cloud-vmclusters in compartment DataPlatform",
+      "statement_text": "Allow group 'Secondary'/'FunctionDevelopers' to manage cloud-vmclusters in compartment DataPlatform",
       "parsed": true
     },
     {
@@ -19087,12 +19122,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "DataEngineers"
         ]
       ],
       "principal_keys": [
-        "group:default/dataengineers"
+        "group:secondary/dataengineers"
       ],
       "verb": "manage",
       "resource": "bastion-session",
@@ -19121,7 +19156,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group DataEngineers to manage bastion-session in compartment DataPlatform",
+      "statement_text": "Allow group 'Secondary'/'DataEngineers' to manage bastion-session in compartment DataPlatform",
       "parsed": true
     },
     {
@@ -19136,12 +19171,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "FunctionDevelopers"
         ]
       ],
       "principal_keys": [
-        "group:default/functiondevelopers"
+        "group:secondary/functiondevelopers"
       ],
       "verb": "read",
       "resource": "bucket",
@@ -19170,7 +19205,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group FunctionDevelopers to read bucket in compartment DataPlatform",
+      "statement_text": "Allow group 'Secondary'/'FunctionDevelopers' to read bucket in compartment DataPlatform",
       "parsed": true
     },
     {
@@ -19185,12 +19220,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "DataEngineers"
         ]
       ],
       "principal_keys": [
-        "group:default/dataengineers"
+        "group:secondary/dataengineers"
       ],
       "verb": "manage",
       "resource": "object-family",
@@ -19282,7 +19317,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group DataEngineers to manage object-family in compartment DataPlatform where any {request.permission = 'OBJECT_DELETE', request.permission = 'BUCKET_DELETE'}",
+      "statement_text": "Allow group 'Secondary'/'DataEngineers' to manage object-family in compartment DataPlatform where any {request.permission = 'OBJECT_DELETE', request.permission = 'BUCKET_DELETE'}",
       "parsed": true
     },
     {
@@ -19297,12 +19332,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ComplianceReviewers"
         ]
       ],
       "principal_keys": [
-        "group:default/compliancereviewers"
+        "group:secondary/compliancereviewers"
       ],
       "verb": "manage",
       "resource": "volume-family",
@@ -19424,7 +19459,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ComplianceReviewers to manage volume-family in compartment DataPlatform where any {request.permission = 'VOLUME_DELETE', request.permission = 'VOLUME_BACKUP_DELETE', request.permission = 'BOOT_VOLUME_BACKUP_DELETE'}",
+      "statement_text": "Allow group 'Secondary'/'ComplianceReviewers' to manage volume-family in compartment DataPlatform where any {request.permission = 'VOLUME_DELETE', request.permission = 'VOLUME_BACKUP_DELETE', request.permission = 'BOOT_VOLUME_BACKUP_DELETE'}",
       "parsed": true
     },
     {
@@ -19439,12 +19474,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "IncidentResponders"
         ]
       ],
       "principal_keys": [
-        "group:default/incidentresponders"
+        "group:secondary/incidentresponders"
       ],
       "verb": "manage",
       "resource": "file-family",
@@ -19836,7 +19871,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group IncidentResponders to manage file-family in compartment DataPlatform where any {request.permission = 'FILE_SYSTEM_DELETE', request.permission = 'MOUNT_TARGET_DELETE', request.permission = 'VNIC_DELETE', request.permission = 'SUBNET_DETACH', request.permission = 'VNIC_DETACH', request.permission = 'PRIVATE_IP_DELETE', request.permission = 'PRIVATE_IP_UNASSIGN', request.permission = 'VNIC_UNASSIGN', request.permission = 'EXPORT_SET_UPDATE', request.permission = 'ocid1.compartment.oc1..sample0008', request.permission = 'EXPORT_SET_DELETE', request.permission = 'FILE_SYSTEM_DELETE_SNAPSHOT'}",
+      "statement_text": "Allow group 'Secondary'/'IncidentResponders' to manage file-family in compartment DataPlatform where any {request.permission = 'FILE_SYSTEM_DELETE', request.permission = 'MOUNT_TARGET_DELETE', request.permission = 'VNIC_DELETE', request.permission = 'SUBNET_DETACH', request.permission = 'VNIC_DETACH', request.permission = 'PRIVATE_IP_DELETE', request.permission = 'PRIVATE_IP_UNASSIGN', request.permission = 'VNIC_UNASSIGN', request.permission = 'EXPORT_SET_UPDATE', request.permission = 'ocid1.compartment.oc1..sample0008', request.permission = 'EXPORT_SET_DELETE', request.permission = 'FILE_SYSTEM_DELETE_SNAPSHOT'}",
       "parsed": true
     },
     {
@@ -19851,12 +19886,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ComplianceReviewers"
         ]
       ],
       "principal_keys": [
-        "group:default/compliancereviewers"
+        "group:secondary/compliancereviewers"
       ],
       "verb": "read",
       "resource": "all-resources",
@@ -19885,7 +19920,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ComplianceReviewers to read all-resources in compartment DataPlatform",
+      "statement_text": "Allow group 'Secondary'/'ComplianceReviewers' to read all-resources in compartment DataPlatform",
       "parsed": true
     },
     {
@@ -19900,12 +19935,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "IncidentResponders"
         ]
       ],
       "principal_keys": [
-        "group:default/incidentresponders"
+        "group:secondary/incidentresponders"
       ],
       "verb": "manage",
       "resource": "repos",
@@ -19934,7 +19969,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group IncidentResponders to manage repos in compartment DataPlatform",
+      "statement_text": "Allow group 'Secondary'/'IncidentResponders' to manage repos in compartment DataPlatform",
       "parsed": true
     },
     {
@@ -19949,12 +19984,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ProdOperators"
         ]
       ],
       "principal_keys": [
-        "group:default/prodoperators"
+        "group:secondary/prodoperators"
       ],
       "verb": "read",
       "resource": "virtual-network-family",
@@ -19983,7 +20018,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ProdOperators to read virtual-network-family in compartment DataPlatform",
+      "statement_text": "Allow group 'Secondary'/'ProdOperators' to read virtual-network-family in compartment DataPlatform",
       "parsed": true
     },
     {
@@ -19998,12 +20033,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "TestOperators"
         ]
       ],
       "principal_keys": [
-        "group:default/testoperators"
+        "group:secondary/testoperators"
       ],
       "verb": "read",
       "resource": "database-family",
@@ -20032,7 +20067,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group TestOperators to read database-family in compartment DataPlatform",
+      "statement_text": "Allow group 'Secondary'/'TestOperators' to read database-family in compartment DataPlatform",
       "parsed": true
     },
     {
@@ -20341,12 +20376,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "Helpdesk"
         ]
       ],
       "principal_keys": [
-        "group:default/helpdesk"
+        "group:secondary/helpdesk"
       ],
       "verb": "read",
       "resource": "all-resources",
@@ -20375,7 +20410,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group Helpdesk to read all-resources in compartment DataPlatform",
+      "statement_text": "Allow group 'Secondary'/'Helpdesk' to read all-resources in compartment DataPlatform",
       "parsed": true
     },
     {
@@ -20439,12 +20474,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "Auditors"
         ]
       ],
       "principal_keys": [
-        "group:default/auditors"
+        "group:secondary/auditors"
       ],
       "verb": "manage",
       "resource": "metrics",
@@ -20473,7 +20508,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group Auditors to manage metrics in compartment DataPlatform",
+      "statement_text": "Allow group 'Secondary'/'Auditors' to manage metrics in compartment DataPlatform",
       "parsed": true
     },
     {
@@ -20488,12 +20523,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "SecurityAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/securityadmins"
+        "group:secondary/securityadmins"
       ],
       "verb": "read",
       "resource": "logging-family",
@@ -20522,7 +20557,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group SecurityAdmins to read logging-family in compartment DataPlatform",
+      "statement_text": "Allow group 'Secondary'/'SecurityAdmins' to read logging-family in compartment DataPlatform",
       "parsed": true
     },
     {
@@ -20973,12 +21008,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "NetworkAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/networkadmins"
+        "group:secondary/networkadmins"
       ],
       "verb": "manage",
       "resource": "generative-ai-response",
@@ -21007,7 +21042,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group NetworkAdmins to manage generative-ai-response in compartment DataPlatform",
+      "statement_text": "Allow group 'Secondary'/'NetworkAdmins' to manage generative-ai-response in compartment DataPlatform",
       "parsed": true
     },
     {
@@ -21022,12 +21057,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "StorageAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/storageadmins"
+        "group:secondary/storageadmins"
       ],
       "verb": "manage",
       "resource": "generative-ai-family",
@@ -21056,7 +21091,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group StorageAdmins to manage generative-ai-family in compartment DataPlatform",
+      "statement_text": "Allow group 'Secondary'/'StorageAdmins' to manage generative-ai-family in compartment DataPlatform",
       "parsed": true
     },
     {
@@ -21071,12 +21106,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "DatabaseAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/databaseadmins"
+        "group:secondary/databaseadmins"
       ],
       "verb": "manage",
       "resource": "object-family",
@@ -21105,7 +21140,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group DatabaseAdmins to manage object-family in compartment DataPlatform",
+      "statement_text": "Allow group 'Secondary'/'DatabaseAdmins' to manage object-family in compartment DataPlatform",
       "parsed": true
     },
     {
@@ -21120,12 +21155,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "ComputeAdmins"
         ]
       ],
       "principal_keys": [
-        "group:default/computeadmins"
+        "group:secondary/computeadmins"
       ],
       "verb": "manage",
       "resource": "database-family",
@@ -21154,7 +21189,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group ComputeAdmins to manage database-family in compartment DataPlatform",
+      "statement_text": "Allow group 'Secondary'/'ComputeAdmins' to manage database-family in compartment DataPlatform",
       "parsed": true
     },
     {
@@ -21169,12 +21204,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "AppDevelopers"
         ]
       ],
       "principal_keys": [
-        "group:default/appdevelopers"
+        "group:secondary/appdevelopers"
       ],
       "verb": "read",
       "resource": "vaults",
@@ -21203,7 +21238,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group AppDevelopers to read vaults in compartment DataPlatform",
+      "statement_text": "Allow group 'Secondary'/'AppDevelopers' to read vaults in compartment DataPlatform",
       "parsed": true
     },
     {
@@ -21218,12 +21253,12 @@
       "subject_type": "group",
       "subject": [
         [
-          "default",
+          "secondary",
           "PlatformOperators"
         ]
       ],
       "principal_keys": [
-        "group:default/platformoperators"
+        "group:secondary/platformoperators"
       ],
       "verb": "manage",
       "resource": "secret-family",
@@ -21252,7 +21287,7 @@
       },
       "comments": "",
       "parsing_notes": [],
-      "statement_text": "Allow group PlatformOperators to manage secret-family in compartment DataPlatform",
+      "statement_text": "Allow group 'Secondary'/'PlatformOperators' to manage secret-family in compartment DataPlatform",
       "parsed": true
     },
     {
@@ -24749,6 +24784,496 @@
       ],
       "statement_text": "Allow any-user to read objects in compartment NonProduction where all {request.principal.type = 'workload', request.principal.namespace = 'platform', request.principal.service_account = 'writer', request.principal.cluster_id = 'ocid1.cluster.oc1..sample0002'}",
       "parsed": true
+    },
+    {
+      "policy_name": "Tenant Admin Policy",
+      "policy_ocid": "ocid1.policy.oc1..sample0101",
+      "compartment_ocid": "ocid1.tenancy.oc1..sample0001",
+      "compartment_path": "ROOT",
+      "internal_id": "sample-statement-0326",
+      "action": "allow",
+      "valid": true,
+      "invalid_reasons": [],
+      "subject_type": "group",
+      "subject": [
+        [
+          "default",
+          "Administrators"
+        ]
+      ],
+      "principal_keys": [
+        "group:default/administrators"
+      ],
+      "verb": "manage",
+      "resource": "all-resources",
+      "permission": [],
+      "location_type": "tenancy",
+      "location": "tenancy",
+      "conditions": "",
+      "conditions_where_clause": "",
+      "conditions_parsed_structure": "",
+      "condition_atoms": [],
+      "where_clause": {
+        "raw_text": "",
+        "parse_status": "absent",
+        "structure": "",
+        "atoms": [],
+        "residual_text": "",
+        "warnings": []
+      },
+      "where_clause_structure": {
+        "raw_text": "",
+        "parse_status": "absent",
+        "structure": "",
+        "atoms": [],
+        "residual_text": "",
+        "warnings": []
+      },
+      "comments": "",
+      "parsing_notes": [],
+      "statement_text": "Allow group Administrators to manage all-resources in tenancy",
+      "parsed": true
+    },
+    {
+      "policy_name": "Alternate Domain Administrators",
+      "policy_ocid": "ocid1.policy.oc1..sample0102",
+      "compartment_ocid": "ocid1.tenancy.oc1..sample0001",
+      "compartment_path": "ROOT",
+      "internal_id": "sample-statement-0327",
+      "action": "allow",
+      "valid": true,
+      "invalid_reasons": [],
+      "subject_type": "group",
+      "subject": [
+        [
+          "default",
+          "DefaultDomainAdmins"
+        ]
+      ],
+      "principal_keys": [
+        "group:default/defaultdomainadmins"
+      ],
+      "verb": "manage",
+      "resource": "all-resources",
+      "permission": [],
+      "location_type": "tenancy",
+      "location": "tenancy",
+      "conditions": "",
+      "conditions_where_clause": "",
+      "conditions_parsed_structure": "",
+      "condition_atoms": [],
+      "where_clause": {
+        "raw_text": "",
+        "parse_status": "absent",
+        "structure": "",
+        "atoms": [],
+        "residual_text": "",
+        "warnings": []
+      },
+      "where_clause_structure": {
+        "raw_text": "",
+        "parse_status": "absent",
+        "structure": "",
+        "atoms": [],
+        "residual_text": "",
+        "warnings": []
+      },
+      "comments": "",
+      "parsing_notes": [],
+      "statement_text": "Allow group DefaultDomainAdmins to manage all-resources in tenancy",
+      "parsed": true
+    },
+    {
+      "policy_name": "Corporate IT Administration",
+      "policy_ocid": "ocid1.policy.oc1..sample0103",
+      "compartment_ocid": "ocid1.compartment.oc1..sample0023",
+      "compartment_path": "ROOT/CorporateIT",
+      "internal_id": "sample-statement-0328",
+      "action": "allow",
+      "valid": true,
+      "invalid_reasons": [],
+      "subject_type": "group",
+      "subject": [
+        [
+          "default",
+          "DefaultDomainAdmins"
+        ]
+      ],
+      "principal_keys": [
+        "group:default/defaultdomainadmins"
+      ],
+      "verb": "manage",
+      "resource": "all-resources",
+      "permission": [],
+      "location_type": "compartment",
+      "location": "CorporateIT",
+      "conditions": "",
+      "conditions_where_clause": "",
+      "conditions_parsed_structure": "",
+      "condition_atoms": [],
+      "where_clause": {
+        "raw_text": "",
+        "parse_status": "absent",
+        "structure": "",
+        "atoms": [],
+        "residual_text": "",
+        "warnings": []
+      },
+      "where_clause_structure": {
+        "raw_text": "",
+        "parse_status": "absent",
+        "structure": "",
+        "atoms": [],
+        "residual_text": "",
+        "warnings": []
+      },
+      "comments": "",
+      "parsing_notes": [],
+      "statement_text": "Allow group DefaultDomainAdmins to manage all-resources in compartment CorporateIT",
+      "parsed": true
+    },
+    {
+      "policy_name": "Corporate IT Administration",
+      "policy_ocid": "ocid1.policy.oc1..sample0103",
+      "compartment_ocid": "ocid1.compartment.oc1..sample0023",
+      "compartment_path": "ROOT/CorporateIT",
+      "internal_id": "sample-statement-0329",
+      "action": "allow",
+      "valid": true,
+      "invalid_reasons": [],
+      "subject_type": "group",
+      "subject": [
+        [
+          "default",
+          "Administrators"
+        ]
+      ],
+      "principal_keys": [
+        "group:default/administrators"
+      ],
+      "verb": "manage",
+      "resource": "all-resources",
+      "permission": [],
+      "location_type": "compartment",
+      "location": "CorporateIT",
+      "conditions": "",
+      "conditions_where_clause": "",
+      "conditions_parsed_structure": "",
+      "condition_atoms": [],
+      "where_clause": {
+        "raw_text": "",
+        "parse_status": "absent",
+        "structure": "",
+        "atoms": [],
+        "residual_text": "",
+        "warnings": []
+      },
+      "where_clause_structure": {
+        "raw_text": "",
+        "parse_status": "absent",
+        "structure": "",
+        "atoms": [],
+        "residual_text": "",
+        "warnings": []
+      },
+      "comments": "",
+      "parsing_notes": [],
+      "statement_text": "Allow group Administrators to manage all-resources in compartment CorporateIT",
+      "parsed": true
+    },
+    {
+      "policy_name": "Landing Zone Tenancy Visibility",
+      "policy_ocid": "ocid1.policy.oc1..sample0104",
+      "compartment_ocid": "ocid1.tenancy.oc1..sample0001",
+      "compartment_path": "ROOT",
+      "internal_id": "sample-statement-0330",
+      "action": "allow",
+      "valid": true,
+      "invalid_reasons": [],
+      "subject_type": "group",
+      "subject": [
+        [
+          "secondary",
+          "PlatformOperators"
+        ]
+      ],
+      "principal_keys": [
+        "group:secondary/platformoperators"
+      ],
+      "verb": "use",
+      "resource": "cloud-shell",
+      "permission": [],
+      "location_type": "tenancy",
+      "location": "tenancy",
+      "conditions": "",
+      "conditions_where_clause": "",
+      "conditions_parsed_structure": "",
+      "condition_atoms": [],
+      "where_clause": {
+        "raw_text": "",
+        "parse_status": "absent",
+        "structure": "",
+        "atoms": [],
+        "residual_text": "",
+        "warnings": []
+      },
+      "where_clause_structure": {
+        "raw_text": "",
+        "parse_status": "absent",
+        "structure": "",
+        "atoms": [],
+        "residual_text": "",
+        "warnings": []
+      },
+      "comments": "",
+      "parsing_notes": [],
+      "statement_text": "Allow group 'Secondary'/'PlatformOperators' to use cloud-shell in tenancy",
+      "parsed": true
+    },
+    {
+      "policy_name": "Landing Zone Tenancy Visibility",
+      "policy_ocid": "ocid1.policy.oc1..sample0104",
+      "compartment_ocid": "ocid1.tenancy.oc1..sample0001",
+      "compartment_path": "ROOT",
+      "internal_id": "sample-statement-0331",
+      "action": "allow",
+      "valid": true,
+      "invalid_reasons": [],
+      "subject_type": "group",
+      "subject": [
+        [
+          "secondary",
+          "ContainerAdmins"
+        ]
+      ],
+      "principal_keys": [
+        "group:secondary/containeradmins"
+      ],
+      "verb": "inspect",
+      "resource": "repos",
+      "permission": [],
+      "location_type": "tenancy",
+      "location": "tenancy",
+      "conditions": "",
+      "conditions_where_clause": "",
+      "conditions_parsed_structure": "",
+      "condition_atoms": [],
+      "where_clause": {
+        "raw_text": "",
+        "parse_status": "absent",
+        "structure": "",
+        "atoms": [],
+        "residual_text": "",
+        "warnings": []
+      },
+      "where_clause_structure": {
+        "raw_text": "",
+        "parse_status": "absent",
+        "structure": "",
+        "atoms": [],
+        "residual_text": "",
+        "warnings": []
+      },
+      "comments": "",
+      "parsing_notes": [],
+      "statement_text": "Allow group 'Secondary'/'ContainerAdmins' to inspect repos in tenancy",
+      "parsed": true
+    },
+    {
+      "policy_name": "Landing Zone Tenancy Visibility",
+      "policy_ocid": "ocid1.policy.oc1..sample0104",
+      "compartment_ocid": "ocid1.tenancy.oc1..sample0001",
+      "compartment_path": "ROOT",
+      "internal_id": "sample-statement-0332",
+      "action": "allow",
+      "valid": true,
+      "invalid_reasons": [],
+      "subject_type": "group",
+      "subject": [
+        [
+          "secondary",
+          "AppDevelopers"
+        ]
+      ],
+      "principal_keys": [
+        "group:secondary/appdevelopers"
+      ],
+      "verb": "read",
+      "resource": "objectstorage-namespaces",
+      "permission": [],
+      "location_type": "tenancy",
+      "location": "tenancy",
+      "conditions": "",
+      "conditions_where_clause": "",
+      "conditions_parsed_structure": "",
+      "condition_atoms": [],
+      "where_clause": {
+        "raw_text": "",
+        "parse_status": "absent",
+        "structure": "",
+        "atoms": [],
+        "residual_text": "",
+        "warnings": []
+      },
+      "where_clause_structure": {
+        "raw_text": "",
+        "parse_status": "absent",
+        "structure": "",
+        "atoms": [],
+        "residual_text": "",
+        "warnings": []
+      },
+      "comments": "",
+      "parsing_notes": [],
+      "statement_text": "Allow group 'Secondary'/'AppDevelopers' to read objectstorage-namespaces in tenancy",
+      "parsed": true
+    },
+    {
+      "policy_name": "Landing Zone Tenancy Visibility",
+      "policy_ocid": "ocid1.policy.oc1..sample0104",
+      "compartment_ocid": "ocid1.tenancy.oc1..sample0001",
+      "compartment_path": "ROOT",
+      "internal_id": "sample-statement-0333",
+      "action": "allow",
+      "valid": true,
+      "invalid_reasons": [],
+      "subject_type": "group",
+      "subject": [
+        [
+          "secondary",
+          "ReadOnly"
+        ]
+      ],
+      "principal_keys": [
+        "group:secondary/readonly"
+      ],
+      "verb": "inspect",
+      "resource": "compartments",
+      "permission": [],
+      "location_type": "tenancy",
+      "location": "tenancy",
+      "conditions": "",
+      "conditions_where_clause": "",
+      "conditions_parsed_structure": "",
+      "condition_atoms": [],
+      "where_clause": {
+        "raw_text": "",
+        "parse_status": "absent",
+        "structure": "",
+        "atoms": [],
+        "residual_text": "",
+        "warnings": []
+      },
+      "where_clause_structure": {
+        "raw_text": "",
+        "parse_status": "absent",
+        "structure": "",
+        "atoms": [],
+        "residual_text": "",
+        "warnings": []
+      },
+      "comments": "",
+      "parsing_notes": [],
+      "statement_text": "Allow group 'Secondary'/'ReadOnly' to inspect compartments in tenancy",
+      "parsed": true
+    },
+    {
+      "policy_name": "Production Secret Guardrail",
+      "policy_ocid": "ocid1.policy.oc1..sample0105",
+      "compartment_ocid": "ocid1.tenancy.oc1..sample0001",
+      "compartment_path": "ROOT",
+      "internal_id": "sample-statement-0334",
+      "action": "deny",
+      "valid": true,
+      "invalid_reasons": [],
+      "subject_type": "group",
+      "subject": [
+        [
+          "secondary",
+          "NetworkAdmins"
+        ]
+      ],
+      "principal_keys": [
+        "group:secondary/networkadmins"
+      ],
+      "verb": "inspect",
+      "resource": "secret-bundles",
+      "permission": [],
+      "location_type": "compartment",
+      "location": "Production",
+      "conditions": "",
+      "conditions_where_clause": "",
+      "conditions_parsed_structure": "",
+      "condition_atoms": [],
+      "where_clause": {
+        "raw_text": "",
+        "parse_status": "absent",
+        "structure": "",
+        "atoms": [],
+        "residual_text": "",
+        "warnings": []
+      },
+      "where_clause_structure": {
+        "raw_text": "",
+        "parse_status": "absent",
+        "structure": "",
+        "atoms": [],
+        "residual_text": "",
+        "warnings": []
+      },
+      "comments": "Deny inspect so OCI deny-metaverb rules also block read, use, and manage access. The policy applies to Production and its descendant compartments.",
+      "parsing_notes": [],
+      "statement_text": "Deny group 'Secondary'/'NetworkAdmins' to inspect secret-bundles in compartment Production",
+      "parsed": true
+    },
+    {
+      "policy_name": "Production Secret Guardrail",
+      "policy_ocid": "ocid1.policy.oc1..sample0105",
+      "compartment_ocid": "ocid1.tenancy.oc1..sample0001",
+      "compartment_path": "ROOT",
+      "internal_id": "sample-statement-0335",
+      "action": "deny",
+      "valid": true,
+      "invalid_reasons": [],
+      "subject_type": "group",
+      "subject": [
+        [
+          "secondary",
+          "StorageAdmins"
+        ]
+      ],
+      "principal_keys": [
+        "group:secondary/storageadmins"
+      ],
+      "verb": "inspect",
+      "resource": "secret-bundles",
+      "permission": [],
+      "location_type": "compartment",
+      "location": "Production",
+      "conditions": "",
+      "conditions_where_clause": "",
+      "conditions_parsed_structure": "",
+      "condition_atoms": [],
+      "where_clause": {
+        "raw_text": "",
+        "parse_status": "absent",
+        "structure": "",
+        "atoms": [],
+        "residual_text": "",
+        "warnings": []
+      },
+      "where_clause_structure": {
+        "raw_text": "",
+        "parse_status": "absent",
+        "structure": "",
+        "atoms": [],
+        "residual_text": "",
+        "warnings": []
+      },
+      "comments": "Deny inspect so OCI deny-metaverb rules also block read, use, and manage access. The policy applies to Production and its descendant compartments.",
+      "parsing_notes": [],
+      "statement_text": "Deny group 'Secondary'/'StorageAdmins' to inspect secret-bundles in compartment Production",
+      "parsed": true
     }
   ],
   "groups": [
@@ -24760,172 +25285,179 @@
       "description": "Fictional Administrators"
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "group_name": "Auditors",
       "group_ocid": "ocid1.group.oc1..sample0002",
       "group_id": "ocid1.group.oc1..sample0002",
       "description": "Fictional Auditors"
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "group_name": "SecurityAdmins",
       "group_ocid": "ocid1.group.oc1..sample0003",
       "group_id": "ocid1.group.oc1..sample0003",
       "description": "Fictional SecurityAdmins"
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "group_name": "NetworkAdmins",
       "group_ocid": "ocid1.group.oc1..sample0004",
       "group_id": "ocid1.group.oc1..sample0004",
       "description": "Fictional NetworkAdmins"
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "group_name": "StorageAdmins",
       "group_ocid": "ocid1.group.oc1..sample0005",
       "group_id": "ocid1.group.oc1..sample0005",
       "description": "Fictional StorageAdmins"
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "group_name": "DatabaseAdmins",
       "group_ocid": "ocid1.group.oc1..sample0006",
       "group_id": "ocid1.group.oc1..sample0006",
       "description": "Fictional DatabaseAdmins"
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "group_name": "ComputeAdmins",
       "group_ocid": "ocid1.group.oc1..sample0007",
       "group_id": "ocid1.group.oc1..sample0007",
       "description": "Fictional ComputeAdmins"
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "group_name": "AppDevelopers",
       "group_ocid": "ocid1.group.oc1..sample0008",
       "group_id": "ocid1.group.oc1..sample0008",
       "description": "Fictional AppDevelopers"
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "group_name": "PlatformOperators",
       "group_ocid": "ocid1.group.oc1..sample0009",
       "group_id": "ocid1.group.oc1..sample0009",
       "description": "Fictional PlatformOperators"
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "group_name": "ReadOnly",
       "group_ocid": "ocid1.group.oc1..sample0010",
       "group_id": "ocid1.group.oc1..sample0010",
       "description": "Fictional ReadOnly"
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "group_name": "IdentityAdmins",
       "group_ocid": "ocid1.group.oc1..sample0011",
       "group_id": "ocid1.group.oc1..sample0011",
       "description": "Fictional IdentityAdmins"
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "group_name": "KeyAdmins",
       "group_ocid": "ocid1.group.oc1..sample0012",
       "group_id": "ocid1.group.oc1..sample0012",
       "description": "Fictional KeyAdmins"
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "group_name": "LoggingAdmins",
       "group_ocid": "ocid1.group.oc1..sample0013",
       "group_id": "ocid1.group.oc1..sample0013",
       "description": "Fictional LoggingAdmins"
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "group_name": "MonitoringAdmins",
       "group_ocid": "ocid1.group.oc1..sample0014",
       "group_id": "ocid1.group.oc1..sample0014",
       "description": "Fictional MonitoringAdmins"
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "group_name": "BackupOperators",
       "group_ocid": "ocid1.group.oc1..sample0015",
       "group_id": "ocid1.group.oc1..sample0015",
       "description": "Fictional BackupOperators"
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "group_name": "ContainerAdmins",
       "group_ocid": "ocid1.group.oc1..sample0016",
       "group_id": "ocid1.group.oc1..sample0016",
       "description": "Fictional ContainerAdmins"
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "group_name": "FunctionDevelopers",
       "group_ocid": "ocid1.group.oc1..sample0017",
       "group_id": "ocid1.group.oc1..sample0017",
       "description": "Fictional FunctionDevelopers"
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "group_name": "DataEngineers",
       "group_ocid": "ocid1.group.oc1..sample0018",
       "group_id": "ocid1.group.oc1..sample0018",
       "description": "Fictional DataEngineers"
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "group_name": "ComplianceReviewers",
       "group_ocid": "ocid1.group.oc1..sample0019",
       "group_id": "ocid1.group.oc1..sample0019",
       "description": "Fictional ComplianceReviewers"
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "group_name": "IncidentResponders",
       "group_ocid": "ocid1.group.oc1..sample0020",
       "group_id": "ocid1.group.oc1..sample0020",
       "description": "Fictional IncidentResponders"
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "group_name": "ProdOperators",
       "group_ocid": "ocid1.group.oc1..sample0021",
       "group_id": "ocid1.group.oc1..sample0021",
       "description": "Fictional ProdOperators"
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "group_name": "TestOperators",
       "group_ocid": "ocid1.group.oc1..sample0022",
       "group_id": "ocid1.group.oc1..sample0022",
       "description": "Fictional TestOperators"
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "group_name": "SandboxDevelopers",
       "group_ocid": "ocid1.group.oc1..sample0023",
       "group_id": "ocid1.group.oc1..sample0023",
       "description": "Fictional SandboxDevelopers"
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "group_name": "CostReviewers",
       "group_ocid": "ocid1.group.oc1..sample0024",
       "group_id": "ocid1.group.oc1..sample0024",
       "description": "Fictional CostReviewers"
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "group_name": "Helpdesk",
       "group_ocid": "ocid1.group.oc1..sample0025",
       "group_id": "ocid1.group.oc1..sample0025",
       "description": "Fictional Helpdesk"
+    },
+    {
+      "domain_name": "Default",
+      "group_name": "DefaultDomainAdmins",
+      "group_ocid": "ocid1.group.oc1..sample0026",
+      "group_id": "ocid1.group.oc1..sample0026",
+      "description": "Fictional alternate administrators; broad tenancy access"
     }
   ],
   "users": [
@@ -24941,7 +25473,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user02",
       "display_name": "Demo User 02",
       "email": "user02@example.invalid",
@@ -24949,11 +25481,12 @@
       "user_id": "ocid1.user.oc1..sample0002",
       "groups": [
         "ocid1.group.oc1..sample0004",
-        "ocid1.group.oc1..sample0011"
+        "ocid1.group.oc1..sample0011",
+        "ocid1.group.oc1..sample0026"
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user03",
       "display_name": "Demo User 03",
       "email": "user03@example.invalid",
@@ -24966,7 +25499,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user04",
       "display_name": "Demo User 04",
       "email": "user04@example.invalid",
@@ -24980,7 +25513,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user05",
       "display_name": "Demo User 05",
       "email": "user05@example.invalid",
@@ -24991,7 +25524,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user06",
       "display_name": "Demo User 06",
       "email": "user06@example.invalid",
@@ -25010,13 +25543,11 @@
       "user_ocid": "ocid1.user.oc1..sample0007",
       "user_id": "ocid1.user.oc1..sample0007",
       "groups": [
-        "ocid1.group.oc1..sample0019",
-        "ocid1.group.oc1..sample0001",
-        "ocid1.group.oc1..sample0008"
+        "ocid1.group.oc1..sample0001"
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user08",
       "display_name": "Demo User 08",
       "email": "user08@example.invalid",
@@ -25030,7 +25561,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user09",
       "display_name": "Demo User 09",
       "email": "user09@example.invalid",
@@ -25041,7 +25572,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user10",
       "display_name": "Demo User 10",
       "email": "user10@example.invalid",
@@ -25053,7 +25584,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user11",
       "display_name": "Demo User 11",
       "email": "user11@example.invalid",
@@ -25066,7 +25597,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user12",
       "display_name": "Demo User 12",
       "email": "user12@example.invalid",
@@ -25080,7 +25611,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user13",
       "display_name": "Demo User 13",
       "email": "user13@example.invalid",
@@ -25091,7 +25622,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user14",
       "display_name": "Demo User 14",
       "email": "user14@example.invalid",
@@ -25103,7 +25634,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user15",
       "display_name": "Demo User 15",
       "email": "user15@example.invalid",
@@ -25116,7 +25647,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user16",
       "display_name": "Demo User 16",
       "email": "user16@example.invalid",
@@ -25130,7 +25661,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user17",
       "display_name": "Demo User 17",
       "email": "user17@example.invalid",
@@ -25141,7 +25672,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user18",
       "display_name": "Demo User 18",
       "email": "user18@example.invalid",
@@ -25153,7 +25684,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user19",
       "display_name": "Demo User 19",
       "email": "user19@example.invalid",
@@ -25166,7 +25697,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user20",
       "display_name": "Demo User 20",
       "email": "user20@example.invalid",
@@ -25180,7 +25711,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user21",
       "display_name": "Demo User 21",
       "email": "user21@example.invalid",
@@ -25191,7 +25722,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user22",
       "display_name": "Demo User 22",
       "email": "user22@example.invalid",
@@ -25203,7 +25734,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user23",
       "display_name": "Demo User 23",
       "email": "user23@example.invalid",
@@ -25216,7 +25747,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user24",
       "display_name": "Demo User 24",
       "email": "user24@example.invalid",
@@ -25230,7 +25761,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user25",
       "display_name": "Demo User 25",
       "email": "user25@example.invalid",
@@ -25248,12 +25779,11 @@
       "user_ocid": "ocid1.user.oc1..sample0026",
       "user_id": "ocid1.user.oc1..sample0026",
       "groups": [
-        "ocid1.group.oc1..sample0001",
-        "ocid1.group.oc1..sample0008"
+        "ocid1.group.oc1..sample0001"
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user27",
       "display_name": "Demo User 27",
       "email": "user27@example.invalid",
@@ -25266,7 +25796,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user28",
       "display_name": "Demo User 28",
       "email": "user28@example.invalid",
@@ -25280,7 +25810,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user29",
       "display_name": "Demo User 29",
       "email": "user29@example.invalid",
@@ -25291,7 +25821,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user30",
       "display_name": "Demo User 30",
       "email": "user30@example.invalid",
@@ -25303,7 +25833,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user31",
       "display_name": "Demo User 31",
       "email": "user31@example.invalid",
@@ -25323,14 +25853,11 @@
       "user_ocid": "ocid1.user.oc1..sample0032",
       "user_id": "ocid1.user.oc1..sample0032",
       "groups": [
-        "ocid1.group.oc1..sample0019",
-        "ocid1.group.oc1..sample0001",
-        "ocid1.group.oc1..sample0008",
-        "ocid1.group.oc1..sample0015"
+        "ocid1.group.oc1..sample0001"
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user33",
       "display_name": "Demo User 33",
       "email": "user33@example.invalid",
@@ -25341,7 +25868,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user34",
       "display_name": "Demo User 34",
       "email": "user34@example.invalid",
@@ -25353,7 +25880,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user35",
       "display_name": "Demo User 35",
       "email": "user35@example.invalid",
@@ -25366,7 +25893,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user36",
       "display_name": "Demo User 36",
       "email": "user36@example.invalid",
@@ -25380,7 +25907,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user37",
       "display_name": "Demo User 37",
       "email": "user37@example.invalid",
@@ -25391,7 +25918,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user38",
       "display_name": "Demo User 38",
       "email": "user38@example.invalid",
@@ -25403,7 +25930,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user39",
       "display_name": "Demo User 39",
       "email": "user39@example.invalid",
@@ -25416,7 +25943,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user40",
       "display_name": "Demo User 40",
       "email": "user40@example.invalid",
@@ -25430,7 +25957,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user41",
       "display_name": "Demo User 41",
       "email": "user41@example.invalid",
@@ -25441,7 +25968,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user42",
       "display_name": "Demo User 42",
       "email": "user42@example.invalid",
@@ -25453,7 +25980,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user43",
       "display_name": "Demo User 43",
       "email": "user43@example.invalid",
@@ -25473,14 +26000,11 @@
       "user_ocid": "ocid1.user.oc1..sample0044",
       "user_id": "ocid1.user.oc1..sample0044",
       "groups": [
-        "ocid1.group.oc1..sample0005",
-        "ocid1.group.oc1..sample0012",
-        "ocid1.group.oc1..sample0019",
         "ocid1.group.oc1..sample0001"
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user45",
       "display_name": "Demo User 45",
       "email": "user45@example.invalid",
@@ -25491,7 +26015,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user46",
       "display_name": "Demo User 46",
       "email": "user46@example.invalid",
@@ -25503,7 +26027,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user47",
       "display_name": "Demo User 47",
       "email": "user47@example.invalid",
@@ -25516,7 +26040,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user48",
       "display_name": "Demo User 48",
       "email": "user48@example.invalid",
@@ -25530,7 +26054,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user49",
       "display_name": "Demo User 49",
       "email": "user49@example.invalid",
@@ -25541,7 +26065,7 @@
       ]
     },
     {
-      "domain_name": "Default",
+      "domain_name": "Secondary",
       "user_name": "demo.user50",
       "display_name": "Demo User 50",
       "email": "user50@example.invalid",
@@ -25827,6 +26351,22 @@
       "hierarchy_path": "ROOT/LandingZone/DataPlatform/DataPlatformInfrastructure",
       "description": "Fictional sample compartment",
       "lifecycle_state": "ACTIVE"
+    },
+    {
+      "id": "ocid1.compartment.oc1..sample0023",
+      "name": "CorporateIT",
+      "parent_id": "ocid1.tenancy.oc1..sample0001",
+      "hierarchy_path": "ROOT/CorporateIT",
+      "description": "Fictional non-Landing Zone top-level compartment",
+      "lifecycle_state": "ACTIVE"
+    },
+    {
+      "id": "ocid1.compartment.oc1..sample0024",
+      "name": "Operations",
+      "parent_id": "ocid1.compartment.oc1..sample0023",
+      "hierarchy_path": "ROOT/CorporateIT/Operations",
+      "description": "Fictional corporate operations compartment",
+      "lifecycle_state": "ACTIVE"
     }
   ],
   "identity_domains": [
@@ -25834,6 +26374,12 @@
       "id": "ocid1.domain.oc1..sample0001",
       "display_name": "Default",
       "url": "https://identity.example.invalid"
+    },
+    {
+      "id": "ocid1.domain.oc1..sample0002",
+      "display_name": "Secondary",
+      "url": "https://secondary.identity.example.invalid"
     }
-  ]
+  ],
+  "iam_deny_policies_enabled": true
 }

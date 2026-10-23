@@ -7,60 +7,60 @@ Desktop UI
 The desktop reference lists the maintained tab and reusable table modules. UI
 callbacks and private widget helpers remain implementation details.
 
-.. automodule:: oci_policy_analysis.presentation.desktop.base_tab
+.. automodule:: oci_policy_analysis.presentation.tk.base_tab
    :members:
    :show-inheritance:
 
-.. automodule:: oci_policy_analysis.presentation.desktop.settings_tab
+.. automodule:: oci_policy_analysis.presentation.tk.settings_tab
    :members:
    :show-inheritance:
 
-.. automodule:: oci_policy_analysis.presentation.desktop.policies_tab
+.. automodule:: oci_policy_analysis.presentation.tk.policies_tab
    :members:
    :show-inheritance:
 
-.. automodule:: oci_policy_analysis.presentation.desktop.policy_browser_tab
+.. automodule:: oci_policy_analysis.presentation.tk.policy_browser_tab
    :members:
    :show-inheritance:
 
-.. automodule:: oci_policy_analysis.presentation.desktop.policy_recommendations_tab
+.. automodule:: oci_policy_analysis.presentation.tk.policy_recommendations_tab
    :members:
    :show-inheritance:
 
-.. automodule:: oci_policy_analysis.presentation.desktop.mcp_tab
+.. automodule:: oci_policy_analysis.presentation.tk.mcp_tab
    :members:
    :show-inheritance:
 
-.. automodule:: oci_policy_analysis.presentation.desktop.workload_principals_tab
+.. automodule:: oci_policy_analysis.presentation.tk.workload_principals_tab
    :members:
    :show-inheritance:
    :no-index:
 
-.. automodule:: oci_policy_analysis.presentation.desktop.dynamic_group_tab
+.. automodule:: oci_policy_analysis.presentation.tk.dynamic_group_tab
    :members:
    :show-inheritance:
 
-.. automodule:: oci_policy_analysis.presentation.desktop.users_tab
+.. automodule:: oci_policy_analysis.presentation.tk.users_tab
    :members:
    :show-inheritance:
 
-.. automodule:: oci_policy_analysis.presentation.desktop.permissions_report_tab
+.. automodule:: oci_policy_analysis.presentation.tk.permissions_report_tab
    :members:
    :show-inheritance:
 
-.. automodule:: oci_policy_analysis.presentation.desktop.historical_tab
+.. automodule:: oci_policy_analysis.presentation.tk.historical_tab
    :members:
    :show-inheritance:
 
-.. automodule:: oci_policy_analysis.presentation.desktop.simulation_tab
+.. automodule:: oci_policy_analysis.presentation.tk.simulation_tab
    :members:
    :show-inheritance:
 
-.. automodule:: oci_policy_analysis.presentation.desktop.condition_tester_tab
+.. automodule:: oci_policy_analysis.presentation.tk.condition_tester_tab
    :members:
    :show-inheritance:
 
-.. automodule:: oci_policy_analysis.presentation.desktop.data_table
+.. automodule:: oci_policy_analysis.presentation.tk.data_table
    :members:
    :show-inheritance:
 
@@ -215,16 +215,6 @@ For the ASGI application and server launcher, see :doc:`oci_policy_analysis`.
 .. automodule:: oci_policy_analysis.presentation.qt.api_calls
    :members:
 
-
-.. automodule:: oci_policy_analysis.analytics.qt
-   :members:
-   :show-inheritance:
-
-.. automodule:: oci_policy_analysis.analytics.loader
-   :members:
-
-.. automodule:: oci_policy_analysis.analytics.model
-   :members:
 
 .. automodule:: oci_policy_analysis.presentation.qt.policy_limits
    :members: PolicyLimitsDialog

@@ -1300,7 +1300,7 @@ def test_live_log_stays_available_while_tenancy_load_is_running(workbench, monke
         application.processEvents()
         window.log_bridge.flush()
         assert window.log_dock.isHidden()
-        window.settings_page.show_log.click()
+        window.live_log_button.click()
         assert not window.log_dock.isHidden()
         assert window.live_log.output.isEnabled()
         assert not window.settings_page.load_button.isEnabled()
@@ -2309,7 +2309,7 @@ def test_navigation_never_scrolls_horizontally_and_logs_only_open_on_request(wor
     window.settings_page.load_sample()
     _wait_for_load(application, window)
     assert window.log_dock.isHidden()
-    window.settings_page.show_log.click()
+    window.live_log_button.click()
     assert not window.log_dock.isHidden()
     window.log_dock.hide()
     window.settings_page.load_sample()
@@ -2381,10 +2381,10 @@ def test_expanded_sample_resource_principal_workflows(workbench, monkeypatch):
     snapshot = expanded_sample()
     serialized = json.dumps(snapshot)
     assert {key: len(snapshot[key]) for key in ('groups', 'users', 'policies', 'compartments')} == {
-        'groups': 25,
+        'groups': 26,
         'users': 50,
-        'policies': 100,
-        'compartments': 22,
+        'policies': 105,
+        'compartments': 24,
     }
     assert all(
         re.fullmatch(r'ocid1\.\w+\.oc1\.\.sample\d+', value)
@@ -3783,6 +3783,9 @@ def test_overview_restores_legacy_load_and_logging_preferences_and_saves_edits(w
         _wait_for_load(application, restored)
         assert logging.getLogger('oci-policy-analysis.qt.main').level == logging.ERROR
         assert logging.getLogger('saved_runtime_logger').level == logging.WARNING
+        page.source_selector.setCurrentIndex(1)
+        assert not page.source_panels[1].isHidden()
+        assert page.source_panels[0].isHidden()
         page.profile.setCurrentText('NEW_PROFILE')
         page.auth.setCurrentIndex(page.auth.findData('profile'))
         page.depth.setValue(2)
@@ -3793,11 +3796,14 @@ def test_overview_restores_legacy_load_and_logging_preferences_and_saves_edits(w
         saved = json.loads(Path(config.SETTINGS_PATH).read_text())
         assert saved['unrelated_preference'] == 'retain-me'
         assert saved['named_profile'] == 'NEW_PROFILE'
+        assert saved['qt_load_source'] == 'snapshot'
         assert saved['domain_compartment_depth'] == 2
         assert saved['qt_auth_mode'] == 'profile' and not saved['instance_principal']
         assert saved['load_all_users'] and saved['recursive']
         reopened = WorkbenchWindow()
         try:
+            assert reopened.settings_page.source_selector.currentIndex() == 1
+            assert not reopened.settings_page.source_panels[1].isHidden()
             assert reopened.settings_page.profile.currentText() == 'NEW_PROFILE'
             assert reopened.settings_page.auth.currentData() == 'profile'
             assert reopened.settings_page.depth.value() == 2
@@ -4688,21 +4694,29 @@ def test_audit_dialog_generates_only_on_explicit_action_and_clears_stale_command
         window,
     )
     assert dialog.output.toPlainText() == ''
-    assert not dialog.fetch_all.isChecked()
+    assert dialog.fields['compartment_id'].text() == 'ocid1.compartment.example'
     dialog.generate()
-    assert dialog.output.toPlainText().count('oci audit event list') == 3
+    assert dialog.output.toPlainText().count('oci logging-search search-logs') == 3
     assert '--all' not in dialog.output.toPlainText()
     assert dialog.copy.isEnabled()
-    dialog.fetch_all.setChecked(True)
-    assert dialog.output.toPlainText() == '' and not dialog.copy.isEnabled()
-    dialog.generate()
-    assert '--all' in dialog.output.toPlainText()
+    assert '--limit 100' in dialog.output.toPlainText()
+    assert 'actor_ocid' in dialog.output.toPlainText()
+    assert 'ocid1.compartment.example/_Audit' in dialog.output.toPlainText()
     dialog.fields['region'].setText('us-ashburn-1')
     assert dialog.output.toPlainText() == '' and not dialog.copy.isEnabled()
     dialog.generate()
     assert '--region us-ashburn-1' in dialog.output.toPlainText()
     dialog.close()
     dialog.deleteLater()
+
+
+def test_mcp_assistant_help_links_to_the_public_mcp_guide(workbench):
+    _application, window = workbench
+    notice = window.mcp_page.docs_help
+    assert notice.objectName() == 'notice'
+    assert notice.openExternalLinks()
+    assert 'This page starts a local MCP server' in notice.text()
+    assert 'https://agregory999.github.io/oci-policy-analysis/mcp.html#mcp-overview' in notice.text()
 
 
 def _claude_stub(client, monkeypatch, tmp_path):

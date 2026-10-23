@@ -22,10 +22,10 @@ from tkinter.scrolledtext import ScrolledText
 
 from oci_policy_analysis.application.core.support.logger import get_logger, set_component_level, set_log_level
 from oci_policy_analysis.application.services.logging_service import LoggingService
-from oci_policy_analysis.presentation.desktop.base_tab import BaseUITab
+from oci_policy_analysis.presentation.tk.base_tab import BaseUITab
 
 # Logger for this module
-logger = get_logger(component='presentation.desktop.console_tab')
+logger = get_logger(component='presentation.tk.console_tab')
 
 
 # Dedicated UI handler (unfiltered, shows everything)
@@ -146,7 +146,7 @@ class ConsoleTab(BaseUITab):
         )
         show_loggers_chk.pack(side=tk.LEFT, padx=10)
 
-        from oci_policy_analysis.presentation.desktop.api_calls_window import ApiCallsWindow
+        from oci_policy_analysis.presentation.tk.api_calls_window import ApiCallsWindow
 
         ttk.Button(self, text='API Calls · Current Session…', command=lambda: ApiCallsWindow(self)).pack(
             anchor='w', padx=10, pady=4
@@ -250,7 +250,7 @@ class ConsoleTab(BaseUITab):
                 'policy_recommendations_tab',
                 'limits_tab',
                 'mcp_tab',
-                'presentation.desktop.console_tab',
+                'presentation.tk.console_tab',
                 'data_table',
                 'prospective_editor_window',
                 'consolidation_workbench_tab',

@@ -330,7 +330,8 @@ class PolicyInventoryPage(QWidget):
                         statement_item.setData(0, Qt.ItemDataRole.UserRole, ('statement', statement))
                 add_compartments(item, compartment_id)
 
-        add_compartments(root)
+        tenancy_id = str(getattr(repo, 'tenancy_ocid', None) or getattr(repo, 'tenancy_id', None) or '')
+        add_compartments(root, tenancy_id)
         self.hierarchy.expandToDepth(1)
         self._filter_hierarchy(self.search.text())
 

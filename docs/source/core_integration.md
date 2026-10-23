@@ -165,14 +165,15 @@ the method used. Cache/export payloads remain version 2/schema 3: this option is
 local load preference, not a new stored snapshot field, so no cache migration is
 needed and offline queries never rewrite source files.
 
-### Qt desktop exploration
+### Desktop app
 
-Qt is an optional presentation adapter over the same services. See the
-[7.0 guide](release_7_0.md) for the navigation walkthrough and breaking changes,
-the [Qt desktop guide](qt_desktop.md) for loading and evidence inspection, and
-[Qt MCP and assistants](qt_mcp_codex.md) for the managed snapshot endpoint.
-`oci-policy-analysis-ui` remains Tkinter; `oci-policy-analysis-qt` runs the preview.
-Neither presentation layer is required for embedding.
+The new desktop app is a modern interface around the same services used by the
+original desktop app, CLI, web app, and MCP server. See the
+[7.0 guide](release_7_0.md) for what's new, the
+[new desktop usage guide](usage.md) for loading and evidence inspection, and
+[MCP Assistant guide](mcp_assistant.md) for the managed snapshot endpoint.
+The original Tkinter app remains available through
+`oci-policy-analysis-legacy-ui`. Neither desktop app is required for embedding.
 
 ## Scheduled reporting and retained history
 
@@ -251,7 +252,7 @@ is not an automatic concurrency boundary.
 Qt's embedded MCP endpoint is query-only and pins the loaded snapshot. It exposes
 neither `data_operations` nor reload/history tools; stop it before loading another
 snapshot. Use the standalone service or a separate collection job for unattended
-refresh. See [MCP](mcp.md) and [historical analysis](usage.md#historical-comparison-tab).
+refresh. See [MCP](mcp.md) and [historical analysis](usage.md#review-findings-and-plan-changes).
 
 Once your job has read the two combined-cache JSON objects, compare them without
 loading either into the active context:

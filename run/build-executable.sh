@@ -3,14 +3,17 @@ set -euo pipefail
 source "$(dirname -- "${BASH_SOURCE[0]}")/common.sh"
 
 PYTHON_BIN=${PYTHON_BIN:-python3}
+interface="${1:-legacy-ui}"
 
-if [[ "${1:-desktop}" == "qt" ]]; then
-    shift
+if [[ "$interface" == "ui" || "$interface" == "qt" ]]; then
+    if [[ $# -gt 0 ]]; then shift; fi
     uv sync --inexact --extra qt --extra qt-build --extra web --extra mcp --python "$PYTHON_BIN"
     uv pip check
     exec "$root_dir/.venv/bin/python" run-build/build_qt_executable.py "$@"
-elif [[ "${1:-desktop}" != "desktop" ]]; then
-    echo "Usage: run/build-executable.sh [desktop|qt] [Qt build options]" >&2
+elif [[ "$interface" == "legacy-ui" || "$interface" == "desktop" ]]; then
+    if [[ $# -gt 0 ]]; then shift; fi
+else
+    echo "Usage: run/build-executable.sh [ui|legacy-ui] [UI-specific build options]" >&2
     exit 2
 fi
 
@@ -64,7 +67,7 @@ print(matches[0] if matches else '')")
       --add-data "$root_dir/src/oci_policy_analysis/application/core/resources/mcp_tools_list:oci_policy_analysis/application/core/resources/mcp_tools_list" \
       --add-data "$root_dir/src/oci_policy_analysis/application/core/resources/parsers:oci_policy_analysis/application/core/resources/parsers" \
       --add-binary="$PY_LIB:Frameworks/Python" \
-      "$root_dir/src/oci_policy_analysis/main.py"
+      "$root_dir/src/oci_policy_analysis/presentation/tk/main.py"
 
     echo "🍎 Packaging .app → dist/tk/oci-policy-analysis-tk-macos-${VERSION}.app.tar.gz"
     cd dist/tk
@@ -94,7 +97,7 @@ print(matches[0] if matches else '')")
       --add-data "$root_dir/src/oci_policy_analysis/application/core/resources/mcp_tools_list:oci_policy_analysis/application/core/resources/mcp_tools_list" \
       --add-data "$root_dir/src/oci_policy_analysis/application/core/resources/parsers:oci_policy_analysis/application/core/resources/parsers" \
       --add-binary="$PY_SO:." \
-      "$root_dir/src/oci_policy_analysis/main.py"
+      "$root_dir/src/oci_policy_analysis/presentation/tk/main.py"
 
     echo "🐧 Packaging → dist/tk/oci-policy-analysis-tk-linux-${VERSION}.tar.gz"
     cd dist/tk
@@ -127,7 +130,7 @@ EOF
       --add-data "$root_dir/src/oci_policy_analysis/application/core/resources/mcp_tools_list;oci_policy_analysis/application/core/resources/mcp_tools_list" \
       --add-data "$root_dir/src/oci_policy_analysis/application/core/resources/parsers;oci_policy_analysis/application/core/resources/parsers" \
       --add-binary "$PY_DLL;." \
-      "$root_dir/src/oci_policy_analysis/main.py"
+      "$root_dir/src/oci_policy_analysis/presentation/tk/main.py"
 
     echo "🪟 Packaging → dist/tk/oci-policy-analysis-tk-windows-${VERSION}.zip"
     cd dist/tk

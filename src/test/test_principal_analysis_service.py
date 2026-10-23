@@ -130,7 +130,7 @@ def test_by_exact_dynamic_groups_matches_legacy_named_and_ocid_subject_rows():
 
 def test_dynamic_groups_tab_uses_weighted_rows_for_inventory_and_statements():
     """A large inventory must not obscure the matching-statements table."""
-    source = Path('src/oci_policy_analysis/presentation/desktop/dynamic_group_tab.py').read_text()
+    source = Path('src/oci_policy_analysis/presentation/tk/dynamic_group_tab.py').read_text()
 
     assert 'tables_frame.grid_rowconfigure(0, weight=1)' in source
     assert 'tables_frame.grid_rowconfigure(1, weight=1)' in source

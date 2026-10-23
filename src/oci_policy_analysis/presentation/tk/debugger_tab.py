@@ -15,7 +15,7 @@ import json
 import tkinter as tk
 from tkinter import scrolledtext, ttk
 
-from oci_policy_analysis.presentation.desktop.base_tab import BaseUITab
+from oci_policy_analysis.presentation.tk.base_tab import BaseUITab
 
 
 class DebuggerTab(BaseUITab):

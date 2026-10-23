@@ -10,7 +10,7 @@
 # nuitka-project: --include-distribution-metadata=fastmcp
 # nuitka-project: --include-distribution-metadata=mcp
 # nuitka-project: --include-package=oci_policy_analysis.application.core.parser
-# nuitka-project: --nofollow-import-to=oci_policy_analysis.presentation.desktop,oci_policy_analysis.main,oci_policy_analysis.analytics.main,oci_policy_analysis.analytics.ui
+# nuitka-project: --nofollow-import-to=oci_policy_analysis.presentation.tk,oci_policy_analysis.main,oci_policy_analysis.analytics.main,oci_policy_analysis.analytics.ui
 # nuitka-project: --nofollow-import-to=pytest,IPython,notebook
 # nuitka-project: --report=build/qt/nuitka-report.xml
 # nuitka-project: --lto=no

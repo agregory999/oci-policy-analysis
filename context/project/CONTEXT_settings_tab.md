@@ -66,7 +66,7 @@ When **Context Help** is enabled in Display Options, a "Page Help" area is dynam
 
 ## 4. Code Location
 
-Implementation: [`src/oci_policy_analysis/presentation/desktop/settings_tab.py`](../../../src/oci_policy_analysis/presentation/desktop/settings_tab.py)
+Implementation: [`src/oci_policy_analysis/presentation/tk/settings_tab.py`](../../../src/oci_policy_analysis/presentation/tk/settings_tab.py)
 
 ---
 

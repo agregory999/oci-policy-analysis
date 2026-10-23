@@ -63,6 +63,11 @@ class PolicyGraphPage(QWidget):
         self.visible_grants = []
         self._corpus = None
         self._graph_query = {}
+        self._selection_generation = 0
+        self._pending_selection = None
+        self._selection_timer = QTimer(self)
+        self._selection_timer.setSingleShot(True)
+        self._selection_timer.timeout.connect(self._apply_pending_selection)
         self.search_timer = QTimer(self)
         self.search_timer.setSingleShot(True)
         self.search_timer.setInterval(200)
@@ -349,12 +354,35 @@ class PolicyGraphPage(QWidget):
 
     def _selection_changed(self) -> None:
         selected = self.scene.selectedItems()
-        self.detail.setPlainText(json.dumps(selected[0].data(0), indent=2, ensure_ascii=False) if selected else '')
+        self._selection_generation += 1
+        generation = self._selection_generation
         self.statements.model.replace([])
         if not selected or self.context is None:
+            self.detail.clear()
             self.selection_summary.setText('Select a graph node to see related statements.')
             return
-        evidence = selected[0].data(0)
+        evidence = dict(selected[0].data(0))
+        self.detail.setPlainText(json.dumps(evidence, indent=2, ensure_ascii=False))
+        # The filter update redraws the scene. Defer it until this selection
+        # signal has returned so scene.clear() cannot destroy its selected item
+        # while Qt is still dispatching selectionChanged.
+        self._pending_selection = (evidence, generation)
+        self._selection_timer.start(0)
+
+    def _apply_pending_selection(self) -> None:
+        pending, self._pending_selection = self._pending_selection, None
+        if pending is not None:
+            self._apply_selection(*pending)
+
+    def cancel_pending_selection(self) -> None:
+        """Stop queued node work before the owning window is destroyed."""
+        self._selection_timer.stop()
+        self._pending_selection = None
+        self._selection_generation += 1
+
+    def _apply_selection(self, evidence: dict, generation: int) -> None:
+        if generation != self._selection_generation or self.context is None:
+            return
         selection_query = dict(self._graph_query)
         selection_query.update(
             {key: evidence[key] for key in ('principal', 'path', 'resource', 'effect') if key in evidence}
@@ -368,6 +396,8 @@ class PolicyGraphPage(QWidget):
         self.effect.setCurrentIndex(max(0, self.effect.findText(selection_query.get('effect') or 'All effects')))
         self.effect.blockSignals(False)
         self.search_timer.stop()
+        self.search()
+        self.detail.setPlainText(json.dumps(evidence, indent=2, ensure_ascii=False))
         service = PolicyGraphService(self._corpus)
         # Retain every source contributing to the selected graph combination.
         grants = service.get_page(**self._graph_query, all_results=True)['grants']

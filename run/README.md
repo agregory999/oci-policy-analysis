@@ -28,14 +28,15 @@ The file is trusted shell configuration: quote values containing spaces or shell
 No container inputs or OAuth setup are required locally. Keep the usual OCI API signing key and `~/.oci/config`; do not copy the private key into `.env`. `LOCAL_OCI_PROFILE` defaults to `DEFAULT` and is separate from the deployment operator's `OCI_PROFILE`. Local commands also work without a default `.env`; an explicitly requested missing `RUN_ENV_FILE` fails.
 
 ```bash
-run/local.sh desktop
+run/local.sh ui
+run/local.sh legacy-ui
 run/local.sh cli --profile DEFAULT --recursive --compartment-domain-search-depth 2
 run/local.sh web
 run/local.sh mcp --profile DEFAULT
 LOCAL_MCP_TRANSPORT=streamable-http run/local.sh mcp --profile DEFAULT
 ```
 
-MCP defaults to stdio locally. Explicit authentication flags select the identity; without a flag, standalone MCP uses `MCP_AUTH_MODE` (default profile) and the local profile. Installed commands remain `oci-policy-analysis-ui`, `oci-policy-analysis-cli`, `oci-policy-analysis-web`, and `oci-policy-analysis-mcp`. Direct commands read exported environment values; they do not source `.env` automatically.
+MCP defaults to stdio locally. Explicit authentication flags select the identity; without a flag, standalone MCP uses `MCP_AUTH_MODE` (default profile) and the local profile. Installed commands include `oci-policy-analysis-ui` (modern desktop), `oci-policy-analysis-legacy-ui` (Tkinter), `oci-policy-analysis-cli`, `oci-policy-analysis-web`, and `oci-policy-analysis-mcp`. Direct commands read exported environment values; they do not source `.env` automatically.
 
 `OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH=2` is the single identity-domain depth variable for both web and MCP containers. It means root plus direct child compartments; 1 means root only, 3 includes grandchildren, maximum 6. Web uses it as a runtime override and shows the effective value without saving it as a UI preference. MCP uses it as its default; an explicit command flag wins. The entrypoint also translates it to the stable MCP command flag for pinned published releases. `MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH` and `OCI_POLICY_ANALYSIS_DOMAIN_COMPARTMENT_DEPTH` are no longer consumed or forwarded. Desktop preferences and the CLI flag retain their existing behavior. Published web releases must support the shared override to use it.
 
@@ -50,21 +51,21 @@ Authentication, transport and bind addresses are filled automatically for contai
 
 ## Local build and clean
 
-`run/build.sh [--mode desktop|web|cli|mcp|all]` uses `uv sync` and `uv build`, generating an ignored local `uv.lock`; all is the default. `PYTHON_BIN` optionally selects Python. `run/build-executable.sh` retains platform-specific PyInstaller packaging and resource collection, installing the checked-out project and packaging dependencies through uv. It writes distributables to `dist/` and the generated package version file. PyInstaller packaging needs the platform's Python shared library and icon/archive tools; it is separate from container builds.
+`run/build.sh [--mode ui|legacy-ui|web|cli|mcp|all]` uses `uv sync` and `uv build`, generating an ignored local `uv.lock`; all is the default. `ui` installs Qt and MCP dependencies for the embedded MCP assistant; `legacy-ui` installs MCP for the Tk UI's embedded server. `PYTHON_BIN` optionally selects Python. `run/build-executable.sh [ui|legacy-ui]` builds the matching native desktop executable and writes it under `dist/`. PyInstaller packaging needs the platform's Python shared library and icon/archive tools; it is separate from container builds.
 
 Dependencies are declared in `pyproject.toml`; the repository does not track a lockfile. `uv sync` can reuse a local lock; use `uv lock --upgrade` to refresh it within the declared constraints. Fresh checkouts and pip-based container/release builds resolve those constraints independently.
 
 For the Qt workbench, use the local source Nuitka build path:
 
 ```bash
-run/build-executable.sh qt                       # native .app on macOS, standalone directory elsewhere
-run/build-executable.sh qt --mode onefile        # single executable on the native platform
-run/build-executable.sh qt --dry-run             # inspect compiler arguments
-run/build-executable.sh qt --mode onefile --lean-data
-run/build-executable.sh qt --mode onefile --lean-data --lto yes
+run/build-executable.sh ui                       # native .app on macOS, standalone directory elsewhere
+run/build-executable.sh ui --mode onefile        # single executable on the native platform
+run/build-executable.sh ui --dry-run             # inspect compiler arguments
+run/build-executable.sh ui --mode onefile --lean-data
+run/build-executable.sh ui --mode onefile --lean-data --lto yes
 ```
 
-On Windows: `run/build-executable.ps1 qt` (optionally `--mode onefile`).
+On Windows: `run/build-executable.ps1 ui` (optionally `--mode onefile`). Use `legacy-ui` to package Tkinter.
 The wrapper installs the `qt`, `qt-build`, `web` and `mcp` extras with uv,
 validates dependencies and Qt/MCP startup, then invokes
 `run-build/build_qt_executable.py`. Build on each target OS with its native C
@@ -87,8 +88,8 @@ is archived. Compiler intermediates stay under `build/qt/<mode>/native/`.
 preserve symlinks and executable permissions);
 `build/qt/nuitka-report.xml` records module and data inclusion. Artifacts are
 ignored. These builds are unsigned and not notarized; external Codex CLI/login
-remain separate. Existing `run/build-executable.sh`/`.ps1` without `qt` retain
-the Tkinter/PyInstaller path.
+remain separate. Use `run/build-executable.sh legacy-ui`/`.ps1 legacy-ui` for the
+Tkinter/PyInstaller path; `ui` selects the modern/Nuitka path.
 
 Both local and CI builds use the Nuitka project options in `run-build/qt_entry.py`.
 Nuitka may download compiler helpers without prompting. ccache is used when
@@ -103,7 +104,7 @@ folders are required. Raw executables are not attached to releases. Nuitka
 extracts its embedded runtime internally; the onefile build retains the offline
 Qt/MCP startup checks. Local standalone builds remain available for development.
 
-`run/clean.sh` deliberately removes `.venv`, `dist`, `build`, `wheels`, generated dependency lists and source Python caches. It preserves configuration, signing keys and application data. Build again afterward. Root `local-run.sh`, `local-build.sh`, `local-clean.sh`, `local-build-with-pyinstaller.sh`, and MCP build/deploy shell/PowerShell names are compatibility adapters into `run/`; they use the same configuration. Native Windows commands are `run/local.ps1`, `run/build.ps1`, `run/clean.ps1`, and `run/build-executable.ps1`; they read the same literal assignments in the shared file. PowerShell container adapters require Bash. PowerShell configuration supports literal quoted values, not shell expansion/command substitution. The ignored old `env.sh` is no longer sourced by these commands.
+`run/clean.sh` with no mode deliberately removes `.venv`, all UI build outputs, `wheels`, generated dependency lists and source Python caches. Use `--mode ui` or `--mode legacy-ui` to remove only that UI's executable outputs while keeping the shared `.venv`. It preserves configuration, signing keys and application data. Root `local-run.sh`, `local-build.sh`, `local-clean.sh`, `local-build-with-pyinstaller.sh`, and MCP build/deploy shell/PowerShell names are compatibility adapters into `run/`; they use the same configuration. Native Windows commands are `run/local.ps1`, `run/build.ps1`, `run/clean.ps1`, and `run/build-executable.ps1`; they read the same literal assignments in the shared file. PowerShell container adapters require Bash. PowerShell configuration supports literal quoted values, not shell expansion/command substitution. The ignored old `env.sh` is no longer sourced by these commands.
 
 ## Build and push source images
 
@@ -184,7 +185,7 @@ Legacy deployment variable migration: `OCI_COMPARTMENT_OCID` → `OCI_COMPARTMEN
 
 These are supported when needed but intentionally absent from the short example. Set an exported one-run value or add an assignment to the same `.env`:
 
-- `LOCAL_MODE=desktop` and `LOCAL_BUILD_MODE=all`: optional defaults; commands can choose the mode directly.
+- `LOCAL_MODE=ui` and `LOCAL_BUILD_MODE=all`: optional defaults; commands can choose the mode directly.
 - `CONTAINER_MODE=combined`: default deployment mode; the positional command argument overrides it.
 - `ALLOW_TAG_REPUSH=true`: intentionally replace an existing image tag; prefer a fresh release tag.
 - `MCP_RECURSIVE=false`: limit policy loading; default true in the container.

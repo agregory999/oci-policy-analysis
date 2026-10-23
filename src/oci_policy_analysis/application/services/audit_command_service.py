@@ -1,6 +1,5 @@
-"""Generate explicit OCI Audit CLI searches without connecting to OCI."""
+"""Generate explicit OCI Logging Search CLI searches without connecting to OCI."""
 
-import json
 import re
 import shlex
 from datetime import UTC, datetime, timedelta
@@ -13,13 +12,18 @@ class AuditCommandService:
     do not establish who made a change or whether an Audit event is available.
     """
 
-    DOCUMENTATION = 'https://docs.oracle.com/en-us/iaas/tools/oci-cli/latest/oci_cli_docs/cmdref/audit/event/list.html'
+    DOCUMENTATION = (
+        'https://docs.oracle.com/en-us/iaas/tools/oci-cli/latest/oci_cli_docs/cmdref/logging-search/search-logs.html'
+    )
     NOTE = (
-        'Commands only; nothing is executed. Audit is regional and compartment-scoped, not recursive. '
-        'Select the compartment where the event occurred and the appropriate region (often the home region for IAM). '
-        'Read access to audit-events is required. Commands return one page per time window by default. '
-        'The optional resource OCID filter is applied locally after events are fetched, not by the Audit service; '
-        'narrow the time range and compartment first. Fetching all pages can be slow. '
+        'Commands only; nothing is executed. Search Audit logs through OCI Logging Search. '
+        'Use the policy/resource compartment and the appropriate region (often the home region for IAM). '
+        'Read access to audit-events is required. Resource OCIDs are filtered on the server. '
+        'Policy searches show only CreatePolicy, UpdatePolicy and DeletePolicy attempts; check status for success. '
+        'Each command returns at most 100 results, newest first, not a complete history. '
+        'Narrow the time range or use --page with the response opc-next-page token for more results '
+        '(remove --query and use --output json to see response metadata). '
+        'The table shows formatted time with timezone, operation, actor name/OCID, IP and status. '
         'A resource filter may omit events with different or missing resource IDs; clear it to broaden the search. '
         'Snapshot differences are not confirmed OCI changes. '
         'Identity-domain activity may require the IAM domain audit report.'
@@ -93,8 +97,7 @@ class AuditCommandService:
 
         Args:
             inputs: compartment_id, optional resource_id/region/profile,
-                start_time/end_time with timezone, posix or powershell shell,
-                and optional fetch_all to retrieve every result page.
+                start_time/end_time with timezone, and posix or powershell shell.
 
         Returns:
             dict: Commands, normalized minute boundaries, warning and reference.
@@ -117,54 +120,54 @@ class AuditCommandService:
         if end.second or end.microsecond:
             end = end.replace(second=0, microsecond=0) + timedelta(minutes=1)
         quote = shlex.quote if shell == 'posix' else lambda value: "'" + value.replace("'", "''") + "'"
-        fetch_all_value = inputs.get('fetch_all', False)
-        if fetch_all_value in (True, 1, 'true', 'on', '1'):
-            fetch_all = True
-        elif fetch_all_value in (False, 0, None, '', 'false', 'off', '0'):
-            fetch_all = False
-        else:
-            raise ValueError('Choose whether to fetch every Audit result page.')
+        search = f'search "{compartment}/_Audit"'
+        if resource:
+            search += f" | where data.resourceId = '{resource}'"
+        if not resource or resource.startswith('ocid1.policy.'):
+            search += (
+                " | where (data.eventName = 'CreatePolicy' or data.eventName = 'UpdatePolicy'"
+                " or data.eventName = 'DeletePolicy')"
+            )
+        search += (
+            ' | sort by datetime desc'
+            " | select time_format(datetime, 'yyyy-MM-dd HH:mm:ss z') as event_time,"
+            ' data.eventName as operation, data.identity.principalId as actor_ocid,'
+            ' data.identity.principalName as actor, data.identity.ipAddress as ip,'
+            ' data.response.status as status'
+        )
         commands, windows = [], []
         while start < end:
             stop = min(start + timedelta(days=14), end)
             first, last = (value.strftime('%Y-%m-%dT%H:%M:00Z') for value in (start, stop))
             args = [
                 'oci',
-                'audit',
-                'event',
-                'list',
-                '--compartment-id',
-                compartment,
-                '--start-time',
+                'logging-search',
+                'search-logs',
+                '--search-query',
+                search,
+                '--time-start',
                 first,
-                '--end-time',
+                '--time-end',
                 last,
+                '--is-return-field-info',
+                'false',
+                '--limit',
+                '100',
             ]
-            if fetch_all:
-                args.append('--all')
             for flag, field in [('--region', 'region'), ('--profile', 'profile')]:
                 value = str(inputs.get(field) or '').strip()
                 if any(ord(char) < 32 for char in value):
                     raise ValueError('Profile and region cannot contain control characters.')
                 if value:
                     args.extend([flag, value])
-            rows = f'data[?data."resource-id" == `{json.dumps(resource)}`]' if resource else 'data[]'
-            projection = (
-                '{time:"event-time",eventType:"event-type",operation:data."event-name",'
-                'resourceName:data."resource-name",resourceId:data."resource-id",'
-                'principal:data.identity."principal-name",caller:data.identity."caller-name",'
-                'ipAddress:data.identity."ip-address",action:data.request.action,path:data.request.path,'
-                'status:data.response.status,message:data.response.message,'
-                'previous:data."state-change".previous,current:data."state-change".current}'
-            )
-            args.extend(['--output', 'json', '--query', f'{rows}.{projection}'])
+            args.extend(['--output', 'table', '--query', 'data.results[].data'])
             commands.append(' '.join(quote(arg) for arg in args))
             windows.append({'start_time': first, 'end_time': last})
             start = stop
         return {
             'commands': commands,
             'windows': windows,
-            'fetch_all': fetch_all,
+            'limit': 100,
             'note': cls.NOTE,
             'documentation': cls.DOCUMENTATION,
         }

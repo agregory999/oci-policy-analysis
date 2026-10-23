@@ -63,9 +63,9 @@ test = [
 dev = ["pytest", "ruff"]
 
 [project.scripts]
-oci-policy-analysis-ui = "oci_policy_analysis.main:main"
+oci-policy-analysis-legacy-ui = "oci_policy_analysis.presentation.tk.main:main"
 oci-policy-analysis-analytics = "oci_policy_analysis.analytics.qt_launcher:main"
-oci-policy-analysis-qt = "oci_policy_analysis.presentation.qt.launcher:main"
+oci-policy-analysis-ui = "oci_policy_analysis.presentation.qt.launcher:main"
 oci-policy-analysis-cli = "oci_policy_analysis.cli:main"
 oci-policy-analysis-web = "oci_policy_analysis.presentation.web.main:main"
 oci-policy-analysis-mcp = "oci_policy_analysis.mcp_server:main"

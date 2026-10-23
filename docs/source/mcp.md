@@ -1,779 +1,148 @@
-# MCP Server
+(mcp-overview)=
+# Model Context Protocol (MCP)
 
-This repository provides a **Model Context Protocol (MCP)** server exposing OCI IAM data (users, groups, dynamic groups, and policy analysis) as structured tools and resources consumable by **Claude**, **VS Code MCP**, or any MCP-compliant proxy client.
+MCP connects an AI assistant to structured tools. OCI Policy Analysis provides
+tools for querying policy and identity evidence, plus a reference catalog for
+OCI resource types, API operations, and permissions. The model interprets the
+question and chooses tool calls; the tools return data from the loaded snapshot
+or bundled catalog. MCP is an integration protocol, not an OCI identity or a
+source of authorization decisions.
 
-MCP Integration can be done in several ways, depending on the client or situation.  The following diagrams show how MCP can be used to expose OCI policy data.   [Python FastMCP](https://gofastmcp.com/getting-started/welcome) is used for each of these methods.
+```{toctree}
+:hidden:
 
-Here are the methods that OCI Policy Analysis supports for MCP:
-
-1) Standalone MCP Server -- In this method, the MCP server loads live or cached tenancy IAM and Policy data, then uses FastMCP to stand up an MCP Server.  This works in 2 possible ways:
-
-    - If using FastMCP and STDIO, it is expected to be called from a calling process.
-    - If using Streamable HTTP, the server can be invoked via any MCP Client supporting HTTP.  More details below
-
-2) Embedded MCP Server -- In this method, the OCI Policy Analysis UI is used.  From the UI, the data is loaded from a tenancy or cache.  Then the UI tab "Embedded MCP Server" controls an HTTP-based server which is invoked from desktop MCP tools.
-
-In the case of the standalone MCP Server, command line options are available, which control where to load the data from.  For example, to load data from a specific OCI Profile or from a local cache.  Also, there is a a switch to control STDIO or Streamable HTTP
-
-## MCP Architectures
-
-Many popular MCP tools allow a sub-process to run, using the STDIO mechanism.  Others expect you to have an MCP Server running and they will connect.  Both architectures are shown here:
-
-### MCP via STDIO:
-
-MCP Clients start the subprocess for MCP, and it loads its data, runs as an embedded python process, and the client sends and receives over Standard IO.
-
-```mermaid
-flowchart LR
-    subgraph CLIENT["Client Machine"]
-        C1[Claude Desktop or<br/>VS Code Copilot]
-        MCP[MCP Server<br/>FastMCP STDIO]
-        CACHE[Local Cache]
-    end
-
-    subgraph OCI["OCI Cloud"]
-        OCI-API[OCI IAM API]
-    end
-
-    C1 -->|JSON-RPC STDIO| MCP
-    MCP -->|Reads Cache| CACHE
-    MCP -.->|Load via SDK Profile| OCI-API
-
-    %% Styles
-    style C1 fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
-    style MCP fill:#eaffea,stroke:#66cc66,stroke-width:2px
-    style CACHE fill:#fff8e5,stroke:#ffcc00,stroke-width:2px
-    style OCI-API fill:#f7e9ff,stroke:#a37aff,stroke-width:2px,stroke-dasharray: 5 5
+mcp_examples
 ```
 
-### MCP as HTTP (Remote Server):
+This works with frontier models through clients such as Claude, ChatGPT, and
+Codex. The model and client use the account, configuration, and billing already
+set up by the user. See [MCP tool examples](mcp_examples.md), the
+[reference catalog](reference_catalog.md), and the
+[MCP Assistant guide](mcp_assistant.md).
 
-Desktop tools such as VSCode and Claude can consume MCP endpoints running locally or remotely on a secure port.
+(mcp-purpose)=
+## What the tools can tell you
 
-```mermaid
-flowchart LR
-    subgraph CLIENT["Client Machine"]
-        C1[Claude Desktop or<br/>VS Code Copilot]
-        PROXY[mcp-proxy]
-    end
+The tools help an assistant look up names, find policy statements, compare
+related checks, resolve identities and compartments, and inspect snapshot
+history. Reference tools use the bundled catalog and do not call OCI. Policy
+and identity tools query the data available to the connected server.
 
-    subgraph SERVER["Remote Server"]
-        MCP[MCP Server<br/>FastMCP HTTP]
-        CACHE[Cache or<br/>Instance Principal]
-    end
+Results are evidence from a loaded dataset, not an OCI authorization decision.
+Conditions, exclusions, provenance, incomplete collection, and unmapped
+permissions can affect what a result supports. Preserve those caveats when
+summarizing results. See [reference catalog coverage](reference_catalog.md).
 
-    subgraph OCI["OCI Cloud"]
-        OCI-API[OCI IAM API]
-    end
+(mcp-connection-modes)=
+## Choose a connection mode
 
-    C1 -->|JSON-RPC| PROXY
-    PROXY -->|HTTP/HTTPS| MCP
-    MCP -->|Reads| CACHE
-    MCP -.->|Load via SDK<br/>Profile or Instance Principal| OCI-API
+| Mode | How it connects | Use it for |
+| --- | --- | --- |
+| Standalone STDIO | The MCP client starts `oci-policy-analysis-mcp` as a local process. | A local assistant connection using a workstation profile, session token, or saved cache. |
+| Standalone Streamable HTTP | A client connects to a running MCP endpoint, commonly at `/mcp`. | Local clients connecting to a standalone server, or a secured remote service. |
+| Modern desktop MCP Assistant | The desktop app serves the currently loaded snapshot over loopback HTTP. | Interactive local analysis with Claude Code, Codex, or an external desktop client. See the [MCP Assistant guide](mcp_assistant.md). |
+| OCI Container Instance | A hosted Streamable HTTP server uses a Resource Principal. | A shared endpoint for clients that can reach the secured service. Follow [Containerized MCP setup](setup.md#containerized-mcp-on-oci-container-instances). |
 
-    %% Styles
-    style C1 fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
-    style PROXY fill:#fff8e5,stroke:#ffcc00,stroke-width:2px
-    style MCP fill:#eaffea,stroke:#66cc66,stroke-width:2px
-    style CACHE fill:#f0f0f0,stroke:#aaa,stroke-width:2px
-    style OCI-API fill:#f7e9ff,stroke:#a37aff,stroke-width:2px,stroke-dasharray: 5 5
-```
+For direct Python use of `AppContext` and application services, see
+[Embedding and Integration](core_integration.md). Python embedding and MCP
+deployment are separate integration patterns; the latter does not require a
+custom Python wrapper.
 
-## Running MCP from OCI Policy Analysis
+(mcp-standalone-server)=
+## Run a standalone server
 
-## Core-Only Install for MCP (No Web/Desktop Extras)
-
-For standalone MCP usage where you only need core + MCP runtime (and not the
-desktop UI or web server), install from source using the base package:
+Install the MCP extra and check the command options:
 
 ```bash
-python -m pip install --upgrade pip
-pip install -e .
+python -m pip install "oci-policy-analysis[mcp]"
+oci-policy-analysis-mcp --help
 ```
 
-Then run MCP directly:
+The server requires one data/authentication source. For example, start a
+workstation-profile STDIO server with:
 
 ```bash
-python -m oci_policy_analysis.mcp_server --help
+oci-policy-analysis-mcp --profile DEFAULT
 ```
 
-This keeps installation minimal while still enabling STDIO and streamable-HTTP
-MCP modes documented below.
-
-MCP Servers have 2 basic modes: STDIO and Streamable-HTTP.  STDIO mode is good for embedding in an AI Desktop client such as Claude, Oracle Code Assist, or VSCode.  More details on setups later on in the document.
-
-Streamable HTTP is good for a server, where MCP is not local to the client, or in the OCI Policy Analysis Embedded MCP tab, the clients connect to the app over HTTP on the configured port.
-
-In either case, the OCI Policy Analysis tool has a handful of options that can be applied.  See the usage for details:
+The default transport is STDIO. A desktop MCP client configuration points its
+`command` to `oci-policy-analysis-mcp` and supplies `--profile DEFAULT` in
+`args`; use an absolute executable path if the command is not on the client's
+PATH. A saved combined cache can be used with `--use-cache CACHE_NAME` instead.
+For a local HTTP server, use:
 
 ```bash
-usage: mcp_server.py [-h] (--profile PROFILE | --instance-principal | --resource-principal | --use-cache USE_CACHE | --session-token SESSION_TOKEN) [--recursive] [--dont-save-cache-after-load] [--transport {stdio,streamable-http}] [--port PORT] [--host HOST] [--compartment-domain-search-depth [1-6]] [--log-level {CRITICAL,ERROR,WARNING,INFO,DEBUG,critical,error,warning,info,debug}]
-
-options:
-  -h, --help            show this help message and exit
-  --profile PROFILE
-  --instance-principal
-  --resource-principal
-  --use-cache USE_CACHE
-                        provide the combined cache date to use
-  --session-token SESSION_TOKEN
-                        OCI session token for instance principal auth
-  --recursive           Recursively load all compartments (default: True)
-  --dont-save-cache-after-load
-                        Dont save the combined cache after loading from OCI
-  --transport {stdio,streamable-http}
-  --port PORT
-  --host HOST
-  --compartment-domain-search-depth [1-6]
-                        Depth for identity-domain compartment traversal (1=root only, 2=include direct children, max=6).
-  --log-level {CRITICAL,ERROR,WARNING,INFO,DEBUG,critical,error,warning,info,debug}
-                        Logging level. INFO logs MCP tool calls with full input and truncated output.
-  ```
-
-The options listed below cover the supported configurations.
-
-When testing client-generated filters, start the MCP server with `--log-level INFO`. The server logs each tool call as `input(full)` and `output(truncated)`, with output capped for readability. Use `--log-level WARNING` for normal operation without tool payload logging.
-
-(finding-the-available-caches)=
-### Finding the Available Caches
-
-If you want to use an existing cache from OCI Policy Analysis, for example, after having run the UI and loading data from any tenancy, you can use the command line first, to show the named caches available by tenancy and date of data load:
-
-You can use the CLI to show caches for a given tenancy.  Ensure that the application is built locally first, and that the correct virtual environment is loaded:
-```
-agregory@agregory-mac ~ % python -m oci_policy_analysis.cli --get-caches andgre5678
-
-2025-12-04 16:32:48,895 [INFO] [root] Root logger initialized (stdout + app.log).
-2025-12-04 16:32:49,006 [INFO] [oci-policy-analysis.reference_data_repo] Loading reference data from directory: /Users/agregory/oci-policy-analysis/.venv/lib/python3.12/site-packages/oci_policy_analysis/logic/permissions
-2025-12-04 16:32:49,008 [INFO] [oci-policy-analysis.reference_data_repo] Loaded 23 reference data files. Total resources: 303, families: 46
-2025-12-04 16:32:49,339 [INFO] [oci-policy-analysis.reference_data_repo] Loading reference data from directory: /Users/agregory/oci-policy-analysis/.venv/lib/python3.12/site-packages/oci_policy_analysis/logic/permissions
-2025-12-04 16:32:49,341 [INFO] [oci-policy-analysis.reference_data_repo] Loaded 23 reference data files. Total resources: 303, families: 46
-<frozen runpy>:128: RuntimeWarning: 'oci_policy_analysis.cli' found in sys.modules after import of package 'oci_policy_analysis', but prior to execution of 'oci_policy_analysis.cli'; this may result in unpredictable behaviour
-2025-12-04 16:32:49,341 [INFO] [oci-policy-analysis.cli] Logging to Console
-2025-12-04 16:32:49,341 [INFO] [oci-policy-analysis.data_repo] Initialized PolicyAnalysisRepo
-2025-12-04 16:32:49,342 [INFO] [oci-policy-analysis.caching] Initialized Caching at /Users/agregory/.oci-policy-analysis/cache
-2025-12-04 16:32:49,342 [INFO] [oci-policy-analysis.caching] Entries found in cache_entries.json: 11
-2025-12-04 16:32:49,342 [INFO] [oci-policy-analysis.cli] Available caches:
-2025-12-04 16:32:49,342 [INFO] [oci-policy-analysis.cli] andgre5678_2025-12-03-23-56-50-UTC
-2025-12-04 16:32:49,342 [INFO] [oci-policy-analysis.cli] andgre5678_2025-12-03-23-56-04-UTC
-2025-12-04 16:32:49,342 [INFO] [oci-policy-analysis.cli] andgre5678_2025-12-03-23-53-40-UTC
-2025-12-04 16:32:49,342 [INFO] [oci-policy-analysis.cli] andgre5678_2025-12-03-23-49-04-UTC
-2025-12-04 16:32:49,342 [INFO] [oci-policy-analysis.cli] andgre5678_2025-12-03-14-15-24-UTC
-2025-12-04 16:32:49,342 [INFO] [oci-policy-analysis.cli] andgre5678_2025-12-02-19-04-53-UTC
-2025-12-04 16:32:49,342 [INFO] [oci-policy-analysis.cli] andgre5678_2025-11-26-16-43-15-UTC
-2025-12-04 16:32:49,342 [INFO] [oci-policy-analysis.cli] andgre5678_2025-11-26-16-40-46-UTC
-2025-12-04 16:32:49,342 [INFO] [oci-policy-analysis.cli] andgre5678_2025-11-26-15-19-59-UTC
-2025-12-04 16:32:49,342 [INFO] [oci-policy-analysis.cli] andgre5678_2025-11-26-15-04-29-UTC
-2025-12-04 16:32:49,342 [INFO] [oci-policy-analysis.cli] andgre5678_2025-11-26-saved
-2025-12-04 16:32:49,342 [INFO] [oci-policy-analysis.cli] Exiting after listing caches as --get-caches was provided
-``` 
-
-With the cache name and date (for example, `andgre5678_2025-12-03-23-56-50-UTC`), you can set up MCP within the Claude or VSCode config file.
-
-### MCP Option 1 - Locally with STDIO and Claude
-
-In order to use Claude with MCP, you update a file called `claude_desktop_config.json` and simply restart Claude after changes.  To add the MCP server using STDIO mode, you likely want to start with a cached copy of the tenancy data, from a previous run from the UI or CLI, where the cache file exists.  See [above](#finding-the-available-caches) for more details on getting the cache name.
-
-Claude Desktop and MCP over STDIO Architecture:
-
-```mermaid
-flowchart LR
-    subgraph LOCAL["Local Machine"]
-        CD[Claude Desktop]
-        MCP[MCP Server STDIO]
-        CACHE[Local Cache]
-    end
-
-    subgraph OCI["OCI Cloud"]
-        API[OCI IAM API]
-    end
-
-    CD -->|JSON-RPC STDIO| MCP
-    MCP -->|Reads Cache| CACHE
-    MCP -.->|Load via SDK<br/>Profile or Session Token| API
-
-    style CD fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
-    style MCP fill:#eaffea,stroke:#66cc66,stroke-width:2px
-    style CACHE fill:#fff8e5,stroke:#ffcc00,stroke-width:2px
-    style API fill:#f7e9ff,stroke:#a37aff,stroke-width:2px,stroke-dasharray: 5 5
+oci-policy-analysis-mcp --profile DEFAULT --transport streamable-http \
+  --host 127.0.0.1 --port 8765
 ```
 
-Following are 2 examples.
-
-#### Flavor 1 - Cached Data
-```json
-{
-  "mcpServers": {
-    "oci-policy-local": {
-      "command": "/Users/agregory/oci-policy-analysis/.venv/bin/python",
-      "args": [
-        "-m",
-        "oci_policy_analysis.mcp_server",
-        "--use-cache",
-        "andgre5678_2025-12-03-23-56-50-UTC"
-      ],
-      "env": {
-        "MCP_STDIO_MODE": "1"
-      },
-      "type": "stdio"
-    }
-  }
-}
-```
-#### Flavor 2 - Load Data via SDK (Live)
-
-**Hint** Your `YOUR-OCI-NAMED-PROFILE` may be `DEFAULT` if that is the only profile on your machine.
-```json
-{
-  "mcpServers": {
-    "oci-policy-local": {
-      "command": "/Users/agregory/oci-policy-analysis/.venv/bin/python",
-      "args": [
-        "-m",
-        "oci_policy_analysis.mcp_server",
-        "--profile",
-        "YOUR-OCI-NAMED-PROFILE"
-      ],
-      "env": {
-        "MCP_STDIO_MODE": "1"
-      },
-      "type": "stdio"
-    }
-  }
-}
-```
-
-**NOTE** If you want to load live tenancy data but NOT create a new cache each time, add in the `--dont-save-cache-after-load` flag on a new line in the configuration above.
-
-When Claude starts it will automatically run the code from your locally built application, assuming you set up a virtual environment similar to the path above.
-
-### MCP Option 2 - Streamable HTTP and Claude
-
-In this model, Claude requires an installed [MCP Proxy](https://github.com/sparfenyuk/mcp-proxy) on your machine.  The MCP Server can be started as a standalone Python process or from the OCI Policy Analysis UI with the Embedded MCP tab.  Either way, it will be listening on host:port and then the MCP Proxy connects to it.
-
-```mermaid
-flowchart LR
-    subgraph LOCAL["Local Machine"]
-        CD[Claude Desktop]
-        PROXY[mcp-proxy]
-    end
-
-    subgraph SERVER["Server (Local or Remote)"]
-        MCP[MCP Server HTTP]
-        CACHE[Local Cache]
-    end
-
-    subgraph OCI["OCI Cloud"]
-        API[OCI IAM API]
-    end
-
-    CD -->|JSON-RPC| PROXY
-    PROXY -->|HTTP/HTTPS| MCP
-    MCP -->|Reads| CACHE
-    MCP -.->|Load via SDK<br/>Profile or Instance Principal| API
-
-    style CD fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
-    style PROXY fill:#fff8e5,stroke:#ffcc00,stroke-width:2px
-    style MCP fill:#eaffea,stroke:#66cc66,stroke-width:2px
-    style CACHE fill:#f0f0f0,stroke:#aaa,stroke-width:2px
-    style API fill:#f7e9ff,stroke:#a37aff,stroke-width:2px,stroke-dasharray: 5 5
-
-```
-
-In this model, the MCP server is standalone.  It could be on your computer, using the MCP Server standalone server, or via the embedded MCP tab in the OCI Policy Analysis UI.  Either way, configure Claude like this:
-
-```json
-{
-  "mcpServers": {
-    "mcp-remote": {
-      "command": "mcp-proxy",
-      "args": [
-        "http://url-or-ip:port/mcp"
-      ]
-    }
-  }
-}
-```
-When you start Claude, it will connect if your MCP is running at the given location.  Any time you restart the MCP server, simply close and reopen Claude to re-establish the connection.
-
-### MCP Option 3 - VSCode Co-Pilot and STDIO (Local)
-
-VSCode Configuration is similar to, but different from Claude.  The architecture for STDIO is very similar:
-
-```mermaid
-flowchart LR
-    subgraph LOCAL["Local Machine"]
-        VSC[VS Code<br/>GitHub Copilot]
-        MCP[MCP Server STDIO]
-        CACHE[Local Cache]
-    end
-
-    subgraph OCI["OCI Cloud"]
-        API[OCI IAM API]
-    end
-
-    VSC -->|JSON-RPC STDIO| MCP
-    MCP -->|Reads Cache| CACHE
-    MCP -.->|Load via SDK Calls| API
-
-    style VSC fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
-    style MCP fill:#eaffea,stroke:#66cc66,stroke-width:2px
-    style CACHE fill:#fff8e5,stroke:#ffcc00,stroke-width:2px
-    style API fill:#f7e9ff,stroke:#a37aff,stroke-width:2px,stroke-dasharray: 5 5
-```
-
-#### Flavor 1 - Cached Data
-
-Use the command line to get the [name of the cache](#finding-the-available-caches) to use.  Then configure VSCode to add it to the startup command.
-
-```json
-    "mcp-local-stdio": {
-        "type": "stdio",
-        "command": "/Users/agregory/oci-policy-analysis/.venv/bin/python",
-        "env": {
-            "MCP_STDIO_MODE": "1"
-        },
-        "args": [
-            "-m",
-            "oci_policy_analysis.mcp_server.",
-            "--use-cache",
-            "tenancy_2025-10-29-16-52-22-UTC"
-        ]
-    }
-```
-
-VSCode logs and output should show communication with MCP.
-
-#### Flavor 2 - Load via OCI SDK (Live Data)
-
-Without the cache, it will connect to the tenancy and load the data.
-
-```json
-		"mcp-local-stdio-live": {
-			"type": "stdio",
-			"command": "/Users/agregory/oci-policy-analysis/.venv/bin/python",
-			"env": {
-				"MCP_STDIO_MODE": "1"
-			},
-			"args": [
-        "-m"
-				"oci_policy_analysis.mcp_server",
-				"--profile",
-				"POLICY-ANDGRE-5678"
-			]
-		}
-```
-If it starts, you will something like this in the VSCode Output:
-```
-2025-10-29 20:06:33.711 [warning] [server stderr] 2025-10-29 20:06:33,710 [INFO] [root] Root logger initialized (stdout + app.log).
-2025-10-29 20:06:33.912 [warning] [server stderr] 2025-10-29 20:06:33,911 [INFO] [oci.circuit_breaker] Default Auth client Circuit breaker strategy enabled
-2025-10-29 20:06:34.835 [info] Discovered 6 tools
-```
-
-### MCP Option 4 - VSCode Remote HTTP
-
-VSCode will also connect to any running MCP server, and does not need the MCP Proxy that Claude requires.  Simply connect to the running MCP Server, either running Standalone or Embedded within the UI.
-
-```mermaid
-flowchart LR
-    subgraph LOCAL["Local Machine"]
-        VSC[VS Code<br/>GitHub Copilot]
-    end
-
-    subgraph SERVER["Server (Local or Remote)"]
-        MCP[MCP Server HTTP]
-        CACHE[Local Cache]
-    end
-
-    subgraph OCI["OCI Cloud"]
-        API[OCI IAM API]
-    end
-
-    VSC -->|HTTPS| MCP
-    MCP -->|Reads Cache| CACHE
-    MCP -.->|Load via SDK<br/>Profile or Session Token| API
-
-    style VSC fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
-    style MCP fill:#eaffea,stroke:#66cc66,stroke-width:2px
-    style CACHE fill:#f0f0f0,stroke:#aaa,stroke-width:2px
-    style API fill:#f7e9ff,stroke:#a37aff,stroke-width:2px,stroke-dasharray: 5 5
-
-```
-
-In this case, your MCP server is already running like above, on your PC or on a remote server, or in the OCI Policy Analysis tool in the embedded MCP tab.  The host and port are available and open for connections. 
-
-Set up VSCode for a remote MCP Server:
-```
-    "mcp-policy-remote": {
-        "url": "https://mcp-host:port/mcp",
-        "type": "http"
-    }
-```
-
-### MCP Option 5 - Remote OCI Deployment with Load Balancer
-
-```mermaid
-flowchart LR
-    subgraph LOCAL["Local Machine"]
-        CLIENT[Claude Desktop or<br/>VS Code Copilot]
-        PROXY[mcp-proxy]
-    end
-
-    subgraph OCI_INFRA["OCI Infrastructure"]
-        LB[Load Balancer<br/>HTTPS:443]
-        
-        subgraph COMPUTE["Compute Instance"]
-            MCP[MCP Server HTTP:8765]
-            CACHE[Local Cache]
-        end
-    end
-
-    subgraph OCI_SERVICES["OCI Services"]
-        API[OCI IAM API]
-    end
-
-    CLIENT -->|JSON-RPC| PROXY
-    PROXY -->|HTTPS:443| LB
-    LB -->|HTTP:8765| MCP
-    MCP -->|Reads Cache| CACHE
-    MCP -.->|SDK Calls| API
-
-    style CLIENT fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
-    style PROXY fill:#fff8e5,stroke:#ffcc00,stroke-width:2px
-    style LB fill:#ffddaa,stroke:#ff9944,stroke-width:2px
-    style MCP fill:#eaffea,stroke:#66cc66,stroke-width:2px
-    style CACHE fill:#fff8e5,stroke:#ffcc00,stroke-width:2px
-    style API fill:#f7e9ff,stroke:#a37aff,stroke-width:2px
-```
-
-In this production deployment, the MCP server runs on an OCI compute instance with instance principal authentication, behind an OCI Load Balancer with TLS termination. This provides secure, scalable access to OCI IAM data without storing credentials.
-
-For OCI Container Instance deployment (OCIR image + private subnet + instance principal default runtime), follow:
-
-- [Containerized MCP on OCI Container Instances](setup.md#containerized-mcp-on-oci-container-instances)
-
-**Configuration for Claude:**
-```json
-{
-  "mcpServers": {
-    "mcp-remote": {
-      "command": "mcp-proxy",
-      "args": [
-        "https://oci-policy-analysis-mcp.ocidemo.app/mcp"
-      ]
-    }
-  }
-}
-```
-
-**Configuration for VSCode:**
-```json
-{
-  "servers": {
-    "mcp-policy-remote": {
-      "url": "https://oci-policy-analysis-mcp.ocidemo.app/mcp",
-      "type": "http"
-    }
-  }
-}
-```
-
-## Setup for MCP Locally or on a Server
-
-Running locally allows you to build OCI Policy Analysis, connect to live or cached data, and avoid using the UI.  Similar to the CLI, you can run with a cached data set or load the tenancy.  For this way of running, STDIO doesn't make sense, as you are expecting a client to access via HTTP.  
-
-Example 5 above talks about running on a server with a load balancer.  You can use the method described here to run OCI Policy Analysis on an OCI Virtual Machine with Instance Principal, and then expose using a Load Balancer.  Then desktop clients can connect MCP tools with stopping and starting the server.
-
-### Load the tenancy via PROFILE
-```bash
-python  -m oci_policy_analysis.mcp_server --profile DEFAULT --transport streamable-http --host 0.0.0.0
-```
-
-### Load the tenancy via Instance Principal
-```bash
-python -m oci_policy_analysis.mcp_server --instance-principal --transport streamable-http --host 0.0.0.0
-```
-
-### Load the tenancy via Resource Principal
-```bash
-python -m oci_policy_analysis.mcp_server --resource-principal --transport streamable-http --host 0.0.0.0
-```
-
-### Using Cached Data
-```bash
-python -m oci_policy_analysis.mcp_server --use-cache andgre5678_2025-10-17-17-54-09-UTC --transport streamable-http --host 0.0.0.0
-```
-
-### Adding OCI Load Balancer
-To run behind a Load Balancer on a server, see above first.  Following that, In your VCN's public subnet, run a standard Layer 7 Load Balancer, listening on port 443 (HTTPS) with health check and backend set with your private host and port (default 8765).  Once the LB is up, point Claude or VSCode (option 2 or 4 above) to the LB's public domain and port - below there is a cert running on the LB, so the https address and cert are valid.  But it points to the MCP server on the backend.
-
-```bash
-mcp-proxy add oci-policy-analysis --url https://oci-policy-analysis-mcp.ocidemo.app/mcp
-```
-
-## Secure Deployment on OCI (Outline Steps)
-
-1. Deploy Compute Instance (OL9, Instance Principal)
-2. Configure Dynamic Group and Policy:
-   ```text
-   Allow dynamic-group my-mcp-dg to read all-resources in tenancy
-   ```
-3. Launch service behind OCI Load Balancer (port 443 → 8000)
-4. Add TLS (Let’s Encrypt or OCI Certificate)
-5. Verify endpoint:
-   ```bash
-   curl -vk https://oci-policy-analysis-mcp.ocidemo.app/mcp
-   ```
-
-## OCI Container Instance Deployment
-
-For a containerized standalone MCP deployment on OCI:
-
-1. Build and push the source MCP target with `run/build-push-image.sh mcp` (or use `run/build-push-pypi.sh mcp` for an exact published version)
-2. Validate deployment with `OCI_DRY_RUN=true run/deploy-container-instance.sh mcp`
-3. Deploy with `run/deploy-container-instance.sh mcp`; replacement requires `OCI_REDEPLOY=true` and causes downtime.
-4. The deployment supplies these runtime settings:
-   - `MCP_AUTH_MODE=resource_principal`
-   - `MCP_TRANSPORT=streamable-http`
-   - `MCP_HOST=0.0.0.0`
-   - `MCP_PORT=8765`
-   - `MCP_LOG_LEVEL=WARNING`
-   - `MCP_SAVE_CACHE_AFTER_LOAD=false`
-   - `OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH=1` (use `2` when identity domains are in child compartments)
-
-Full procedure:
-
-- [Containerized MCP on OCI Container Instances](setup.md#containerized-mcp-on-oci-container-instances)
-
-## Available MCP Tools
-
-For the OKE workload identity tool and advanced principal filter shape, see [OKE Workload Identity Querying](./oke_workload_identity.md). The top-level [Usage](./usage.md) guide explains where MCP sits relative to the UI tabs and advanced filters.
-
-MCP clients choose tools from concise descriptions and JSON schemas. The server keeps tool schemas intentionally small; full examples and response notes live here instead of in the tool description payload.
-
-### Packaged schema footprint
-
-The packaged `mcp_tools.json` contains input schemas for every tool and typed
-output schemas for the three reference tools. The following sizes use compact
-UTF-8 JSON serialization; they are bytes, not model token estimates. Actual token
-usage depends on the client and model.
-
-| Tool | Input schema bytes | Output schema bytes |
-| --- | ---: | ---: |
-| `resource_reference` | 622 | 2,207 |
-| `operation_reference` | 525 | 1,973 |
-| `permission_reference` | 531 | 2,551 |
-| `policy_search` | 3,872 | 45 |
-| `tag_based_policy_search` | 1,600 | 45 |
-| `oke_workload_identity_search` | 1,050 | 45 |
-| `policy_search_set` | 7,261 | 45 |
-| `policy_history_search` | 515 | 45 |
-| `identity_search` | 1,251 | 45 |
-| `data_operations` | 250 | 45 |
-| `cross_tenancy_search` | 383 | 45 |
-
-### Example Natural Language Queries
-
-| User Question | Tool Used | Example Request |
-|--------------|-----------|-----------------|
-| "Show all users in the tenancy" | `identity_search` | `{ "entity_types": ["user"] }` |
-| "Find all groups with 'admin' in the name" | `identity_search` | `{ "entity_types": ["group"], "name": ["admin"] }` |
-| "Resolve this compartment OCID to a path" | `identity_search` | `{ "entity_types": ["compartment"], "ocid": ["ocid1.compartment.oc1..example"] }` |
-| "Which policies allow manage on databases?" | `policy_search` | `{ "mode": "simple", "detail_level": "summary", "filters": { "verb": ["manage"], "resource": ["database"] } }` |
-| "List all users in group 'cloud-engineering-domain-users'" | `identity_search` | `{ "operation": "members_for_group", "entity_types": ["user"], "name": ["cloud-engineering-domain-users"], "domain_name": ["cloud-engineering-domain"] }` |
-| "Show cross-tenancy aliases" | `cross_tenancy_search` | `{ "operation": "list_aliases" }` |
-| "Show policies for the Default Administrators group principal" | `policy_search` | `{ "mode": "simple", "filters": { "principal": { "principal_type": "group", "domain_name": "Default", "name": "Administrators" } } }` |
-| "Find resource-principal policies for container instances" | `policy_search` | `{ "mode": "advanced", "detail_level": "full", "filters": { "principal": { "principal_type": "resource-principal", "resource_type": "containerinstance" } } }` |
-| "Validate all policy pieces for this product install" | `policy_search_set` | `{ "intent": "install_validation", "searches": [...] }` |
-| "Compare this search with last month's cache" | `policy_history_search` | `{ "query_type": "single", "query": {...}, "left": {"source": "as_of", "as_of": "2026-05-15T00:00:00Z"}, "right": {"source": "current"} }` |
-| "List available caches" | `data_operations` | `{ "operation": "list_caches", "tenancy_name": "andgre5678" }` |
-| "Reload live data" | `data_operations` | `{ "operation": "reload" }` |
-
----
-
-The OCI Policy Analysis MCP Server exposes the following tools for querying OCI IAM data:
-
+The supported sources are a named OCI profile, session token, instance
+principal, resource principal, or combined cache. Live loading also requires
+the OCI read/inspect permissions described in [Setup](setup.md#permissions-required).
+Use `--help` for load depth, cache writing, and logging options.
+
+HTTP deployments reachable beyond the local machine need appropriate network
+controls and TLS termination. Optional OCI Identity Domain OAuth is documented
+in [MCP OAuth](mcp_oauth.md). For container build and deployment steps, use the
+[Containerized MCP setup](setup.md#containerized-mcp-on-oci-container-instances)
+and the operations guide for the same Git revision; those procedures are kept
+out of this protocol overview.
+
+(mcp-tool-catalog)=
+## Tool catalog
+
+The server exposes focused tools with structured inputs and bounded results.
+Use [MCP tool examples](mcp_examples.md) for request patterns and response
+details.
+
+| Tool | Purpose |
+| --- | --- |
+| `resource_reference` | Discover OCI policy resource types, families, aliases, and cumulative allow-verb mappings. |
+| `operation_reference` | Find API operation names, required permissions, conditions, and unmapped requirements. |
+| `permission_reference` | Reverse-map a permission to known resources, verbs, and API operations. |
+| `policy_search` | Search policy statements for one question. |
+| `policy_search_set` | Run and compare multiple related policy checks in one call. |
+| `tag_based_policy_search` | Search parsed tag-based policy conditions. |
+| `oke_workload_identity_search` | Inspect OKE workload identity and policy evidence. |
+| `identity_search` | Find users, groups, dynamic groups, and compartments; inspect memberships. |
+| `policy_history_search` | Compare a policy search across snapshots. |
+| `cross_tenancy_search` | List aliases or find cross-tenancy statement references. |
+| `data_operations` | Inspect data state, list/load caches, or reload live data when supported by the server mode. |
+
+(reference-discovery-and-reverse-lookup)=
 ### Reference discovery and reverse lookup
 
-Use these three read-only tools to resolve terminology before searching policy
-statements. They read the bundled reference catalog; they do not load tenancy
-data or call OCI. Qt's managed endpoint exposes the same tools once its snapshot
-host is running. Their results describe policy resource **types**, not deployed
-Compute instances or other live resources.
+Start with these tools when the wording in a question may not match OCI's
+canonical policy type or API operation. For example, `resource_reference` can
+resolve everyday wording such as “virtual machines” to catalog identifiers;
+`operation_reference` can identify a qualified API operation; and
+`permission_reference` can show known resource/verb associations.
 
-| Tool | Required input | Optional controls | Results |
-| --- | --- | --- | --- |
-| `resource_reference` | `query` | `kind`: resource/family/either; `verb`: inspect/read/use/manage | Catalog identifier, source spelling, aliases, family membership and cumulative allow-verb permissions |
-| `operation_reference` | `query` | `api_group`, such as core or objectstorage | Qualified API name, request.operation value, fixed requirements, conditional notes, related checks and unmapped permissions |
-| `permission_reference` | `query` | Exact resource identifier/alias in `resource` | Resource/family associations, lowest granting verb per resource, additional permissions at that verb and related API operations |
+The catalog is local reference data, not a complete OCI authorization engine.
+Search results include source notes, coverage warnings, and explicit gaps where
+no mapping is known. Exact lookup accepts identifiers and declared aliases;
+search mode also ranks descriptive terms. Empty mappings do not prove a resource
+or permission is absent from OCI. See [reference catalog coverage](reference_catalog.md).
 
-All three also accept `match` (`search` by default or `exact`), `limit` (default
-10, maximum 25), and `cursor`. Queries contain 1–200 non-whitespace characters;
-unrecognized input fields and invalid enum values are rejected. Search returns
-ranked identifier, alias, curated search-term or text matches. Exact mode accepts
-identifiers and declared aliases, not descriptive search terms. Bare operation
-names can return several API groups; qualify the name rather than silently
-choosing one.
+(mcp-qt-assistant)=
+## Desktop MCP Assistant
 
-For example:
+The desktop app can serve its loaded snapshot to MCP clients through an
+explicitly started loopback endpoint. This snapshot connection is query-only;
+standalone `data_operations` capabilities such as reload are not exposed. For
+using the in-app Codex or Claude Code conversations, or connecting a desktop
+assistant, see [MCP Assistant](mcp_assistant.md).
 
-```json
-{"query": "virtual machines", "kind": "resource"}
-```
+(mcp-data-boundaries)=
+## Data and privacy boundaries
 
-Call `resource_reference` with that request to discover `instances` and its
-family. Then use the returned identifiers with policy-search tools.
-
-```json
-{"query": "launch instance", "api_group": "core"}
-```
-
-Call `operation_reference` to inspect `core:LaunchInstance`, its primary
-permissions, conditional requirements and separate subnet check. Catalog API
-groups qualify names; they are not SDK class names or REST endpoint paths.
-
-```json
-{"query": "INSTANCE_CREATE", "match": "exact"}
-```
-
-Call `permission_reference` to find resource/verb mappings and operations that
-require that permission. The lowest granting verb is a per-resource catalog
-mapping. Its additional permissions expose broader access at that verb; it is
-not a complete least-privilege policy or proof of authorization.
-
-Every response has `matches`, `total_matches`, `next_cursor`, `catalog_id`,
-`catalog_version` and `warnings`. Pass `next_cursor` with the same query/filters;
-cursors are invalid for different queries or catalog contents. Nested membership,
-permission and operation lists are bounded to 50 items and report totals and
-truncation. Narrow the query to inspect a specific entry. The catalog fingerprint
-identifies the actual data; the package version alone may not identify local edits.
-Restart the server after updating the catalog.
-
-Empty mappings remain explicit. `audit-events` at inspect is a documented empty
-expansion; `cloud-shell` has no published named mapping in its linked access
-guide. An operation-only permission remains searchable when its resource/verb
-mapping is unavailable. Source notes, catalog review status and related checks
-must remain part of the answer. A no-match result does not establish that the
-resource or permission does not exist in OCI. See [reference catalog coverage](reference_catalog.md).
-
-### policy_search
-Primary policy-analysis tool. Use it for one statement search.
-
-Common inputs:
-
-- `mode`: `simple` for common statement filters, `advanced` for workload principals, parsed condition evidence, and tag-aware searches.
-- `detail_level`: `summary`, `simple`, or `full`.
-- `filters`: action, verb, resource, permission, subject type, policy name, compartment path, effective path, location, comments, condition text, validity, principal selectors, and raw statement text.
-- `filters.resource`: OCI policy resource type identifiers, not product names. Values are alternatives; for example, `objects`, `buckets`, `object-family`, and `all-resources`.
-- `filters.resource_family`: a catalog family or alias, such as `object storage`. It expands to the family, its member resource types, and `all-resources`.
-- `limit`: maximum match count eligible for detailed rows, capped at 50; it is not pagination. If matches exceed this threshold, the response is a summary without statement rows. A warning reports when a larger value is capped.
-
-An unfiltered search also returns a summary. Inspect `response_type`, `summary_substituted`, `summary_reason`, `total_count`, and `refinement_hint`. Narrow the query by principal, resource, verb, or compartment/effective path and call again to obtain `simple` or `full` rows. Summary breakdowns are bounded to the top 20 values per category; `__other__` counts the remaining statements.
-
-Use structured `principal` filters for human, service, dynamic-group, instance-principal, and resource-principal lookups. Advanced workload-principal results can include `principal_evidence`, `condition_atoms`, `dynamic_group_rule_evidence`, `residual_conditions`, `resolved_compartments`, `match_confidence`, and `match_confidence_reason`.
-
-For “which groups can manage Object Storage,” search allow statements with `filters.action=["allow"]`, `filters.principal={"principal_type":"group"}`, `filters.verb=["manage"]`, and `filters.resource_family="object storage"`. The family expands to `object-family`, `objectstorage-namespaces`, `buckets`, `objects`, and `all-resources`. Results identify matching statements, not guaranteed effective access: review conditions, policy location, compartment scope, and any denies.
-
-Parsed tag filters are also supported: `tag_access_type`, `tag_access_semantics`, `tag_namespace`, `tag_key`, `tag_value`, `tag_operator`, `condition_atom_terms`, `policy_tag`, `policy_defined_tag`, and `policy_freeform_tag`. Advanced/full responses include `tag_conditions` and `tag_context_warnings`.
-
-Example:
-
-```json
-{
-  "mode": "advanced",
-  "detail_level": "full",
-  "filters": {
-    "principal": {
-      "principal_type": "resource-principal",
-      "resource_type": "containerinstance",
-      "compartment_ocid": "ocid1.compartment.oc1..app"
-    },
-    "resource": ["repos"]
-  },
-  "limit": 25
-}
-```
-
-### tag_based_policy_search
-Runs a guided parsed tag-condition search. It accepts the parsed tag filters above plus common policy filters such as `verb`, `resource`, `permission`, `principal_keys`, and `effective_path`. See [Tag-Based Policy Search](tag_based.md) for examples.
-
-### policy_search_set
-Prefer this tool when a question contains **two or more related policy checks**: compare groups or services, compare human and workload access, review multiple resource scopes, or check a deployment permission checklist. Use `policy_search` for one lookup. A search set avoids repeated tool calls and keeps each check's results together.
-
-The schema exposes typed `searches` items with `search_id`, `label`, `required`, and the same `filters`, `mode`, `detail_level` and `limit` fields as `policy_search`. Direct query fields are preferred; legacy `query: {...}` wrappers remain accepted. `product_or_service` is a descriptive label and does not filter policies. Use `detail_level: "summary"` for comparisons; each child search independently uses the detailed-row threshold and summary fallback.
-
-Choose `intent: "access_review"` for comparisons, `"install_validation"` for a permission checklist, or `"workload_analysis"` for workload checks. `evaluation` is optional; its typed fields request confidence and principal-coverage checks. Responses contain `search_results` and `set_summary`, including missing required checks. Matching statements and `likely_ready` are evidence to inspect, **not proof of effective authorization or product installation readiness**; scope, conditions, deny statements, and non-policy requirements still matter.
-
-See [the comparison example](mcp_examples.md#when-to-use-a-policy-search-set). Schema changes require a server build/redeploy (or a published release containing them); refresh/reconnect the MCP client if it cached the previous tool list.
-
-### policy_history_search
-Runs a single policy search or policy search set against two snapshots and compares the results. Use `left` and `right` snapshot selectors such as `current`, `cache`, or `as_of`, then choose a `diff_mode` such as statement identity comparison.
-
-### identity_search
-Consolidated identity lookup for users, groups, dynamic groups, and compartments.
-
-Supported patterns:
-
-- Search users, groups, dynamic groups, and compartments by `name`, `domain_name`, or `ocid`.
-- Search dynamic groups by `matching_rule` or `in_use`.
-- Resolve compartment OCIDs to names and paths.
-- Fetch groups for an exact user with `operation: "groups_for_user"`.
-- Fetch users for an exact group with `operation: "members_for_group"`.
-
-Examples:
-
-```json
-{
-  "entity_types": ["compartment"],
-  "ocid": ["ocid1.compartment.oc1..app"],
-  "limit": 10
-}
-```
-
-```json
-{
-  "operation": "members_for_group",
-  "entity_types": ["user"],
-  "name": ["Administrators"],
-  "domain_name": ["Default"]
-}
-```
-
-### data_operations
-Operational tool for cache and live-data actions.
-
-Supported operations:
-
-- `list_caches`: list available combined caches, optionally filtered by tenancy name.
-- `cache_metadata`: inspect cache metadata.
-- `reload`: reload live OCI policy and identity data through the same load service used by the main app.
-
-`reload` requires a server started with profile, instance principal, resource principal, or session-token auth. It is not available for cache-only runs. Unless the server was started with `--dont-save-cache-after-load`, reload also writes a new combined cache.
-
-### cross_tenancy_search
-Cross-tenancy lookup tool.
-
-Supported operations:
-
-- `list_aliases`: list loaded cross-tenancy alias definitions.
-- `policies_by_alias`: filter cross-tenancy policy statements that reference an alias.
-
-Example:
-
-```json
-{
-  "operation": "policies_by_alias",
-  "alias": "partner-tenancy"
-}
-```
-
----
-
-## Usage Tips
-
-1. **Start broad, then filter**: Begin with empty filters `{}` to get summaries, then add specific criteria
-2. **Combine filters**: Use multiple fields together (AND logic across fields, OR within fields)
-3. **Use identity search first**: Find users, groups, dynamic groups, or compartments, then pass structured principal or compartment values to `policy_search`
-4. **Use advanced mode for workload principals**: This surfaces confidence, residual conditions, dynamic group rule evidence, and resolved compartments
-5. **Use search sets for product checks**: A set keeps related human, service, and workload searches together and reports missing or ambiguous items
-6. **Use INFO logging while testing clients**: `--log-level INFO` logs full inputs and truncated outputs for every MCP tool call
+- The MCP server reads OCI using its configured profile/principal or serves the
+  selected cache/snapshot. A client connection does not grant additional OCI
+  access.
+- A model receives the user's question and the evidence returned by requested
+  tools. Review the selected model provider's account and data-handling terms.
+- Tool output may contain policy text and identity data from the loaded
+  snapshot. Avoid broad requests when a narrower search answers the question.
+- A tool result is not a policy-engine decision. Check conditions, exclusions,
+  compartment scope, collection coverage, and unmapped requirements before
+  drawing conclusions.

@@ -2,7 +2,7 @@
 set -euo pipefail
 source "$(dirname -- "${BASH_SOURCE[0]}")/common.sh"
 
-MODE="${LOCAL_MODE:-desktop}"
+MODE="${LOCAL_MODE:-ui}"
 HOST="${LOCAL_HOST:-127.0.0.1}"
 PORT=""
 RELOAD="false"
@@ -36,7 +36,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         *)
             echo "❌ Unknown argument: $1"
-            echo "Usage: ./local-run.sh --mode desktop|web|cli|mcp [--host HOST] [--port PORT] [--reload] [--transport stdio|streamable-http] [-- <extra args>]"
+            echo "Usage: ./local-run.sh --mode ui|legacy-ui|web|cli|mcp [--host HOST] [--port PORT] [--reload] [--transport stdio|streamable-http] [-- <extra args>]"
             exit 1
             ;;
     esac

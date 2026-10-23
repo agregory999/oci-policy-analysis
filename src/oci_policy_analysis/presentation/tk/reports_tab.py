@@ -13,7 +13,7 @@ from tkinter import ttk
 from tkhtmlview import HTMLText
 
 from oci_policy_analysis.application.services.reports_service import ReportsService
-from oci_policy_analysis.presentation.desktop.base_tab import BaseUITab
+from oci_policy_analysis.presentation.tk.base_tab import BaseUITab
 
 
 class ReportsTab(BaseUITab):

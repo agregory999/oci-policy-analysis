@@ -51,8 +51,8 @@ from oci_policy_analysis.application.core.parser import (
 from oci_policy_analysis.application.core.support.helpers import for_display_tag_based_policy_row
 from oci_policy_analysis.application.core.support.logger import get_logger
 from oci_policy_analysis.application.services.tag_based_policy_service import TagBasedPolicyService
-from oci_policy_analysis.presentation.desktop.base_tab import BaseUITab
-from oci_policy_analysis.presentation.desktop.data_table import DataTable
+from oci_policy_analysis.presentation.tk.base_tab import BaseUITab
+from oci_policy_analysis.presentation.tk.data_table import DataTable
 
 logger = get_logger(component='tag_based_access_tab')
 
@@ -804,7 +804,7 @@ class TagBasedAccessTab(BaseUITab):
         """Open the Prospective Editor window from the Tag-based tab."""
 
         try:
-            from oci_policy_analysis.presentation.desktop.prospective_editor_window import ProspectiveEditorWindow
+            from oci_policy_analysis.presentation.tk.prospective_editor_window import ProspectiveEditorWindow
 
             editor = ProspectiveEditorWindow(self, self.app)
 

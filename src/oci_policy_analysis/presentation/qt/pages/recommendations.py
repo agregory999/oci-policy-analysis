@@ -543,7 +543,9 @@ class RecommendationsPage(QWidget):
                 self._clear_dialog()
                 self.dialog = SupersessionDialog(details, self)
                 self.dialog.show()
-        elif key in {'risk_policy', 'risk_statement'}:
+        elif key in {'risk_policy', 'risk_statement', 'cleanup'}:
+            # Cleanup rows can carry diagnostics beyond the table columns; show
+            # their complete record flat instead of grouping extras below.
             self.finding_details_requested.emit(record)
         else:
             self.details_requested.emit(record)

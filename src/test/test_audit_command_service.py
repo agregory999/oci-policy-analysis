@@ -30,20 +30,42 @@ def test_audit_ranges_are_contiguous_end_exclusive_and_at_most_14_days():
     for window in result['windows']:
         assert (datetime.fromisoformat(window['end_time']) - datetime.fromisoformat(window['start_time'])).days <= 14
     args = shlex.split(result['commands'][0])
-    assert args[:4] == ['oci', 'audit', 'event', 'list'] and '--all' not in args
-    assert result['fetch_all'] is False
-    query = args[args.index('--query') + 1]
-    assert query.startswith('data[?data."resource-id" == `"ocid1.policy.oc1..example"`].{')
-    assert 'principal:data.identity."principal-name"' in query
-    assert 'operation:data."event-name"' in query
-    assert 'previous:data."state-change".previous,current:data."state-change".current' in query
-    assert args[args.index('--output') + 1] == 'json'
+    assert args[:3] == ['oci', 'logging-search', 'search-logs'] and '--all' not in args
+    assert result['limit'] == 100
+    search = args[args.index('--search-query') + 1]
+    assert search.startswith('search "ocid1.compartment.oc1..example/_Audit"')
+    assert "where data.resourceId = 'ocid1.policy.oc1..example'" in search
+    assert "where (data.eventName = 'CreatePolicy' or data.eventName = 'UpdatePolicy'" in search
+    assert "or data.eventName = 'DeletePolicy')" in search
+    assert "time_format(datetime, 'yyyy-MM-dd HH:mm:ss z') as event_time" in search
+    assert 'data.identity.principalId as actor_ocid' in search
+    assert 'data.identity.principalName as actor' in search
+    assert 'data.identity.ipAddress as ip' in search
+    assert 'data.response.status as status' in search
+    assert 'message' not in search and 'GetPolicy' not in search
+    assert args[args.index('--query') + 1] == 'data.results[].data'
+    assert args[args.index('--limit') + 1] == '100'
+    assert args[args.index('--is-return-field-info') + 1] == 'false'
+    assert args[args.index('--time-start') + 1] == result['windows'][0]['start_time']
+    assert args[args.index('--time-end') + 1] == result['windows'][0]['end_time']
+    assert args[args.index('--output') + 1] == 'table'
 
 
-def test_fetch_all_pages_is_an_explicit_opt_in():
-    result = AuditCommandService.generate(inputs(fetch_all=True))
-    assert result['fetch_all'] is True
-    assert '--all' in shlex.split(result['commands'][0])
+def test_non_policy_resources_are_not_filtered_to_policy_operations():
+    result = AuditCommandService.generate(inputs(resource_id='ocid1.group.oc1..example'))
+    args = shlex.split(result['commands'][0])
+    search = args[args.index('--search-query') + 1]
+    assert "where data.resourceId = 'ocid1.group.oc1..example'" in search
+    assert 'CreatePolicy' not in search
+
+
+def test_clearing_resource_searches_policy_mutations_across_compartment():
+    result = AuditCommandService.generate(inputs(resource_id='', compartment_id='ocid1.tenancy.oc1..example'))
+    args = shlex.split(result['commands'][0])
+    search = args[args.index('--search-query') + 1]
+    assert search.startswith('search "ocid1.tenancy.oc1..example/_Audit"')
+    assert 'data.resourceId' not in search
+    assert 'UpdatePolicy' in search
 
 
 def test_command_quoting_retains_literal_profile_and_query():
@@ -96,3 +118,12 @@ def test_audit_defaults_use_policy_ocid_instead_of_internal_id_and_compared_tena
     assert defaults['resource_id'] == 'ocid1.policy.example'
     assert defaults['compartment_id'] == 'ocid1.compartment.example'
     assert defaults['start_time'].startswith('2026-10-01')
+
+
+def test_deleted_policy_defaults_use_original_compartment():
+    defaults = AuditCommandService.defaults(
+        {'old_value': {'policy_ocid': 'ocid1.policy.deleted', 'compartment_id': 'ocid1.compartment.original'}},
+        {'audit_context': {'compartment_id': 'ocid1.tenancy.fallback'}},
+    )
+    assert defaults['resource_id'] == 'ocid1.policy.deleted'
+    assert defaults['compartment_id'] == 'ocid1.compartment.original'

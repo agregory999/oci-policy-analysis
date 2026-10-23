@@ -10,7 +10,7 @@ from tkinter.scrolledtext import ScrolledText
 from oci_policy_analysis.application.core.support.logger import get_logger
 from oci_policy_analysis.application.services.condition_tester_service import extract_condition_clause
 from oci_policy_analysis.application.services.policy_graph_service import PolicyGraphService
-from oci_policy_analysis.presentation.desktop.base_tab import BaseUITab
+from oci_policy_analysis.presentation.tk.base_tab import BaseUITab
 
 logger = get_logger(component='policy_graph_tab')
 

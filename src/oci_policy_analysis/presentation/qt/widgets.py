@@ -1,5 +1,7 @@
 """Shared visual primitives and theme for the Qt exploration."""
 
+from html import escape
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QButtonGroup,
@@ -13,6 +15,8 @@ from PySide6.QtWidgets import (
     QWidget,
     QWidgetAction,
 )
+
+DOCS_ROOT = 'https://agregory999.github.io/oci-policy-analysis'
 
 STYLE = """
 QWidget { font-family: 'Avenir Next', 'Segoe UI', sans-serif; font-size: 13px; color: #243d39; }
@@ -29,6 +33,7 @@ QLabel#title { font-size: 29px; font-weight: 600; }
 QLabel#eyebrow { color: #53726a; font-size: 11px; font-weight: 600; }
 QLabel#muted { color: #62766f; }
 QLabel#notice { background: #eeeade; color: #63583b; padding: 12px; border-radius: 6px; }
+QLabel#notice a { color: #1e6554; font-weight: 600; }
 QFrame#card { background: white; border: 1px solid #dde4dd; border-radius: 8px; }
 QLabel#metric { font-size: 33px; font-weight: 600; }
 QPushButton { background: white; border: 1px solid #c9d4cd; border-radius: 5px; padding: 9px 14px; }
@@ -58,6 +63,27 @@ def label(text: str, name: str = '', *, wrap: bool = False) -> QLabel:
     """
     widget = QLabel(text)
     widget.setTextFormat(Qt.TextFormat.PlainText)
+    widget.setObjectName(name)
+    widget.setWordWrap(wrap)
+    return widget
+
+
+def linked_label(text: str, link_text: str, url: str, name: str = '', *, wrap: bool = False) -> QLabel:
+    """Create a styled label with one escaped, clickable external link.
+
+    Args:
+        text: Literal explanatory text shown before the link.
+        link_text: Literal visible link text.
+        url: Destination opened by the system browser.
+        name: Optional theme object name.
+        wrap: Whether to wrap long text within the available width.
+
+    Returns:
+        QLabel: Rich-text label with external link handling enabled.
+    """
+    widget = QLabel(f'{escape(text)} <a href="{escape(url, quote=True)}">{escape(link_text)}</a>')
+    widget.setTextFormat(Qt.TextFormat.RichText)
+    widget.setOpenExternalLinks(True)
     widget.setObjectName(name)
     widget.setWordWrap(wrap)
     return widget

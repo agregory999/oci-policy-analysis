@@ -31,8 +31,8 @@ from oci_policy_analysis.application.services.search_builders import (
     build_policy_search_from_saved_search,
 )
 from oci_policy_analysis.presentation import for_display_policy
-from oci_policy_analysis.presentation.desktop.base_tab import BaseUITab
-from oci_policy_analysis.presentation.desktop.data_table import DataTable
+from oci_policy_analysis.presentation.tk.base_tab import BaseUITab
+from oci_policy_analysis.presentation.tk.data_table import DataTable
 
 # Column data for Custom Data Table
 ALL_POLICY_COLUMNS = [
@@ -1138,7 +1138,7 @@ class PoliciesTab(BaseUITab):
             editor window itself.
             """
 
-            from oci_policy_analysis.presentation.desktop.prospective_editor_window import ProspectiveEditorWindow
+            from oci_policy_analysis.presentation.tk.prospective_editor_window import ProspectiveEditorWindow
 
             try:
                 ProspectiveEditorWindow(self, self.app)

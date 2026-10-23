@@ -20,7 +20,7 @@ from tkinter import filedialog, messagebox, ttk
 
 from oci_policy_analysis.application.core.support.caching import CacheManager
 from oci_policy_analysis.application.core.support.logger import get_logger
-from oci_policy_analysis.presentation.desktop.base_tab import BaseUITab
+from oci_policy_analysis.presentation.tk.base_tab import BaseUITab
 
 # Context help messages for the SettingsTab
 CONTEXT_HELP = {

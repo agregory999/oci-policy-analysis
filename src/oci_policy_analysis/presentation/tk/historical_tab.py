@@ -20,12 +20,12 @@ from tkinter import ttk
 
 from oci_policy_analysis.application.core.support.logger import get_logger
 from oci_policy_analysis.application.services.historical_analysis_service import HistoricalAnalysisService
-from oci_policy_analysis.presentation.desktop.base_tab import BaseUITab
 from oci_policy_analysis.presentation.formatters import (
     format_compartment_policy_name,
     format_historical_changed_fields,
     format_historical_diff_detail,
 )
+from oci_policy_analysis.presentation.tk.base_tab import BaseUITab
 
 logger = get_logger('historical_tab')
 

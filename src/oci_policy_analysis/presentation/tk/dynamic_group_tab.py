@@ -24,8 +24,8 @@ from oci_policy_analysis.presentation import (
     for_display_policy,
     format_compartment_policy_name,
 )
-from oci_policy_analysis.presentation.desktop.base_tab import BaseUITab
-from oci_policy_analysis.presentation.desktop.data_table import DataTable
+from oci_policy_analysis.presentation.tk.base_tab import BaseUITab
+from oci_policy_analysis.presentation.tk.data_table import DataTable
 
 # Column Data
 BASIC_DG_COLUMNS = ['Domain', 'DG Name', 'Matching Rule', 'Matching Rule (parsed structure)', 'In Use']

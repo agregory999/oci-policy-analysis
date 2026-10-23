@@ -107,7 +107,7 @@ _Most session, filter, and export options are mutually compatible—e.g., you ca
 
 - CLI logic & overlays: `src/oci_policy_analysis/cli.py`
 - Policy overlays code: `src/oci_policy_analysis/logic/policy_intelligence.py`
-- UI context (desktop): `src/oci_policy_analysis/main.py`
+- UI context (desktop): `src/oci_policy_analysis/presentation/tk/main.py`
 - MCP/Server context: [`CONTEXT_mcp_server_and_tab.md`](CONTEXT_mcp_server_and_tab.md)
 
 ---

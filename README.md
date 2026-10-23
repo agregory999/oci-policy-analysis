@@ -2,20 +2,21 @@
 
 Analyze OCI IAM policies, compartments, identity domains, groups, users, and dynamic groups from a desktop app, web app, CLI, or MCP server. The tool is read-only: it analyzes data but does not change your tenancy.
 
-The quick start guide below assumes the minimum setup to run the tool and access an OCI tenancy.  There are several over methods to run the tool.  The [full documentation](https://agregory999.github.io/oci-policy-analysis) covers mode-specific setup, OCI authentication and permissions, CIS compliance imports, web hosting, CLI and MCP usage, troubleshooting, architecture, and API reference.
+The [full documentation](https://agregory999.github.io/oci-policy-analysis) covers setup, OCI access, sample and saved data, web hosting, command-line use, troubleshooting, and embedding.
 
-For the 7.0 upgrade, see [what changed and the Qt preview walkthrough](https://agregory999.github.io/oci-policy-analysis/release_7_0.html). Tkinter remains available through `oci-policy-analysis-ui`; the optional Qt preview uses `oci-policy-analysis-qt`.
+For 7.0 highlights and a getting-started guide, see [What's new in 7.0](https://agregory999.github.io/oci-policy-analysis/release_7_0.html). The original desktop app remains available; the new desktop app is the recommended experience going forward.
 
-## Quick Start: Download an executable application
+## Quick Start: Download a desktop app
 
-Download the latest macOS or Windows application from the [Releases page](https://github.com/agregory999/oci-policy-analysis/releases). If your operating system asks for approval, allow the downloaded application to run.
+Download either maintained desktop app for macOS or Windows from the [Releases page](https://github.com/agregory999/oci-policy-analysis/releases). The modern app is the recommended experience going forward; the original app remains available and works as before. No Python setup is needed to run a downloaded app.
 
 ## Quick Start: Choose your data source
 
-You do **not** have to connect this tool to a live tenancy.  There are 2 supported 
+You do **not** have to connect this tool to a live tenancy. Choose from:
 
-- **Live OCI load:** requires an OCI user/API-key profile **and** IAM permissions granted to that principal. Before loading a tenancy, complete [tenancy access](#required-obtain-tenancy-access) 
-- **Offline CIS compliance import:** import the directory of OCI CIS Compliance output files instead. This lets you analyze the supplied data without the tool connecting to an actual tenancy.  
+- **Sample data:** choose **Sample** in the modern app to explore fictional data without credentials.
+- **Live OCI load:** requires an OCI user/API-key profile **and** IAM permissions granted to that principal. Before loading a tenancy, complete [tenancy access](#required-obtain-tenancy-access).
+- **Offline CIS Compliance import:** import the directory of OCI CIS Compliance output files without connecting to the tenancy.
 
 ## Quick Start: Begin Analysis
 

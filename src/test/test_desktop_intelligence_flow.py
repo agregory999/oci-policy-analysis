@@ -3,7 +3,7 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-from oci_policy_analysis.presentation.desktop.policy_recommendations_tab import PolicyRecommendationsTab
+from oci_policy_analysis.presentation.tk.policy_recommendations_tab import PolicyRecommendationsTab
 
 
 def _tab():

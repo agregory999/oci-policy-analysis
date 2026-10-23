@@ -43,8 +43,8 @@ from oci_policy_analysis.application.core.support.helpers import for_display_pol
 from oci_policy_analysis.application.core.support.logger import get_logger
 from oci_policy_analysis.application.core.support.usage_tracking import get_usage_tracker
 from oci_policy_analysis.presentation import format_compartment_policy_name
-from oci_policy_analysis.presentation.desktop.base_tab import BaseUITab
-from oci_policy_analysis.presentation.desktop.data_table import CheckboxTable, DataTable
+from oci_policy_analysis.presentation.tk.base_tab import BaseUITab
+from oci_policy_analysis.presentation.tk.data_table import CheckboxTable, DataTable
 
 # Note: CheckboxTable now supports a `column_widths` dict argument (pixel widths only).
 

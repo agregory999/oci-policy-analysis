@@ -20,8 +20,8 @@ from typing import Any
 
 from oci_policy_analysis.application.core.support.logger import get_logger
 from oci_policy_analysis.application.services.permissions_report_service import PermissionsReportService
-from oci_policy_analysis.presentation.desktop.base_tab import BaseUITab
-from oci_policy_analysis.presentation.desktop.data_table import DataTable
+from oci_policy_analysis.presentation.tk.base_tab import BaseUITab
+from oci_policy_analysis.presentation.tk.data_table import DataTable
 
 logger = get_logger(component='permissions_report_tab')
 

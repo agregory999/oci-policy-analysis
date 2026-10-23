@@ -5,11 +5,11 @@ builder, entry point and Nuitka package configuration live here alongside the
 shared ignored `.env` configuration.
 
 ```bash
-run/build-executable.sh qt
-run/build-executable.sh qt --mode onefile
-run/build-executable.sh qt --mode onefile --lean-data
-run/build-executable.sh qt --mode onefile --lean-data --lto yes
-run/build-executable.sh desktop
+run/build-executable.sh ui
+run/build-executable.sh ui --mode onefile
+run/build-executable.sh ui --mode onefile --lean-data
+run/build-executable.sh ui --mode onefile --lean-data --lto yes
+run/build-executable.sh legacy-ui
 ```
 
 Use the equivalent PowerShell adapter on Windows. `--dry-run` prints the command.

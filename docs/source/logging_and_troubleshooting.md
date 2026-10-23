@@ -41,8 +41,8 @@ This table covers instrumented OCI requests made by this application process.
 For client requests to the snapshot MCP endpoint, use the activity tab on
 **MCP & Assistant**, which includes external MCP clients. Model-provider API
 traffic from separate assistant applications is not captured here. See
-[Qt MCP and assistants](qt_mcp_codex.md) for that activity stream and the
-[Qt desktop guide](qt_desktop.md#logging-and-appearance) for logging controls.
+[MCP Assistant guide](mcp_assistant.md) for that activity stream and the
+[new desktop usage guide](usage.md#live-logs-and-oci-call-details) for logging controls.
 
 ## Global logging by component
 
@@ -113,7 +113,7 @@ Use these temporary environment controls only when investigating a live-tenancy 
 The normal identity-detail load uses six workers. If OCI Identity Domains returns HTTP 429 responses, retry with one worker to serialize dynamic-group and user detail calls:
 
 ```bash
-OCI_POLICY_ANALYSIS_IDENTITY_API_WORKERS=1 ./local-run.sh --mode desktop
+OCI_POLICY_ANALYSIS_IDENTITY_API_WORKERS=1 ./local-run.sh --mode ui
 ```
 
 Values from `1` through `6` are accepted. Invalid values retain the normal six-worker setting. This flag does not change policy or compartment loading concurrency.
@@ -125,7 +125,7 @@ Set `OCI_POLICY_ANALYSIS_IAM_API_DIAGNOSTICS_CSV` to a local output path before 
 ```bash
 OCI_POLICY_ANALYSIS_IDENTITY_API_WORKERS=1 \
 OCI_POLICY_ANALYSIS_IAM_API_DIAGNOSTICS_CSV="$PWD/iam-api-diagnostics.csv" \
-./local-run.sh --mode desktop
+./local-run.sh --mode ui
 ```
 
 The CSV records the API call, identity-domain context, resource ID, elapsed time, outcome, HTTP status, OCI service code, request ID, and error message. It covers identity-domain discovery plus group, user, and dynamic-group list/detail calls. CSV writing is best-effort: an output-file error is logged and does not stop the tenancy load.
@@ -137,7 +137,7 @@ On PowerShell, set the variables before starting the app:
 ```powershell
 $env:OCI_POLICY_ANALYSIS_IDENTITY_API_WORKERS = "1"
 $env:OCI_POLICY_ANALYSIS_IAM_API_DIAGNOSTICS_CSV = "$PWD\iam-api-diagnostics.csv"
-.\local-run.ps1 --mode desktop
+.\local-run.ps1 --mode ui
 ```
 
 ## Parsing Diagnostics
@@ -146,7 +146,7 @@ Set `OCI_POLICY_ANALYSIS_PARSING_DIAGNOSTICS_CSV` to capture the canonical parsi
 
 ```bash
 OCI_POLICY_ANALYSIS_PARSING_DIAGNOSTICS_CSV="$PWD/parsing-diagnostics.csv" \
-./local-run.sh --mode desktop
+./local-run.sh --mode ui
 ```
 
 The CSV has one row for every policy statement, one additional row for each non-empty `where` clause, and one row for every dynamic-group matching rule. It includes the load source, policy and compartment context, identity-domain and dynamic-group context where applicable, the original text, parse status, validity, warnings, errors, parsing notes, and a compact JSON result summary. Failed policy statements are included too, so they remain discoverable even though they are excluded from the compiled policy corpus.
@@ -157,7 +157,7 @@ Both policy statements and dynamic-group rules can contain sensitive tenancy det
 
 ```powershell
 $env:OCI_POLICY_ANALYSIS_PARSING_DIAGNOSTICS_CSV = "$PWD\parsing-diagnostics.csv"
-.\local-run.ps1 --mode desktop
+.\local-run.ps1 --mode ui
 ```
 
 ## Web UI and command-line logging
@@ -166,7 +166,8 @@ The desktop application, web server, CLI, and MCP server use the same applicatio
 
 | Mode | Useful startup options | Where to inspect issues |
 |---|---|---|
-| Desktop | `oci-policy-analysis-ui --verbose` | Console/Debugger tab and the application log; verbose detail is available when launched from a shell. |
+| Modern desktop | `oci-policy-analysis-ui --verbose` | Live Log and the application log; verbose detail is available when launched from a shell. |
+| Legacy Tkinter desktop | `oci-policy-analysis-legacy-ui --verbose` | Console/Debugger tab and the application log. |
 | Web UI | `oci-policy-analysis-web --host 127.0.0.1 --port 8000` | Server terminal/application log, browser developer console, and the web **Logging** page. `--reload` is for local development only. |
 | CLI | `oci-policy-analysis-cli --log-level INFO`, `--verbose`, `--app-log` | Terminal output by default; use `--app-log` when the application log is needed. |
 | MCP | `oci-policy-analysis-mcp --log-level INFO` | Server terminal/application log and the MCP client’s connection or tool-call error output. |

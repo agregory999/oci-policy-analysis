@@ -28,7 +28,7 @@ from oci_policy_analysis.mcp_server import (
     mcp_server_status,
     start_mcp_server_in_thread,
 )
-from oci_policy_analysis.presentation.desktop.base_tab import BaseUITab
+from oci_policy_analysis.presentation.tk.base_tab import BaseUITab
 
 
 # Filter

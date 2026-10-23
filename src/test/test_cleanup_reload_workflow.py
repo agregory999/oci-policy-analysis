@@ -6,7 +6,7 @@ import pytest
 
 from oci_policy_analysis.application.core.engine.recommendation_actions import cleanup_finding_identity
 from oci_policy_analysis.main import App
-from oci_policy_analysis.presentation.desktop.policy_recommendations_tab import PolicyRecommendationsTab
+from oci_policy_analysis.presentation.tk.policy_recommendations_tab import PolicyRecommendationsTab
 
 
 @pytest.mark.parametrize('failure', [None, 'load', 'wrong_tenancy', 'partial'])

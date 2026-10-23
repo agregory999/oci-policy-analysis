@@ -23,7 +23,7 @@ from oci_policy_analysis.presentation.qt.claude_client import ClaudeClient
 from oci_policy_analysis.presentation.qt.codex_client import CodexClient
 from oci_policy_analysis.presentation.qt.mcp_host import SnapshotMcpHost
 from oci_policy_analysis.presentation.qt.tables import RecordTable
-from oci_policy_analysis.presentation.qt.widgets import label
+from oci_policy_analysis.presentation.qt.widgets import DOCS_ROOT, label, linked_label
 
 
 class McpAssistantPage(QWidget):
@@ -61,6 +61,15 @@ class McpAssistantPage(QWidget):
         self._desktop_provider = 'claude-desktop'
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+        self.docs_help = linked_label(
+            'This page starts a local MCP server for the loaded snapshot and helps connect an assistant. '
+            'MCP has more integration options; see the detailed',
+            'MCP guide',
+            f'{DOCS_ROOT}/mcp.html#mcp-overview',
+            'notice',
+            wrap=True,
+        )
+        layout.addWidget(self.docs_help)
         self.snapshot = label('Load a snapshot on Overview before starting MCP.', 'muted', wrap=True)
         layout.addWidget(self.snapshot)
         controls = QHBoxLayout()

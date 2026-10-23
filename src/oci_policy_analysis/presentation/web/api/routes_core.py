@@ -1063,7 +1063,7 @@ def audit_command_defaults(request: Request, payload: dict[str, object]) -> dict
 
 @router.post('/analysis/audit-commands')
 def generate_audit_commands(request: Request, payload: dict[str, object]) -> dict:
-    """Generate quoted OCI Audit commands without issuing any OCI API calls."""
+    """Generate quoted OCI Logging Search commands without issuing any OCI API calls."""
     _require_authenticated(request)
     try:
         return AuditCommandService.generate(payload)

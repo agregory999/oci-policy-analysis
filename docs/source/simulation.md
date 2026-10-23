@@ -39,7 +39,7 @@ A simulation consists of the following components:
 - **Policy Statements Under Test (Real + Prospective):** All relevant policy statements, including any that may apply via inheritance or overlapping compartments. These include:
   - **Real tenancy policy statements** loaded from OCI.
   - **Prospective (what‑if) policy statements** that you create locally in the app to model future or hypothetical policies. Prospective statements are stored per tenancy, appear in the Applicable Policy Statements table with a `[Prospective]` label, and are evaluated by the engine exactly like real statements once loaded.
-  
+
   Any statement (real or prospective) can be unselected to test the impact of removing it from the simulation.
 - **Where-Clause and Conditions:** Any conditions or expressions (e.g., `where request.principal.type = ...`) in the merged policy set (real + prospective) that will affect the simulated permissions added to the final permission set.
 - **Variable Values:** Values required by where-clauses (OCIDs, strings, lists, booleans), which are set or simulated as part of the scenario.
@@ -68,7 +68,7 @@ Simulation UI will prompt for:
 - `request.principal.name` (string)
 - `request.networkSource.name` (string)
 
-Values set here directly affect simulation outcome.  Specifically, the set of PERMISSIONS that correspond to `use database-family` are now added to the final "permission set" for the simulation.  
+Values set here directly affect simulation outcome.  Specifically, the set of PERMISSIONS that correspond to `use database-family` are now added to the final "permission set" for the simulation.
 
 ---
 
@@ -83,7 +83,7 @@ allow group A to manage object-family in compartment Top
 deny group A to {OBJECT_DELETE, BUCKET_DELETE} in compartment Top:Second
 ```
 
-In this case, `manage object-fmaily` is very broad and has many individual permissions.  Because it is granted at a top-level compartment, it cascades to all sub-compartments.  Denying deletion to a sub-compartment is a good way to pinpoint an action.  The simulation can easily show this. 
+In this case, `manage object-fmaily` is very broad and has many individual permissions.  Because it is granted at a top-level compartment, it cascades to all sub-compartments.  Denying deletion to a sub-compartment is a good way to pinpoint an action.  The simulation can easily show this.
 
 More on [Deny Statements](https://docs.oracle.com/en-us/iaas/Content/Identity/policysyntax/denypolicies.htm).
 
@@ -121,13 +121,13 @@ The preferred implementation is a structured `related_checks` entry in the appro
 
 **Steps:**
 
-1. **Pick Compartment/Context**  
+1. **Pick Compartment/Context**
    Choose the compartment where the simulated action will occur.
 
-2. **Select the Principal**   
+2. **Select the Principal**
    Choose the type - then the specific user, group, dynamic group, or principal you wish to simulate as.
 
-3. **Load and Select Statements**  
+3. **Load and Select Statements**
    Select the policy statements from the search to include.  The default list is all policy statements applicable to the principal for the effective compartment.  This includes:
    - Statements at a higher compartment level that grant permissions to the principal.
    - Any **prospective (what‑if) statements** defined for this tenancy whose compartment path is in scope for the selected effective path.
@@ -136,13 +136,13 @@ The preferred implementation is a structured `related_checks` entry in the appro
    - Include or exclude them like any other statement (checkbox).
    - Open the **Manage Prospective Statements** dialog to add, edit, or remove hypothetical policies that should participate in simulation.
 
-4. **Configure Where-Clause Variables**  
+4. **Configure Where-Clause Variables**
    The UI will prompt for all potential variables parsed from any policy where-clause that applies, across **all currently included statements (real + prospective)**.  Any where clause for a statement will cause the simulation to add or not add the permissions in that statement based on whether the where clause evaluates as True or False with the supplied variable values.
 
 5. **Choose API Operation**
    API Operations are documented as part of the OCI Policy Reference.  Not all API Operations or Permissions are available in the simulation, but many of the major ones are.
 
-6. **Run Simulation**  
+6. **Run Simulation**
    Click 'Run Simulation' or use the trace — the engine will:
    - Evaluate applicable policy statements for the principal/resource/context, including any **prospective** statements currently in scope.
    - Parse and substitute variables in where-clauses using the provided where-context.
@@ -150,10 +150,10 @@ The preferred implementation is a structured `related_checks` entry in the appro
    - Test the final permission set for the entire context against what the API requires.
    - Keep a history of simulations run.
 
-6. **View Results**  
+6. **View Results**
    Results (ALLOW/DENY and decision path/traces) will be shown, including which policy/condition was matched, which variables were set, and any relevant notes.
 
-**Multiple Scenarios:**  
+**Multiple Scenarios:**
 You can batch test by changing variable values or choosing different principals/resources without leaving the simulation UI.
 
 ---
@@ -224,13 +224,13 @@ Simulation runs are automatically stored for later review.
 
 ## Related Features & See Also
 
-- [Condition Tester Tab](./usage.md#condition-tester-tab)
+- [Condition Tester](./usage.md#tools)
   - Quickly validate and experiment with where-clauses in isolation.
 
-- [Policy Overlap Tab](./usage.md)
+- [Legacy Policy Browser](./usage_legacy.md#policy-browser)
   - Analyze which statements could interact or supersede each other.
 
-- [Permissions Report](./usage.md#permissions-report-tab)  
+- [Permissions Analysis](./usage.md#review-identities-and-access)
   - See all permissions granted/denied as a result of current policies.
 
 

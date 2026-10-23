@@ -5,8 +5,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from oci_policy_analysis.application.core.common.policy_helpers import render_diagnostic_text
-from oci_policy_analysis.presentation.desktop.debugger_tab import DebuggerTab
-from oci_policy_analysis.presentation.desktop.users_tab import GROUPS_ALL_COLUMNS, render_diagnostic_name
+from oci_policy_analysis.presentation.tk.debugger_tab import DebuggerTab
+from oci_policy_analysis.presentation.tk.users_tab import GROUPS_ALL_COLUMNS, render_diagnostic_name
 
 
 def test_group_diagnostic_name_shows_a_zero_width_space() -> None:

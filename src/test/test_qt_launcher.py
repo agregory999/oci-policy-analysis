@@ -11,8 +11,8 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def test_console_entrypoint_preserves_existing_commands():
     scripts = tomllib.loads((ROOT / 'pyproject.toml').read_text())['project']['scripts']
-    assert scripts['oci-policy-analysis-qt'] == 'oci_policy_analysis.presentation.qt.launcher:main'
-    assert scripts['oci-policy-analysis-ui'] == 'oci_policy_analysis.main:main'
+    assert scripts['oci-policy-analysis-legacy-ui'] == 'oci_policy_analysis.presentation.tk.main:main'
+    assert scripts['oci-policy-analysis-ui'] == 'oci_policy_analysis.presentation.qt.launcher:main'
     assert scripts['oci-policy-analysis-cli'] == 'oci_policy_analysis.cli:main'
     assert scripts['oci-policy-analysis-web'] == 'oci_policy_analysis.presentation.web.main:main'
     assert scripts['oci-policy-analysis-mcp'] == 'oci_policy_analysis.mcp_server:main'

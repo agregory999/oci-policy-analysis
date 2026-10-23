@@ -9,7 +9,7 @@ from tkinter.scrolledtext import ScrolledText
 
 from oci_policy_analysis.application.core.support.logger import get_logger
 from oci_policy_analysis.application.services.cross_tenancy_analysis_service import CrossTenancyAnalysisService
-from oci_policy_analysis.presentation.desktop.base_tab import BaseUITab
+from oci_policy_analysis.presentation.tk.base_tab import BaseUITab
 
 LOGGER = get_logger(component='cross_tenancy')
 
