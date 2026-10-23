@@ -1,3 +1,10 @@
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.21](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.20...v7.0.0-7-0-0-policy-corpus-cross-tenancy.21) (2026-10-23)
+
+
+### Features
+
+* reorganize desktop packaging and guides for 7.0 ([f7e4a73](https://github.com/agregory999/oci-policy-analysis/commit/f7e4a73aac539411c54082f6b69ebc827ad2d3d6))
+
 ## [7.0.0-7-0-0-policy-corpus-cross-tenancy.20](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.19...v7.0.0-7-0-0-policy-corpus-cross-tenancy.20) (2026-10-22)
 
 
