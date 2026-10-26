@@ -1,3 +1,46 @@
+## [7.0.0](https://github.com/agregory999/oci-policy-analysis/compare/v6.5.7...v7.0.0) (2026-10-26)
+
+
+### ⚠ BREAKING CHANGES
+
+* Merge pull request #67 from agregory999/feature/7.0.0-policy-corpus-cross-tenancy
+* Remove the legacy oci_policy_analysis.common and
+oci_policy_analysis.logic Python import packages; integrations must use
+application.core. Published command names and the version-2/schema-3 saved
+cache format remain supported.
+
+### Features
+
+* add advanced historical comparison with JSON inspection ([c057314](https://github.com/agregory999/oci-policy-analysis/commit/c05731439551e18dabfcc3b8a8a0ec702616369d))
+* add embedded Claude CLI chat and server MCP activity ([92b5d79](https://github.com/agregory999/oci-policy-analysis/commit/92b5d79cd77205d1a31096ffa240bcf4403a2351))
+* add external desktop assistant launch options to Qt ([a220062](https://github.com/agregory999/oci-policy-analysis/commit/a22006209e89cf3c4785d7ef2d5e94e64b2ef64b))
+* add MCP reference lookup tools ([593fd87](https://github.com/agregory999/oci-policy-analysis/commit/593fd87d6d9b91449874a62729e2ba2a25379190))
+* add native Recommendations and supersession evidence views ([d48b255](https://github.com/agregory999/oci-policy-analysis/commit/d48b25528dd155749b4d8d9f2a9f1b3d5d9b506b))
+* add Qt cache maintenance and reveal incomplete snapshot differences ([350d9ab](https://github.com/agregory999/oci-policy-analysis/commit/350d9ab0b527b2fa80286216ad309d18b31d888e))
+* add Qt reports and harden native release publishing ([06b1fcb](https://github.com/agregory999/oci-policy-analysis/commit/06b1fcbce30e376fd4044f9543192d7734d13635))
+* add Qt workbench and native prerelease builds ([1a89243](https://github.com/agregory999/oci-policy-analysis/commit/1a89243c012d741f43ae184dcae7291cc9dfb1e9))
+* expand Qt analysis workflows and Windows onefile releases ([1fe051a](https://github.com/agregory999/oci-policy-analysis/commit/1fe051acc3331f86bbc7bdc7ff25109581eb4ad4))
+* introduce shared policy corpora and graphical search ([aec14b4](https://github.com/agregory999/oci-policy-analysis/commit/aec14b47bd1f0d8241305cd79384e30417d7631a))
+* make embedded Claude and Codex assistants work on macOS and Windows ([86737c2](https://github.com/agregory999/oci-policy-analysis/commit/86737c271d0682b6e670075d0f679358247a15bf))
+* Merge pull request [#67](https://github.com/agregory999/oci-policy-analysis/issues/67) from agregory999/feature/7.0.0-policy-corpus-cross-tenancy ([f296e09](https://github.com/agregory999/oci-policy-analysis/commit/f296e097046628e89cbfe799f2327b8ea97d7b3d))
+* persist Qt overview settings and improve policy evidence display ([5de97bf](https://github.com/agregory999/oci-policy-analysis/commit/5de97bf58ba2c4f4bb754d4dea5491de0149e48d))
+* reorganize desktop packaging and guides for 7.0 ([f7e4a73](https://github.com/agregory999/oci-policy-analysis/commit/f7e4a73aac539411c54082f6b69ebc827ad2d3d6))
+* restore Qt usage publication and add portable analytics viewer ([90894ac](https://github.com/agregory999/oci-policy-analysis/commit/90894acd94cdcee1763045bc18aa23b6ed780b03))
+
+
+### Bug Fixes
+
+* always save a cache after Qt live tenancy loads ([1628256](https://github.com/agregory999/oci-policy-analysis/commit/1628256a5fc86c6c4184185a8a917718bb008d4b))
+* bound Audit command paging by default ([bc510fa](https://github.com/agregory999/oci-policy-analysis/commit/bc510fa680ceb3bc67f93168e601f8c401bfb61f))
+* correct certificate bundle permission mapping ([7855a73](https://github.com/agregory999/oci-policy-analysis/commit/7855a739df85f89a7f7f8b5ab89b647530eaf780))
+* format OCI Audit event details ([333106e](https://github.com/agregory999/oci-policy-analysis/commit/333106eba7270b92bedcb59a0b10651a83921db8))
+* identify Tk and web usage tracking interfaces ([2891614](https://github.com/agregory999/oci-policy-analysis/commit/2891614c7132187bc1b003c53c230dec83d8f035))
+* package Tk entry point in GitHub builds ([7384a6b](https://github.com/agregory999/oci-policy-analysis/commit/7384a6b1f440c487bb5b0ddd017ebc402beba5c6))
+* publish Windows Qt onefile builds as archives only ([cf54199](https://github.com/agregory999/oci-policy-analysis/commit/cf54199e06cc75807c8ec5c4e2fd2d00c51f39c8))
+* rebuild incomplete cached association scopes ([b5bf6ba](https://github.com/agregory999/oci-policy-analysis/commit/b5bf6baf7b7713785f613ce233e4958675e5a599))
+* resolve desktop build resources from repository paths ([4d6c509](https://github.com/agregory999/oci-policy-analysis/commit/4d6c50953d58d134081f4153045d8bd79ee8c8b0))
+* retain comment-only edits in historical policy comparisons ([b1dbfb5](https://github.com/agregory999/oci-policy-analysis/commit/b1dbfb54e7640f22abbdaacba971d9893a680801))
+
 ## [7.0.0-7-0-0-policy-corpus-cross-tenancy.22](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.21...v7.0.0-7-0-0-policy-corpus-cross-tenancy.22) (2026-10-23)
 
 
