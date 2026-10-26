@@ -1,0 +1,11 @@
+# Deployment requirements
+
+Python 3.12 or later and `uv` are required for source development. Container work needs Docker with buildx and OCIR login, OCI CLI, `jq`, and Python 3. `run-build/.env.example` documents the exact settings used by each operation. Neither OCI private keys nor auth tokens belong in this file or the repository.
+
+An existing OCIR repository, OCI compartment, availability domain, compatible Container Instance shape, private subnet, and NSG are required. The operator's OCI CLI principal needs read access to the target compartment, subnet, NSG, and OCIR images, plus permission to list, create, inspect, and explicitly delete project Container Instances. Docker needs permission to push to the existing OCIR repository. The deployed Resource Principal needs only the IAM read permissions for the tenancies and compartments being analyzed. An appropriate dynamic group and policy must be configured independently.
+
+The subnet needs private image pull and OCI API egress. NSG ingress from the existing Load Balancer must reach configured web and MCP ports (defaults 8000/8765, current deployment 8000/8001). Both `/health` endpoints are HTTP. The Load Balancer and its backend sets are operator-managed; their names and IDs are intentionally absent from this repo configuration. Runtime secrets, if added later, need a separate delivery design because OCI Container Instance environment variables are inspectable by authorized operators.
+
+The short four-section example distinguishes required registry/operator inputs, required deployment targets, optional default overrides, and OAuth-only inputs. Web/desktop preferences are managed within the application; OCI-injected Resource Principal variables are not operator inputs. One configuration file drives local source running, uv builds, PyInstaller packaging, source image publishing and single/combined Container Instance deployment. Local API-key authentication needs only the existing OCI SDK configuration/signing key and no deployment settings.
+
+Published-release builds additionally require an exact `OPA_VERSION` and network access to PyPI during image construction. The selected release must expose the CLI/runtime features used by its launch scripts. Build/push still requires Docker; redeploying already-published images does not.

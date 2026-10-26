@@ -1,8 +1,7 @@
 # Generated from Policy.g4 by ANTLR 4.13.2
-import sys
-
 from antlr4 import *
-
+from io import StringIO
+import sys
 if sys.version_info[1] > 5:
     from typing import TextIO
 else:
@@ -264,7 +263,7 @@ class PolicyLexer(Lexer):
     OCID = 53
     WORD = 54
 
-    channelNames = [ "DEFAULT_TOKEN_CHANNEL", "HIDDEN" ]
+    channelNames = [ u"DEFAULT_TOKEN_CHANNEL", u"HIDDEN" ]
 
     modeNames = [ "DEFAULT_MODE" ]
 

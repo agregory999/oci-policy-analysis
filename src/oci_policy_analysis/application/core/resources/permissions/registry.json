@@ -8,16 +8,22 @@
                 "read": [
                     "REPOSITORY_READ"
                 ],
-                "use": [
-                    "REPOSITORY_PULL",
-                    "REPOSITORY_PUSH"
-                ],
+                "use": [],
                 "manage": [
                     "REPOSITORY_CREATE",
                     "REPOSITORY_DELETE",
-                    "REPOSITORY_UPDATE"
+                    "REPOSITORY_UPDATE",
+                    "REPOSITORY_MANAGE"
                 ]
-            }
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/registrypolicyreference.htm",
+            "catalog_status": "documented",
+            "notes": "Verb permission increments reviewed against the linked service policy reference; broader verbs include lower-verb permissions.",
+            "search_terms": [
+                "container registry",
+                "container repository",
+                "OCIR"
+            ]
         },
         "container-config": {
             "verbs": {

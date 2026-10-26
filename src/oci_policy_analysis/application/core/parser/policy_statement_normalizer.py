@@ -119,6 +119,11 @@ class _FieldCollectingVisitor(PolicyVisitor):
         tenancy_ocid_pattern = r'ocid1\.tenancy\..+'
         if lower_scope == 'tenancy':
             return ('tenancy', 'tenancy')
+        if lower_scope.startswith('tenancy '):
+            # Cross-tenancy scopes carry an alias after ``tenancy``.  Keep
+            # the alias as the location value so callers do not need to
+            # re-parse the raw scope string.
+            return ('tenancy', scope[len('tenancy') :].strip())
         if lower_scope.startswith('compartmentid'):
             match = re.match(
                 r'compartmentid(ocid1\.compartment\.[a-zA-Z0-9.\-]+|ocid1\.tenancy\.[a-zA-Z0-9.\-]+)(?:[.:](.*))?$',
@@ -221,9 +226,9 @@ class _FieldCollectingVisitor(PolicyVisitor):
             children = list(ctx_subject.getChildren()) if hasattr(ctx_subject, 'getChildren') else []
             child_texts = [str(c.getText()) for c in children] if children else []
             logger.info(
-                f"[DEBUG] group/dynamic-group subject extraction: ctx_subject={ctx_subject}, "
-                f"subject_type={fields['subject_type']}, "
-                f"len(children)={len(child_texts)}, child_texts={child_texts}"
+                f'[DEBUG] group/dynamic-group subject extraction: ctx_subject={ctx_subject}, '
+                f'subject_type={fields["subject_type"]}, '
+                f'len(children)={len(child_texts)}, child_texts={child_texts}'
             )
             if children and len(children) == 1:
                 text = str(children[0].getText())
@@ -246,7 +251,7 @@ class _FieldCollectingVisitor(PolicyVisitor):
             subject_items = [item.strip() for item in re.split(r',\s*', raw_subject) if item.strip()]
             all_ocid_id = all(re.match(r'^(id\s*)?ocid1\.', item, re.IGNORECASE) for item in subject_items)
             logger.info(f'[INFO] subject_items: {subject_items}')
-            logger.info(f"[INFO] Detected all_ocid_id={all_ocid_id} for subject_type={fields['subject_type']}")
+            logger.info(f'[INFO] Detected all_ocid_id={all_ocid_id} for subject_type={fields["subject_type"]}')
             if all_ocid_id:
                 subtype = 'group-id' if fields['subject_type'] == 'group' else 'dynamic-group-id'
                 cleaned_items = [re.sub(r'^(id\s*)', '', item, flags=re.IGNORECASE) for item in subject_items]
@@ -267,11 +272,11 @@ class _FieldCollectingVisitor(PolicyVisitor):
             else:
                 # Normal path, possibly named groups only
                 logger.info(
-                    f"[INFO] Falling back to normal parse_policy_subjects for subject_type={fields['subject_type']}, raw_subject={raw_subject!r}"
+                    f'[INFO] Falling back to normal parse_policy_subjects for subject_type={fields["subject_type"]}, raw_subject={raw_subject!r}'
                 )
                 result = parse_policy_subjects(fields['subject_type'], raw_subject)
                 logger.info(
-                    f"[INFO] Result from parse_policy_subjects: subject_type={fields['subject_type']}, raw_subject={raw_subject!r}, result={result!r}"
+                    f'[INFO] Result from parse_policy_subjects: subject_type={fields["subject_type"]}, raw_subject={raw_subject!r}, result={result!r}'
                 )
                 fields['subject'] = result
         else:
@@ -287,11 +292,11 @@ class _FieldCollectingVisitor(PolicyVisitor):
                 raw_subject = re.sub(r'^resource\s*', '', raw_subject, flags=re.IGNORECASE).strip()
 
             logger.info(
-                f"[DEBUG] Non-group subject extraction: ctx_subject={ctx_subject}, subject_type={fields['subject_type']}, raw_subject={raw_subject!r}"
+                f'[DEBUG] Non-group subject extraction: ctx_subject={ctx_subject}, subject_type={fields["subject_type"]}, raw_subject={raw_subject!r}'
             )
             result = parse_policy_subjects(fields['subject_type'], raw_subject)
             logger.info(
-                f"[INFO] Result from parse_policy_subjects: subject_type={fields['subject_type']}, raw_subject={raw_subject!r}, result={result!r}"
+                f'[INFO] Result from parse_policy_subjects: subject_type={fields["subject_type"]}, raw_subject={raw_subject!r}, result={result!r}'
             )
             fields['subject'] = result
         verb_ctx = ctx.verb()
@@ -379,22 +384,31 @@ class _FieldCollectingVisitor(PolicyVisitor):
         fields['subject_type'] = subject_type or ''
         raw_subject = ctx.subject().getText() if ctx.subject() else ''
         fields['subject'] = parse_policy_subjects(fields['subject_type'], raw_subject)
-        endorse_scopes = ctx.endorseScope()
-        if endorse_scopes:
-            if len(endorse_scopes) == 1:
-                fields['of_endorse_scope'] = self._get_text(endorse_scopes[0])
-            elif len(endorse_scopes) >= 2:
-                fields['of_endorse_scope'] = self._get_text(endorse_scopes[0])
-                fields['with_endorse_scope'] = self._get_text(endorse_scopes[1])
+        # Admit uses cross-tenancy scopes in three distinct positions: the
+        # optional foreign-principal tenancy after ``of``, the primary
+        # operation endpoint, and an optional ``with`` association endpoint.
+        # Preserve their positions rather than collapsing scopes by count.
+        endorse_scopes = list(ctx.endorseScope() or [])
+        has_of_scope = bool(ctx.OF())
+        scope_index = 0
+        if has_of_scope and endorse_scopes:
+            fields['of_endorse_scope'] = self._get_text(endorse_scopes[scope_index])
+            scope_index += 1
+        if len(endorse_scopes) > scope_index:
+            fields['scope'] = self._get_text(endorse_scopes[scope_index])
+            scope_index += 1
+        if len(endorse_scopes) > scope_index:
+            fields['associated_scope'] = self._get_text(endorse_scopes[scope_index])
         if ctx.endorseVerb():
             fields['endorseVerb'] = self._get_text(ctx.endorseVerb())
-        resource_ctx = ctx.resource()
+        resource_ctx = list(ctx.resource() or [])
         if resource_ctx:
-            fields['resource'] = self._get_text(resource_ctx)
+            fields['resource'] = self._get_text(resource_ctx[0])
+        if len(resource_ctx) > 1:
+            fields['associated_resource'] = self._get_text(resource_ctx[1])
         plist_ctx = ctx.permissionList()
         if plist_ctx:
             fields['permissionList'] = self._get_text(plist_ctx)
-        fields['scope'] = self._get_text(ctx.scope())
         loc_type, loc_val = self._parse_location_from_scope(fields['scope'])
         fields['location_type'] = loc_type
         fields['location'] = loc_val
@@ -614,6 +628,21 @@ def _build_unresolved_alias_map(aliases: list[str]) -> dict[str, dict[str, str |
     return {alias: {'alias': alias, 'ocid': '', 'resolved': False} for alias in aliases}
 
 
+def _association_endpoints(fields: dict) -> list[dict[str, str]]:
+    """Return ordered, lossless endpoints for a parsed associate statement."""
+    endpoints = [
+        {
+            'resource': str(fields.get('resource') or ''),
+            'scope': str(fields.get('scope') or fields.get('endorseScope') or ''),
+        },
+        {
+            'resource': str(fields.get('associated_resource') or ''),
+            'scope': str(fields.get('associated_scope') or fields.get('with_endorse_scope') or ''),
+        },
+    ]
+    return [endpoint for endpoint in endpoints if endpoint['resource'] or endpoint['scope']]
+
+
 class PolicyStatementNormalizer:
     """Normalize parsed OCI policy statements into application models."""
 
@@ -774,9 +803,11 @@ class PolicyStatementNormalizer:
         with_resource = fields.get('associated_resource', '')
         with_scope = fields.get('associated_scope', '') or fields.get('with_endorse_scope', '')
         associate_clause_raw = ''
+        association: list[dict[str, str]] = []
         if str(admit_action).strip().lower() == 'associate':
+            association = _association_endpoints(fields)
             associate_clause_raw = (
-                f"associate {fields.get('resource', '')} in {fields.get('scope', '')}"
+                f'associate {fields.get("resource", "")} in {fields.get("scope", "")}'
                 + (f' with {with_resource} in {with_scope}' if with_resource and with_scope else '')
             ).strip()
 
@@ -801,6 +832,7 @@ class PolicyStatementNormalizer:
             'admit_associate_with_resource': with_resource,
             'admit_associate_with_tenancy': with_scope,
             'associate_clause_raw': associate_clause_raw,
+            'association': association,
             'tenancy_aliases': tenancy_aliases,
             'resolved_aliases': _build_unresolved_alias_map(tenancy_aliases),
             'aliases_resolved': False,
@@ -838,9 +870,11 @@ class PolicyStatementNormalizer:
         with_resource = fields.get('associated_resource', '')
         with_scope = fields.get('associated_scope', '')
         associate_clause_raw = ''
+        association: list[dict[str, str]] = []
         if str(endorse_action).strip().lower() == 'associate':
+            association = _association_endpoints(fields)
             associate_clause_raw = (
-                f"associate {fields.get('resource', '')} in {fields.get('endorseScope', '')}"
+                f'associate {fields.get("resource", "")} in {fields.get("endorseScope", "")}'
                 + (f' with {with_resource} in {with_scope}' if with_resource and with_scope else '')
             ).strip()
 
@@ -864,6 +898,7 @@ class PolicyStatementNormalizer:
             'endorse_associate_with_resource': with_resource,
             'endorse_associate_with_tenancy': with_scope,
             'associate_clause_raw': associate_clause_raw,
+            'association': association,
             'tenancy_aliases': tenancy_aliases,
             'resolved_aliases': _build_unresolved_alias_map(tenancy_aliases),
             'aliases_resolved': False,

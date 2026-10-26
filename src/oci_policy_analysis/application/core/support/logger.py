@@ -140,7 +140,7 @@ def get_logger(component: str | None = None) -> logging.Logger:
     return lgr
 
 
-def set_log_level(level: str | int, announce: bool = True) -> None:
+def set_log_level(level: str | int, announce: bool = True, *, verbose_override: bool | None = None) -> None:
     """
     Set root logger level (affects all non-overridden loggers).
 
@@ -158,11 +158,13 @@ def set_log_level(level: str | int, announce: bool = True) -> None:
     Args:
         level: Level name (e.g., 'DEBUG') or int.
         announce: Whether to log the resulting level change.
+        verbose_override: Explicit runtime verbosity lock. None retains legacy
+            root-DEBUG inference; False permits restoring saved DEBUG preferences.
     """
-    level_value = _level_value(level)
+    level_value = logging.DEBUG if verbose_override else _level_value(level)
 
     # If we are in DEBUG, stay there (must have been passed in)
-    if logging.getLogger().level == logging.DEBUG:
+    if verbose_override is None and logging.getLogger().level == logging.DEBUG:
         logging.getLogger().debug('Root log level is DEBUG, not changing.')
         return
     root = logging.getLogger()
@@ -184,7 +186,7 @@ def set_log_level(level: str | int, announce: bool = True) -> None:
         logging.getLogger().warning(f'Global (root) log level set to {logging.getLevelName(level_value)}')
 
 
-def set_component_level(component: str, level: str | int) -> None:
+def set_component_level(component: str, level: str | int, *, verbose_override: bool | None = None) -> None:
     """
     Set level for a specific logger (app or third-party).
     Component can be full logger name (with dots) or just base name.
@@ -193,12 +195,13 @@ def set_component_level(component: str, level: str | int) -> None:
     Args:
         component: Component/logger name (e.g., 'cli', 'data_repo', 'requests')
         level: Level name (e.g., 'DEBUG') or int.
+        verbose_override: Explicit runtime lock; None preserves root-DEBUG inference.
     """
     root = logging.getLogger()
     # If root is DEBUG, --verbose is active, override any request to set lower level.
     logger_name = _resolve_logger_name(component)
 
-    if root.level == logging.DEBUG:
+    if verbose_override is True or (verbose_override is None and root.level == logging.DEBUG):
         level_value = logging.DEBUG
         lgr = logging.getLogger(logger_name)
         lgr.setLevel(level_value)

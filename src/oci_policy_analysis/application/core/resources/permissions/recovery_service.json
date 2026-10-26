@@ -1,0 +1,282 @@
+{
+  "resources": {
+    "recovery-service-protected-database": {
+      "source_url": "https://docs.oracle.com/en-us/iaas/recovery-service/doc/protected-database-recovery-policy.html",
+      "verbs": {
+        "inspect": [
+          "RECOVERY_SERVICE_PROTECTED_DATABASE_INSPECT"
+        ],
+        "read": [
+          "RECOVERY_SERVICE_PROTECTED_DATABASE_READ"
+        ],
+        "use": [
+          "RECOVERY_SERVICE_PROTECTED_DATABASE_UPDATE"
+        ],
+        "manage": [
+          "RECOVERY_SERVICE_PROTECTED_DATABASE_CREATE",
+          "RECOVERY_SERVICE_PROTECTED_DATABASE_DELETE",
+          "RECOVERY_SERVICE_PROTECTED_DATABASE_MOVE"
+        ]
+      }
+    },
+    "recovery-service-policy": {
+      "source_url": "https://docs.oracle.com/en-us/iaas/recovery-service/doc/protection-recovery-service-policy.html",
+      "verbs": {
+        "inspect": [
+          "RECOVERY_SERVICE_POLICY_INSPECT"
+        ],
+        "read": [
+          "RECOVERY_SERVICE_POLICY_READ"
+        ],
+        "use": [
+          "RECOVERY_SERVICE_POLICY_UPDATE"
+        ],
+        "manage": [
+          "RECOVERY_SERVICE_POLICY_CREATE",
+          "RECOVERY_SERVICE_POLICY_DELETE",
+          "RECOVERY_SERVICE_POLICY_MOVE"
+        ]
+      }
+    },
+    "recovery-service-subnet": {
+      "source_url": "https://docs.oracle.com/en-us/iaas/recovery-service/doc/recovery-service-subnet-policy.html",
+      "verbs": {
+        "inspect": [
+          "RECOVERY_SERVICE_SUBNET_INSPECT"
+        ],
+        "read": [
+          "RECOVERY_SERVICE_SUBNET_READ"
+        ],
+        "use": [
+          "RECOVERY_SERVICE_SUBNET_UPDATE"
+        ],
+        "manage": [
+          "RECOVERY_SERVICE_SUBNET_CREATE",
+          "RECOVERY_SERVICE_SUBNET_DELETE",
+          "RECOVERY_SERVICE_SUBNET_MOVE"
+        ]
+      }
+    },
+    "long-term-backup": {
+      "source_url": "https://docs.oracle.com/en-us/iaas/recovery-service/doc/longtermbackup-recoveryservice-permissions.html",
+      "verbs": {
+        "inspect": [
+          "RECOVERY_SERVICE_LONG_TERM_BACKUP_INSPECT"
+        ],
+        "read": [
+          "RECOVERY_SERVICE_LONG_TERM_BACKUP_READ"
+        ],
+        "use": [
+          "RECOVERY_SERVICE_LONG_TERM_BACKUP_UPDATE"
+        ],
+        "manage": [
+          "RECOVERY_SERVICE_LONG_TERM_BACKUP_CREATE",
+          "RECOVERY_SERVICE_LONG_TERM_BACKUP_CANCEL",
+          "RECOVERY_SERVICE_LONG_TERM_BACKUP_DELETE"
+        ]
+      }
+    },
+    "recovery-service-work-request": {
+      "source_url": "https://docs.oracle.com/en-us/iaas/recovery-service/doc/work-request-recovery-service.html",
+      "verbs": {
+        "inspect": [
+          "RECOVERY_SERVICE_WORK_REQUEST_INSPECT"
+        ],
+        "read": [
+          "RECOVERY_SERVICE_WORK_REQUEST_READ"
+        ],
+        "use": [],
+        "manage": []
+      }
+    }
+  },
+  "families": {
+    "recovery-service-family": {
+      "resources": [
+        "recovery-service-protected-database",
+        "recovery-service-policy",
+        "recovery-service-subnet",
+        "long-term-backup",
+        "recovery-service-work-request"
+      ],
+      "source_url": "https://docs.oracle.com/en-us/iaas/recovery-service/doc/supported-recovery-service-policies.html",
+      "notes": "Verb permissions and family API coverage are documented at https://docs.oracle.com/en-us/iaas/recovery-service/doc/verb-details-recovery-service.html. API operation permission requirements are documented at https://docs.oracle.com/en-us/iaas/recovery-service/doc/permissions-api-recovery-service.html."
+    }
+  },
+  "operations": {
+    "ListProtectedDatabases": {
+      "permissions": [
+        "RECOVERY_SERVICE_PROTECTED_DATABASE_INSPECT"
+      ],
+      "notes": ""
+    },
+    "FetchProtectedDatabaseConfiguration": {
+      "permissions": [
+        "RECOVERY_SERVICE_PROTECTED_DATABASE_INSPECT"
+      ],
+      "notes": ""
+    },
+    "GetProtectedDatabase": {
+      "permissions": [
+        "RECOVERY_SERVICE_PROTECTED_DATABASE_READ"
+      ],
+      "notes": ""
+    },
+    "UpdateProtectedDatabase": {
+      "permissions": [
+        "RECOVERY_SERVICE_PROTECTED_DATABASE_UPDATE"
+      ],
+      "notes": ""
+    },
+    "CreateProtectedDatabase": {
+      "permissions": [
+        "RECOVERY_SERVICE_PROTECTED_DATABASE_CREATE"
+      ],
+      "notes": ""
+    },
+    "DeleteProtectedDatabase": {
+      "permissions": [
+        "RECOVERY_SERVICE_PROTECTED_DATABASE_DELETE"
+      ],
+      "notes": ""
+    },
+    "ChangeProtectedDatabaseCompartment": {
+      "permissions": [
+        "RECOVERY_SERVICE_PROTECTED_DATABASE_MOVE"
+      ],
+      "notes": ""
+    },
+    "ListProtectionPolicies": {
+      "permissions": [
+        "RECOVERY_SERVICE_POLICY_INSPECT"
+      ],
+      "notes": ""
+    },
+    "GetProtectionPolicy": {
+      "permissions": [
+        "RECOVERY_SERVICE_POLICY_READ"
+      ],
+      "notes": ""
+    },
+    "UpdateProtectionPolicy": {
+      "permissions": [
+        "RECOVERY_SERVICE_POLICY_UPDATE"
+      ],
+      "notes": ""
+    },
+    "CreateProtectionPolicy": {
+      "permissions": [
+        "RECOVERY_SERVICE_POLICY_CREATE"
+      ],
+      "notes": ""
+    },
+    "DeleteProtectionPolicy": {
+      "permissions": [
+        "RECOVERY_SERVICE_POLICY_DELETE"
+      ],
+      "notes": ""
+    },
+    "ChangeProtectionPolicyCompartment": {
+      "permissions": [
+        "RECOVERY_SERVICE_POLICY_MOVE"
+      ],
+      "notes": ""
+    },
+    "ListRecoveryServiceSubnets": {
+      "permissions": [
+        "RECOVERY_SERVICE_SUBNET_INSPECT"
+      ],
+      "notes": ""
+    },
+    "GetRecoveryServiceSubnet": {
+      "permissions": [
+        "RECOVERY_SERVICE_SUBNET_READ"
+      ],
+      "notes": ""
+    },
+    "UpdateRecoveryServiceSubnet": {
+      "permissions": [
+        "RECOVERY_SERVICE_SUBNET_UPDATE"
+      ],
+      "notes": ""
+    },
+    "CreateRecoveryServiceSubnet": {
+      "permissions": [
+        "RECOVERY_SERVICE_SUBNET_CREATE"
+      ],
+      "notes": ""
+    },
+    "DeleteRecoveryServiceSubnet": {
+      "permissions": [
+        "RECOVERY_SERVICE_SUBNET_DELETE"
+      ],
+      "notes": ""
+    },
+    "ChangeRecoveryServiceSubnetCompartment": {
+      "permissions": [
+        "RECOVERY_SERVICE_SUBNET_MOVE"
+      ],
+      "notes": ""
+    },
+    "ListLongTermBackups": {
+      "permissions": [
+        "RECOVERY_SERVICE_LONG_TERM_BACKUP_INSPECT"
+      ],
+      "notes": ""
+    },
+    "GetLongTermBackup": {
+      "permissions": [
+        "RECOVERY_SERVICE_LONG_TERM_BACKUP_READ"
+      ],
+      "notes": ""
+    },
+    "UpdateLongTermBackup": {
+      "permissions": [
+        "RECOVERY_SERVICE_LONG_TERM_BACKUP_UPDATE"
+      ],
+      "notes": ""
+    },
+    "CreateLongTermBackup": {
+      "permissions": [
+        "RECOVERY_SERVICE_LONG_TERM_BACKUP_CREATE"
+      ],
+      "notes": ""
+    },
+    "CancelLongTermBackup": {
+      "permissions": [
+        "RECOVERY_SERVICE_LONG_TERM_BACKUP_CANCEL"
+      ],
+      "notes": ""
+    },
+    "DeleteLongTermBackup": {
+      "permissions": [
+        "RECOVERY_SERVICE_LONG_TERM_BACKUP_DELETE"
+      ],
+      "notes": ""
+    },
+    "ListWorkRequests": {
+      "permissions": [
+        "RECOVERY_SERVICE_WORK_REQUEST_INSPECT"
+      ],
+      "notes": ""
+    },
+    "GetWorkRequest": {
+      "permissions": [
+        "RECOVERY_SERVICE_WORK_REQUEST_READ"
+      ],
+      "notes": ""
+    },
+    "ListWorkRequestErrors": {
+      "permissions": [
+        "RECOVERY_SERVICE_WORK_REQUEST_READ"
+      ],
+      "notes": ""
+    },
+    "ListWorkRequestLogs": {
+      "permissions": [
+        "RECOVERY_SERVICE_WORK_REQUEST_READ"
+      ],
+      "notes": ""
+    }
+  }
+}

@@ -25,7 +25,7 @@ from datetime import date
 from tkinter import ttk
 
 from oci_policy_analysis.application.core.support.logger import get_logger
-from oci_policy_analysis.presentation.desktop.base_tab import BaseUITab
+from oci_policy_analysis.presentation.tk.base_tab import BaseUITab
 
 from .aggregator import (
     AiAssistSummary,
@@ -421,7 +421,7 @@ class AiOperationsTab(BaseUITab):
         super().__init__(
             parent,
             default_help_text=(
-                'AI assist usage across all runs (calls, success rate, ' 'average duration, grouped by model and tab).'
+                'AI assist usage across all runs (calls, success rate, average duration, grouped by model and tab).'
             ),
         )
 

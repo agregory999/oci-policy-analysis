@@ -14,10 +14,11 @@ from oci_policy_analysis.application.context import AppContext
 from oci_policy_analysis.application.core.common.consolidation_opportunities import build_consolidation_opportunities
 from oci_policy_analysis.application.core.engine.recommendation_actions import overly_broad_statement_guidance
 from oci_policy_analysis.application.core.support.logger import get_logger
+from oci_policy_analysis.application.services.policy_limits_service import PolicyLimitsService
 
 
 class RecommendationsService:
-    """Provide read-only recommendations datasets for web consumers.
+    """Provide read-only recommendations datasets for presentation adapters.
 
     Args:
         context: Shared application context.
@@ -35,11 +36,15 @@ class RecommendationsService:
         self.context = context
         self.logger = get_logger(component='recommendations_service')
 
-    def get_dashboard_payload(self) -> dict[str, Any]:
+    def get_dashboard_payload(self, *, fetch_limits: bool = True) -> dict[str, Any]:
         """Return full recommendations dashboard payload.
 
+        Args:
+            fetch_limits: Allow fetching missing live tenancy limits. Native UI
+                previews disable this to keep display refreshes offline.
+
         Returns:
-            dict[str, Any]: Read-only recommendations sections for web display.
+            dict[str, Any]: Read-only recommendations sections for display.
         """
         repo = self.context.policy_repo
         overlay = getattr(self.context.intelligence, 'overlay', {}) or {}
@@ -53,13 +58,14 @@ class RecommendationsService:
             getattr(repo, 'data_as_of', None),
         )
 
-        tenancy_policy_limits = self._tenancy_policy_limits_payload()
+        tenancy_policy_limits = self._tenancy_policy_limits_payload(fetch_limits=fetch_limits)
         payload = {
             'summary': list(overlay.get('recommendations', []) or []),
             'summary_counts': self._summary_counts(list(overlay.get('recommendations', []) or [])),
             'risk_policy': self._policy_risk_rows(),
             'risk_statement': self._statement_risk_rows(),
             'supersession': self._supersession_rows(),
+            'cross_tenancy': self._cross_tenancy_rows(),
             'consolidation': build_consolidation_opportunities(overlay, repo),
             'cleanup': self._cleanup_rows(),
             'limits': self._limits_rows(),
@@ -83,14 +89,100 @@ class RecommendationsService:
         )
         return payload
 
-    def _tenancy_policy_limits_payload(self) -> dict[str, Any]:
+    def refresh_analysis(self, *, settings: dict | None = None, on_stage=None) -> dict[str, Any]:
+        """Rebuild recommendations and report prerequisites for the active snapshot.
+
+        Args:
+            settings: Optional current strategy/risk preferences. Only analysis
+                settings are applied to this context; nothing is persisted.
+            on_stage: Optional callback receiving stage, detail and state strings.
+
+        Returns:
+            dict[str, Any]: Dashboard over the rebuilt intelligence and corpora.
+
+        Notes:
+            Runs the shared full post-load pipeline, replacing derived engines and
+            simulation results in place, retaining local prospective statements and their
+            CRUD manager. The caller must serialize snapshot access
+            and rebind consumers after success or failure. Failures can leave
+            partially rebuilt derived state. Source cache files are never written.
+            Available OCI clients may be used by configured intelligence checks.
+        """
+        from copy import deepcopy
+
+        from oci_policy_analysis.application.post_load import run_post_load_pipeline
+
+        for key in (
+            'enabled_intelligence_checks',
+            'risk_where_clause_reduction_pct',
+            'risk_service_principal_reduction_pct',
+        ):
+            if settings is not None and key in settings:
+                self.context.settings[key] = deepcopy(settings[key])
+        previous_simulation = self.context.simulation
+        prospects = deepcopy(previous_simulation.get_prospective_statements()) if previous_simulation else []
+        try:
+            run_post_load_pipeline(self.context, on_stage=on_stage)
+        finally:
+            if self.context.simulation is not previous_simulation:
+                self.context.simulation.set_prospective_statements(prospects)
+                manager = getattr(self.context, '_prospective_service', None)
+                if manager is not None:
+                    manager.bind_simulation_engine(self.context.simulation)
+        return self.get_dashboard_payload(fetch_limits=False)
+
+    def supersession_details(self, internal_id: str) -> dict[str, Any] | None:
+        """Return full candidate evidence and separate qualified permission coverage.
+
+        Args:
+            internal_id: Snapshot-local candidate statement identity.
+
+        Returns:
+            dict[str, Any] | None: Detached candidate, finding and coverage rows,
+            or None when the candidate no longer belongs to the current findings.
+        """
+        from copy import deepcopy
+
+        row = next((row for row in self._supersession_rows() if str(row['Internal ID']) == internal_id), None)
+        if row is None:
+            return None
+        candidate = next(
+            (
+                item
+                for item in self.context.policy_repo.regular_statements
+                if str(item.get('internal_id') or '') == internal_id
+            ),
+            None,
+        )
+        coverage = []
+        for permission in row['Candidate Permissions']:
+            unconditional, conditional = [], []
+            for index, evidence in enumerate(row['Evidence'], 1):
+                if permission in (evidence.get('covered_permissions') or []):
+                    source = f'{index}. {evidence.get("policy_name") or "Unknown policy"} · {evidence.get("effective_path") or "Unknown scope"} · {evidence.get("relationship") or "Applicable scope"}'
+                    (conditional if evidence.get('conditional') else unconditional).append(source)
+            coverage.append(
+                {
+                    'Permission': permission,
+                    'Unconditional coverage': '\n'.join(unconditional) or 'Not resolved',
+                    'Conditional evidence (review only)': '\n'.join(conditional) or 'None',
+                }
+            )
+        return deepcopy({'candidate': candidate, 'finding': row, 'coverage': coverage})
+
+    def _cross_tenancy_rows(self) -> list[dict[str, Any]]:
+        """Return cross-tenancy findings with concise display fields and full evidence."""
+        overlay = getattr(self.context.intelligence, 'overlay', {}) or {}
+        corpus = getattr(self.context, 'cross_tenancy_corpus', None)
+        findings = corpus.project().get('findings', []) if corpus else overlay.get('cross_tenancy_findings', [])
+        return [dict(row) for row in (findings or [])]
+
+    def _tenancy_policy_limits_payload(self, *, fetch_limits: bool = True) -> dict[str, Any]:
         """Return snapshot-specific limits and whether this source may edit them."""
         repo = self.context.policy_repo
         limits = dict(getattr(repo, 'tenancy_policy_limits', {}) or {})
-        offline_editable = bool(
-            getattr(repo, 'current_cache_name', '') or getattr(repo, 'loaded_from_compliance_output', False)
-        )
-        if not offline_editable and getattr(repo, 'limits_client', None) and not limits:
+        offline_editable = not PolicyLimitsService(self.context).is_live_loaded
+        if fetch_limits and not offline_editable and getattr(repo, 'limits_client', None) and not limits:
             repo.fetch_tenancy_policy_statement_limits()
             limits = dict(getattr(repo, 'tenancy_policy_limits', {}) or {})
         max_chain = max(
@@ -128,10 +220,10 @@ class RecommendationsService:
                     'Policy Name': statement.get('policy_name') or '',
                     'Policy Compartment': statement.get('compartment_path') or '',
                     'Effective Path': statement.get('effective_path') or '',
-                    'Statement Text': (statement.get('statement_text') or '')[:500],
+                    'Statement Text': statement.get('statement_text') or '',
                     'Classification': finding.get('classification') or '',
                     'Superseded By': ', '.join(
-                        f"{item.get('policy_name') or 'Unknown'} ({item.get('relationship') or 'Applicable scope'})"
+                        f'{item.get("policy_name") or "Unknown"} ({item.get("relationship") or "Applicable scope"})'
                         for item in evidence
                     ),
                     'Candidate Permissions': list(finding.get('candidate_permissions') or []),
@@ -199,7 +291,7 @@ class RecommendationsService:
                     'Effective Path': statement.get('effective_path') or '',
                     'Score': int(risk_entry.get('score', 0) or 0),
                     'Risk Notes': risk_entry.get('notes', ''),
-                    'Statement Text': (statement.get('statement_text') or '')[:240],
+                    'Statement Text': statement.get('statement_text') or '',
                 }
             )
 
@@ -256,7 +348,7 @@ class RecommendationsService:
                 scores.append(score)
                 if score > example_score:
                     example_score = score
-                    example_statement = str(st.get('statement_text') or '')[:300]
+                    example_statement = str(st.get('statement_text') or '')
                 if risk.get('notes'):
                     notes.add(str(risk['notes']))
             if scores:
@@ -304,7 +396,7 @@ class RecommendationsService:
             rows.append(
                 {
                     'Type': 'Invalid Statement',
-                    'Name': (item.get('statement_text') or '[unknown statement]')[:200],
+                    'Name': item.get('statement_text') or '[unknown statement]',
                     'Reason': '; '.join(item.get('invalid_reasons', []) or []) or 'Failed validation',
                     'Action': 'Fix invalid statement or resolve identity/reference issues.',
                 }
@@ -313,7 +405,7 @@ class RecommendationsService:
             rows.append(
                 {
                     'Type': 'Group w/ No Users',
-                    'Name': f"{group.get('domain_name', 'Default')}/{group.get('group_name', '[unknown]')}",
+                    'Name': f'{group.get("domain_name", "Default")}/{group.get("group_name", "[unknown]")}',
                     'Reason': 'Group has zero user members.',
                     'Action': 'Remove, repurpose, or assign users.',
                 }
@@ -322,7 +414,7 @@ class RecommendationsService:
             rows.append(
                 {
                     'Type': 'Unused Dynamic Group',
-                    'Name': f"{dg.get('domain_name', 'Default')}/{dg.get('dynamic_group_name', '[unknown]')}",
+                    'Name': f'{dg.get("domain_name", "Default")}/{dg.get("dynamic_group_name", "[unknown]")}',
                     'Reason': 'Not referenced by any policy statement.',
                     'Action': 'Delete dynamic group or document why kept.',
                 }
@@ -331,7 +423,7 @@ class RecommendationsService:
             rows.append(
                 {
                     'Type': 'Overly Broad Statement',
-                    'Name': (st.get('statement_text') or '[unknown statement]')[:200],
+                    'Name': st.get('statement_text') or '[unknown statement]',
                     **overly_broad_statement_guidance(st),
                 }
             )
@@ -339,7 +431,7 @@ class RecommendationsService:
             rows.append(
                 {
                     'Type': 'Any-user Without Where',
-                    'Name': (st.get('statement_text') or '[unknown statement]')[:200],
+                    'Name': st.get('statement_text') or '[unknown statement]',
                     'Reason': 'Statement grants access to any-user with no where clause.',
                     'Action': 'Limit subject with a concise where clause.',
                 }
@@ -366,7 +458,7 @@ class RecommendationsService:
             direct = int(comp.get('statement_count_direct', 0) or 0)
             if not chain_limit:
                 status = 'Limit Not Supplied'
-                rec = 'Enter policy-statements-per-compartment-chain-count in Policy Browser to assess this hierarchy.'
+                rec = 'Supply this tenancy’s policy-statements-per-compartment-chain-count value to assess this hierarchy.'
             elif cumulative > chain_limit:
                 status = 'Over Limit'
                 rec = 'Reduce or consolidate policy statements in this hierarchy to avoid enforcement errors.'

@@ -3,7 +3,7 @@
 from types import SimpleNamespace
 
 from oci_policy_analysis.application.core.engine.recommendation_actions import cleanup_detail_sections
-from oci_policy_analysis.presentation.desktop.policy_recommendations_tab import (
+from oci_policy_analysis.presentation.tk.policy_recommendations_tab import (
     PolicyRecommendationsTab,
     _compartment_filter_label,
     _normalize_compartment_path,

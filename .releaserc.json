@@ -1,12 +1,18 @@
 {
   "releaseRules": [
-    { "type": "docs", "release": false }
+    {
+      "type": "docs",
+      "release": false
+    }
   ],
   "tagFormat": "v${version}",
   "repositoryUrl": "https://github.com/agregory999/oci-policy-analysis.git",
   "branches": [
     "main",
-    { "name": "develop", "prerelease": "dev" },
+    {
+      "name": "develop",
+      "prerelease": "dev"
+    },
     {
       "name": "feature/*",
       "prerelease": "${name.replace(/^feature\\//, '').replace(/[^a-zA-Z0-9-]/g, '-') }"
@@ -34,13 +40,16 @@
     [
       "@semantic-release/exec",
       {
-        "prepareCmd": "node -e \"const fs=require('fs');const p='pyproject.toml';const raw='${nextRelease.version}';const pep440=raw.replace(/-([0-9A-Za-z.-]*)\\.(\\d+)$/, '.dev$2');const t=fs.readFileSync(p,'utf8').replace(/version = \\\".*\\\"/, 'version = \\\"'+pep440+'\\\"');fs.writeFileSync(p,t);\""
+        "prepareCmd": "node scripts/prepare_release_version.cjs ${nextRelease.version}"
       }
     ],
     [
       "@semantic-release/git",
       {
-        "assets": ["CHANGELOG.md", "pyproject.toml"],
+        "assets": [
+          "CHANGELOG.md",
+          "pyproject.toml"
+        ],
         "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
       }
     ],

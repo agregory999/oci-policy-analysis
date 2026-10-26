@@ -72,7 +72,7 @@ class AnalyticsApp(tk.Tk):
         if not existing_par:
             par_url = simpledialog.askstring(
                 'Analytics PAR URL',
-                'Enter Analytics PAR base URL to load usage data:\n' '(example: https://.../b/<bucket>/o/)',
+                'Enter Analytics PAR base URL to load usage data:\n(example: https://.../b/<bucket>/o/)',
                 parent=self,
             )
             if not par_url or not par_url.strip():
@@ -260,8 +260,8 @@ class AnalyticsApp(tk.Tk):
         self.web_traffic_tab.refresh(web_summary)
 
         self.status_var.set(
-            f"Loaded {overview_metrics.get('total_runs', 0)} runs "
-            f"from {overview_metrics.get('distinct_tenancies', 0)} tenancies."
+            f'Loaded {overview_metrics.get("total_runs", 0)} runs '
+            f'from {overview_metrics.get("distinct_tenancies", 0)} tenancies.'
         )
 
 

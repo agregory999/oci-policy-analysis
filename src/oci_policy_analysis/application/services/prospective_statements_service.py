@@ -157,6 +157,18 @@ class ProspectiveStatementsService:
         logger.info('ProspectiveStatementsService: initializing for tenancy %s', self._tenancy_ocid)
         self._load_from_cache()
 
+    def bind_simulation_engine(self, simulation_engine) -> None:
+        """Retarget validation and future pushes after derived-engine replacement.
+
+        Args:
+            simulation_engine: Current snapshot simulation engine.
+
+        Notes:
+            Keeps in-memory records and persisted storage unchanged. The caller
+            hydrates the replacement engine separately before exposing it.
+        """
+        self._simulation_engine = simulation_engine
+
     @property
     def settings(self) -> dict[str, Any] | None:
         """Return underlying legacy settings dict when using adapter mode."""
@@ -409,7 +421,7 @@ class ProspectiveStatementsService:
         )
         return rec
 
-    def persist_and_push_to_engine(self) -> None:
+    def persist_and_push_to_engine(self, *, strict: bool = False) -> None:
         """Persist current records to standalone prospects storage.
 
         This method performs two related operations:
@@ -419,6 +431,10 @@ class ProspectiveStatementsService:
         * Writes the same list to settings under the
           ``simulation_prospective_statements_by_tenancy`` key for the
           active tenancy, and attempts to save the settings file.
+
+        Args:
+            strict: Propagate storage or engine errors so interactive callers can
+                report failed saves. Defaults to the legacy best-effort behavior.
         """
 
         # Build the simple list representation expected by the engine,
@@ -463,6 +479,8 @@ class ProspectiveStatementsService:
         try:
             self._cache.save_prospects(self._tenancy_ocid, simple_list)
         except Exception:  # pragma: no cover - non-fatal persistence
+            if strict:
+                raise
             logger.warning(
                 'ProspectiveStatementsService: unable to persist prospects cache; in-memory state is updated',
                 exc_info=True,
@@ -472,6 +490,8 @@ class ProspectiveStatementsService:
             try:
                 self._simulation_engine.set_prospective_statements(simple_list)
             except Exception:  # pragma: no cover - defensive
+                if strict:
+                    raise
                 logger.warning(
                     'ProspectiveStatementsService: unable to push prospective statements to simulation engine',
                     exc_info=True,

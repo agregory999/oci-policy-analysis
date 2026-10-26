@@ -112,16 +112,21 @@ class SupersessionAnalyzer:
             and statement.get('effective_path')
         ]
         indexed: dict[frozenset[str], list[dict[str, Any]]] = defaultdict(list)
+        principal_keys_by_id: dict[int, frozenset[str]] = {}
+        permissions_by_id: dict[int, frozenset[str]] = {}
+        scope_relationships: dict[tuple[str, str], str | None] = {}
         for statement in statements:
             keys = _principal_keys(statement)
+            principal_keys_by_id[id(statement)] = keys
+            permissions_by_id[id(statement)] = _permissions(repo, statement)
             if keys:
                 indexed[keys].append(statement)
 
         findings: list[dict[str, Any]] = []
         for candidate in statements:
             candidate_id = str(candidate.get('internal_id') or '')
-            candidate_permissions = _permissions(repo, candidate)
-            keys = _principal_keys(candidate)
+            candidate_permissions = permissions_by_id[id(candidate)]
+            keys = principal_keys_by_id[id(candidate)]
             if not candidate_id or not candidate_permissions or not keys:
                 continue
             unconditional_evidence: list[tuple[dict[str, Any], frozenset[str], str]] = []
@@ -129,10 +134,16 @@ class SupersessionAnalyzer:
             for statement in indexed[keys]:
                 if statement.get('internal_id') == candidate_id:
                     continue
-                relationship = _scope_relationship(statement.get('effective_path'), candidate.get('effective_path'))
+                scope_key = (
+                    str(statement.get('effective_path') or ''),
+                    str(candidate.get('effective_path') or ''),
+                )
+                if scope_key not in scope_relationships:
+                    scope_relationships[scope_key] = _scope_relationship(*scope_key)
+                relationship = scope_relationships[scope_key]
                 if relationship is None:
                     continue
-                permissions = _permissions(repo, statement)
+                permissions = permissions_by_id[id(statement)]
                 if permissions:
                     overlap = permissions & candidate_permissions
                     if not overlap:

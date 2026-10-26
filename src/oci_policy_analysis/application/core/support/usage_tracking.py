@@ -6,7 +6,7 @@
 #
 # usage_tracking.py
 #
-# Lightweight, opt-in, non-personal usage tracking for the OCI Policy Analysis UI.
+# Lightweight, configurable, non-personal usage tracking for the OCI Policy Analysis UI.
 #
 # - Tracks app/session lifecycle and high-level load/tab usage metrics only.
 # - Never sends policy text, user names, resource OCIDs, or other sensitive content.
@@ -125,6 +125,9 @@ class UsageRunDocument:
     python: str
     events: list[UsageEvent] = field(default_factory=list)
     operations: list[UsageOperation] = field(default_factory=list)
+    schema_version: int = 1
+    interface: str = 'unknown'
+    tenancy_suffix: str | None = None
 
 
 class UsageTracker:
@@ -134,9 +137,10 @@ class UsageTracker:
     swallowed and logged at INFO/DEBUG only.
     """
 
-    def __init__(self, enabled: bool, app_version: str):
+    def __init__(self, enabled: bool, app_version: str, *, interface: str = 'unknown'):
         self.enabled = enabled
         self.app_version = app_version
+        self.interface = interface
         self.run_id = str(uuid.uuid4())
         self.started_at = _utc_now_iso()
         self.ended_at: str | None = None
@@ -173,7 +177,7 @@ class UsageTracker:
             # previous tenancy, flush them as a completed run before
             # resetting. This ensures usage is tracked in separate files
             # per-tenancy when users switch mid-session.
-            if self._events:
+            if self._events or self._operations:
                 try:
                     logger.warning(
                         'Usage tracking: tenancy suffix changed from %s to %s; flushing current run and starting new',
@@ -187,7 +191,7 @@ class UsageTracker:
                     pass
             # Flush outside the inner lock to avoid re-entrant locking
         # Call flush() without holding the lock (it manages its own locking)
-        if self._events:
+        if self._events or self._operations:
             self.flush()
 
         # Start a new run for the new tenancy
@@ -197,6 +201,7 @@ class UsageTracker:
             self.ended_at = None
             self.tenancy_suffix = tenancy_suffix
             self._events = []
+            self._operations = []
             self._flushed = False
             logger.warning('Usage tracking: started new run for tenancy suffix %s', tenancy_suffix)
 
@@ -247,8 +252,8 @@ class UsageTracker:
     def flush(self) -> None:
         """Serialize and upload the run document via PAR.
 
-        Safe to call multiple times; only the first successful call will
-        attempt an upload. All errors are swallowed.
+        Safe to call multiple times; only the first call will attempt an upload.
+        Failed uploads are best-effort and are not retried. All errors are swallowed.
         """
 
         if not self.enabled:
@@ -274,7 +279,7 @@ class UsageTracker:
         date_prefix = now.strftime('events/%Y/%m/%d')
         tenancy_part = self.tenancy_suffix or 'unknown'
         object_key = f'{date_prefix}/{tenancy_part}/{self.run_id}.json'
-        full_url = base_url + object_key
+        full_url = base_url.rstrip('/') + '/' + object_key
 
         doc = UsageRunDocument(
             run_id=self.run_id,
@@ -285,6 +290,8 @@ class UsageTracker:
             python=platform.python_version(),
             events=events_copy,
             operations=operations_copy,
+            interface=self.interface,
+            tenancy_suffix=self.tenancy_suffix,
         )
 
         try:
@@ -309,29 +316,55 @@ class UsageTracker:
         except (urlerror.URLError, OSError, ValueError) as e:
             # Swallow all network/serialization errors; this must never impact
             # the main app experience.
-            logger.info('Usage tracking upload failed: run_id=%s error=%s', self.run_id, e)
+            logger.info('Usage tracking upload failed: run_id=%s error_type=%s', self.run_id, type(e).__name__)
         except Exception as e:  # pragma: no cover - defensive catch-all
-            logger.info('Unexpected error during usage tracking upload: run_id=%s error=%s', self.run_id, e)
+            logger.info(
+                'Unexpected error during usage tracking upload: run_id=%s error_type=%s', self.run_id, type(e).__name__
+            )
 
 
 # Global singleton, initialized from main.App using init_usage_tracker.
 _tracker: UsageTracker | None = None
 
 
-def init_usage_tracker(settings: dict, app_version: str) -> UsageTracker | None:
+def init_usage_tracker(
+    settings: dict, app_version: str, *, interface: str = 'unknown', new_run: bool = False
+) -> UsageTracker | None:
     """Initialize the global UsageTracker from settings.
 
-    Returns the tracker instance or None if disabled.
+    Args:
+        settings: Shared settings; callers choose their default tracking preference.
+        app_version: Installed application version.
+        interface: Additive interface identifier; legacy callers use unknown.
+        new_run: Explicitly start a new document instead of reusing the current run.
+
+    Returns:
+        UsageTracker | None: Current enabled tracker, or None when disabled.
+
+    Notes:
+        Repeated initialization preserves pending events. Disabling discards pending
+        data and prevents uploads through references retained by other components.
     """
 
     enabled = bool(settings.get('usage_tracking_enabled', False))
     global _tracker
     if not enabled:
         logger.info('Usage tracking is disabled in settings.')
+        if _tracker is not None:
+            _tracker.enabled = False
         _tracker = None
         return None
 
-    _tracker = UsageTracker(enabled=True, app_version=app_version)
+    if (
+        not new_run
+        and _tracker is not None
+        and _tracker.enabled
+        and not _tracker._flushed
+        and _tracker.app_version == app_version
+        and _tracker.interface == interface
+    ):
+        return _tracker
+    _tracker = UsageTracker(enabled=True, app_version=app_version, interface=interface)
     logger.info('Usage tracking initialized (run_id=%s)', _tracker.run_id)
     return _tracker
 

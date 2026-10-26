@@ -258,9 +258,11 @@
         },
         "DeleteLink": {
             "permissions": [
-                "ORGANIZATIONS_LINK_CHILD_DELETEORGANIZATIONS_LINK_PARENT_DELETE"
+                "ORGANIZATIONS_LINK_CHILD_DELETE",
+                "ORGANIZATIONS_LINK_PARENT_DELETE"
             ],
-            "notes": ""
+            "notes": "Source requirements: ORGANIZATIONS_LINK_CHILD_DELETE ORGANIZATIONS_LINK_PARENT_DELETE",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/organizationsreference.htm"
         },
         "GetRecipientInvitation": {
             "permissions": [

@@ -18,6 +18,7 @@
           </div>
         </div>
         <div class="masthead-meta">
+          <a href="/api-calls.html" class="card-link">API Calls · Current Session</a>
           <a href="/" class="card-link">← Back to home</a>
         </div>
       </header>
@@ -124,7 +125,6 @@
       const LEVELS = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'];
       const WEB_HIDDEN_COMPONENTS = new Set([
         'data_repo',
-        'ai_repo',
         'policy_parser',
         'mcp.server',
         'cli.main',
@@ -133,6 +133,7 @@
         'settings_tab',
         'policies_tab',
         'policy_browser_tab',
+        'policy_graph_tab',
         'dynamic_group_tab',
         'users_tab',
         'workload_principals_tab',
@@ -150,7 +151,7 @@
         'prospective_editor_window',
         'consolidation_workbench_tab',
         'ui.consolidation_workbench_tab',
-        'presentation.desktop.console_tab',
+        'presentation.tk.console_tab',
         'limits_tab',
         'builder_helpers',
         'maintenance_tab',
@@ -178,6 +179,7 @@
           'application.services.load',
           'application.services.logging',
           'application.services.policy_browser',
+          'application.services.policy_graph',
           'application.services.principal_analysis',
           'application.services.prospective_builder',
           'application.services.prospective_statements',
@@ -196,7 +198,6 @@
         'Core Repos': [
           'core.repo.policy_analysis_repository',
           'core.repo.reference_data_repo',
-          'core.repo.ai_repo',
         ],
         'Core Parsers': [
           'core.parser.policy_statement_normalizer',

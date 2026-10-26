@@ -149,9 +149,10 @@ def test_policy_inventory_report_uses_loaded_statements() -> None:
     assert 'Tags: Owner: Platform' in markdown
     assert '    allow group Devs to inspect buckets in compartment A' in markdown
     assert (
-        '<pre style="font-family: courier"><code style="font-family: courier">'
+        '<pre><code>'
         'allow group Devs to inspect buckets in compartment A' in service.with_rendered_formats(report)['markdown_html']
     )
+    assert 'font-family: courier' not in rendered_html
     assert 'internal_id' not in str(report)
 
 
@@ -285,3 +286,21 @@ def test_supersession_report_groups_evidence_by_compartment_path() -> None:
     rendered_html = service.with_rendered_formats(report)['markdown_html']
     assert 'AIDP_not_assessed_tenancy_policy' in rendered_html
     assert '<em>not</em>' not in rendered_html
+
+
+def test_report_catalog_and_exports_are_portable_and_detached():
+    import json
+    from copy import deepcopy
+
+    catalog = ReportsService.catalog()
+    assert {row['id'] for row in catalog} == {'policy-inventory', 'permissions', 'supersession', 'full-overlaps'}
+    catalog[0]['label'] = 'changed locally'
+    assert ReportsService.catalog()[0]['label'] == 'Policy Inventory'
+    service = ReportsService.__new__(ReportsService)
+    report = {'title': '<script>alert(1)</script>', 'report_id': 'policy-inventory', 'findings': [], 'counts': {}}
+    before = deepcopy(report)
+    formats = service.export_formats(report)
+    assert json.loads(formats['json']) == report == before
+    assert formats['html'].startswith('<!doctype html>')
+    assert '<script>' not in formats['html']
+    assert '&lt;script&gt;' in formats['html']

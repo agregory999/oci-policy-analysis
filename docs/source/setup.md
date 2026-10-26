@@ -1,17 +1,28 @@
 # Setup
 
-This is the central setup guide for OCI Policy Analysis. Choose a run mode, choose a data source, and configure OCI access only when you intend to load live tenancy data.
+This is the central setup guide for OCI Policy Analysis. Choose a run mode and
+data source, then set up OCI access only if you plan to load live tenancy data.
 
 ## Choose a run mode
 
-| Mode | Best for | Install |
-|---|---|---|
-| Desktop | Local, single-user interactive analysis | `pip install oci-policy-analysis` |
-| Web | Browser-based local or team use | `pip install "oci-policy-analysis[web]"` |
-| CLI | Automation, exports, and offline workflows | `pip install oci-policy-analysis` |
-| MCP | AI clients and MCP-based automation | `pip install "oci-policy-analysis[mcp]"` |
+| Run mode | How to get started |
+|---|---|
+| Original desktop app | Download the Tkinter app for your operating system from the [Releases page](https://github.com/agregory999/oci-policy-analysis/releases). |
+| New desktop app | Download the modern desktop app from the [Releases page](https://github.com/agregory999/oci-policy-analysis/releases). |
+| Web app on your computer | Install `oci-policy-analysis[web]` with pip, then start the web command. |
+| CLI | Install `oci-policy-analysis` with pip, then use the CLI command. |
+| MCP server | Install `oci-policy-analysis[mcp]` with pip, then start the server command. |
 
-All pip installs require Python 3.12 or later. Create a virtual environment first:
+Both desktop apps are currently maintained. The original app continues to work
+as designed; the new app will be the default desktop experience going forward.
+Built desktop apps do not require Python, pip, or uv. The
+[7.0 guide](release_7_0.md) introduces the new app and sample data.
+
+To run the CLI, local web app, or MCP server from your computer, install Python
+3.12 or later and pip. **uv is optional**; it can install packages and manage a
+virtual environment for you. Downloaded desktop apps need none of these. Python
+is also needed if you choose to run a desktop app from a source checkout. For a
+pip-based setup, create a virtual environment:
 
 ```bash
 python -m venv .venv
@@ -76,7 +87,6 @@ These policies grant read/inspect access for analysis - OCI Policy Analysis does
 
 An OCI administrator must grant the policy to the identity that runs the tool, in the tenancy being analyzed. Use the policy that matches your principal:
 
-**NOTE:** `generative-ai-family` is needed only for AI features in the desktop tool. Omit it when those features are not used. 
 
 ### User principal: API-key profile or session token
 
@@ -84,7 +94,6 @@ For a workstation user authenticated through an OCI API-key profile or session t
 
 ```text
 allow group <your_group> to {POLICY_READ, COMPARTMENT_INSPECT, DOMAIN_INSPECT, DYNAMIC_GROUP_INSPECT, GROUP_INSPECT, USER_INSPECT, LIMITS_VIEW_INSPECT} in tenancy
-allow group <your_group> to use generative-ai-family in tenancy
 ```
 
 ### Instance principal
@@ -93,7 +102,6 @@ For an application running on an OCI Compute VM, grant the equivalent policy to 
 
 ```text
 allow dynamic-group <your_dynamic_group> to {POLICY_READ, COMPARTMENT_INSPECT, DOMAIN_INSPECT, DYNAMIC_GROUP_INSPECT, GROUP_INSPECT, USER_INSPECT, LIMITS_VIEW_INSPECT} in tenancy
-allow dynamic-group <your_dynamic_group> to use generative-ai-family in tenancy
 ```
 You must have or create a dynamic group, based on the OCI Instance OCID or Compartment OCID of the instance.  This dynamic group then receives the permission above.
 
@@ -116,21 +124,28 @@ allow any-user to {POLICY_READ, COMPARTMENT_INSPECT, DOMAIN_INSPECT, DYNAMIC_GRO
 
 ## Desktop application
 
-Desktop mode is the full local tabbed experience and requires a working Tkinter installation.
+Choose between the two maintained desktop apps:
 
-```bash
-python -m pip install oci-policy-analysis
-python -m tkinter  # optional check; opens a small test window
-oci-policy-analysis-ui
-```
+- **New desktop app:** a modern interface around the same analysis tools. It is
+  the default desktop experience going forward and starts with
+  `oci-policy-analysis-ui` when installed from pip.
+- **Legacy desktop app (Tkinter):** continues to work as designed and starts
+  with `oci-policy-analysis-legacy-ui` when installed from pip.
 
-The downloadable macOS and Windows applications are available from the [Releases page](https://github.com/agregory999/oci-policy-analysis/releases). After launch, use **Settings** to choose live OCI, a cache, or CIS Compliance output; then continue with the [usage guide](usage.md).
 
-For a source checkout, optional helpers create or reuse the environment and run desktop mode: `./local-build.sh --mode desktop` and `./local-run.sh --mode desktop` on macOS/Linux, or `./local-build.ps1 --mode desktop` and `./local-run.ps1 --mode desktop` in PowerShell.
+Built macOS and Windows apps for both versions are available on the
+[Releases page](https://github.com/agregory999/oci-policy-analysis/releases).
+Download and open the app for your system; no Python setup is needed. In the
+new app, use **Overview & Settings** to load live OCI data, a saved cache, CIS
+Compliance output, or the bundled sample data. Continue with the
+[usage guide](usage.md) to explore the pages.
 
-### Optional AI Assist
+To prepare and run the new app from a source checkout, use
+`./local-build.sh --mode ui` and `./local-run.sh --mode ui`. For the original
+Tkinter app, use `--mode legacy-ui` with the same scripts. PowerShell has the
+matching `local-build.ps1` and `local-run.ps1` options.
 
-OCI GenAI assistance is an optional desktop preview. It is disabled by default and is not needed for policy analysis. See [Optional AI Assist](optional_ai_assist.md) when you want to enable and configure it.
+**NOTE:** The legacy desktop's OCI Generative AI integration was removed in 7.0. Desktop analysis requires no model configuration or Generative AI permissions.
 
 ## Web application
 
@@ -193,13 +208,13 @@ export OCI_AD=<availability-domain>
 ./local-deploy-mcp-container-instance.sh
 ```
 
-The image listens on port `8765` using streamable HTTP. Its environment variables are `MCP_AUTH_MODE` (`resource_principal`, `instance_principal`, `profile`, `cache`, or `session_token`), `MCP_TRANSPORT`, `MCP_HOST`, `MCP_PORT`, `MCP_LOG_LEVEL`, `MCP_RECURSIVE`, `MCP_SAVE_CACHE_AFTER_LOAD`, and `MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH`. The deployment defaults to live data, resource-principal authentication, no cache save, and identity-domain search depth `1`; set `MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH=2` when identity domains exist in child compartments. Confirm startup in the logs, then validate from a reachable host:
+The image listens on port `8765` using streamable HTTP. Its environment variables are `MCP_AUTH_MODE` (`resource_principal`, `instance_principal`, `profile`, `cache`, or `session_token`), `MCP_TRANSPORT`, `MCP_HOST`, `MCP_PORT`, `MCP_LOG_LEVEL`, `MCP_RECURSIVE`, `MCP_SAVE_CACHE_AFTER_LOAD`, and `OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH`. The deployment defaults to live data, resource-principal authentication, no cache save, and identity-domain search depth `1`; set `OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH=2` when identity domains exist in child compartments. Confirm startup in the logs, then validate from a reachable host:
 
 ```bash
 curl -sS http://<container-instance-private-ip>:8765/health
 ```
 
-For a public or team endpoint, place an OCI Load Balancer or API Gateway in front of the private instance, use HTTPS, and health-check `/health`. To test locally before push, run `docker build -f Dockerfile.mcp -t opa-mcp:local .`, then `docker run --rm -p 8765:8765 opa-mcp:local` and request `http://127.0.0.1:8765/health`. OCI Container Instances require redeployment for runtime environment-variable changes. For OAuth, see the [MCP OAuth guide](mcp_oauth.md).
+For a public or team endpoint, place an OCI Load Balancer or API Gateway in front of the private instance, use HTTPS, and health-check `/health`. To test locally before push, run `docker build --target mcp -t opa-mcp:local .`, then `docker run --rm -p 8765:8765 opa-mcp:local` and request `http://127.0.0.1:8765/health`. OCI Container Instances require redeployment for runtime environment-variable changes. For OAuth, see the [MCP OAuth guide](mcp_oauth.md).
 
 ## Troubleshooting
 

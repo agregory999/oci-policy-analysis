@@ -168,9 +168,14 @@ class ReferenceDataService:
                     {
                         'api_name': str(api_name),
                         'operation_name': str(operation_name),
+                        'request_operation': str(meta.get('request_operation') or operation_name)
+                        if isinstance(meta, dict)
+                        else str(operation_name),
                         'label': f'{api_name}:{operation_name}',
                         'permissions': permissions,
                         'notes': str(meta.get('notes') or '') if isinstance(meta, dict) else '',
+                        'mapping_status': str(meta.get('mapping_status') or '') if isinstance(meta, dict) else '',
+                        'source_url': str(meta.get('source_url') or '') if isinstance(meta, dict) else '',
                         'related_checks': self._normalize_related_checks(
                             meta.get('related_checks') if isinstance(meta, dict) else []
                         ),
@@ -179,7 +184,19 @@ class ReferenceDataService:
         return rows
 
     def get_operation_detail(self, operation_name: str) -> dict[str, object]:
-        """Return permissions, notes, and related checks for an operation."""
+        """Return operation requirements and explicit mapping limitations.
+
+        Args:
+            operation_name: Qualified catalog identity or unambiguous API name.
+
+        Returns:
+            dict[str, object]: Fixed permissions, notes, related checks, source
+            URL and mapping status. An empty list with a context-dependent status
+            does not mean no permissions are required.
+
+        Raises:
+            ValueError: An unqualified operation name is ambiguous.
+        """
 
         op_name = self.reference_data.resolve_operation(str(operation_name or '').strip())
         meta = self.reference_data.data.get('operations', {}).get(op_name, {})
@@ -187,8 +204,11 @@ class ReferenceDataService:
             meta = {}
         return {
             'operation_name': op_name,
+            'request_operation': str(meta.get('request_operation') or meta.get('operation_name') or op_name),
             'permissions': [str(p).strip().upper() for p in meta.get('permissions', []) if str(p).strip()],
             'notes': str(meta.get('notes') or ''),
+            'mapping_status': str(meta.get('mapping_status') or ''),
+            'source_url': str(meta.get('source_url') or ''),
             'related_checks': self._normalize_related_checks(meta.get('related_checks', [])),
         }
 

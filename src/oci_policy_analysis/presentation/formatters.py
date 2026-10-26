@@ -271,7 +271,7 @@ def for_display_admit(statement) -> dict:
         if isinstance(statement.get('admitted_principal', []), list)
         else statement.get('admitted_principal', ''),
         'Admitted Tenancy': statement.get('admitted_tenancy', ''),
-        'Admitted Action (or Permission)': f"{statement.get('admit_action', '')} {statement.get('admit_resource', '')}{permissions_list_display}",
+        'Admitted Action (or Permission)': f'{statement.get("admit_action", "")} {statement.get("admit_resource", "")}{permissions_list_display}',
         'Location Type': statement.get('admit_location_type', ''),
         'Location': statement.get('admit_location', ''),
         'Where Clause': statement.get('where_clause', ''),
@@ -299,7 +299,7 @@ def for_display_endorse(statement) -> dict:
         'Endorsed Principals': ', '.join(statement.get('endorsed_principal', []))
         if isinstance(statement.get('endorsed_principal', []), list)
         else statement.get('endorsed_principal', ''),
-        'Endorsed Action (or Permission)': f"{statement.get('endorse_action', '')} {statement.get('endorse_resource', '')}{permissions_list_display}",
+        'Endorsed Action (or Permission)': f'{statement.get("endorse_action", "")} {statement.get("endorse_resource", "")}{permissions_list_display}',
         'Endorsed Tenancy Name': statement.get('endorse_tenancy', ''),
         'Where Clause': statement.get('where_clause', ''),
         'Comments': statement.get('comment', ''),

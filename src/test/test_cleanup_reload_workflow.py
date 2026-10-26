@@ -3,9 +3,10 @@
 from types import SimpleNamespace
 
 import pytest
+
 from oci_policy_analysis.application.core.engine.recommendation_actions import cleanup_finding_identity
 from oci_policy_analysis.main import App
-from oci_policy_analysis.presentation.desktop.policy_recommendations_tab import PolicyRecommendationsTab
+from oci_policy_analysis.presentation.tk.policy_recommendations_tab import PolicyRecommendationsTab
 
 
 @pytest.mark.parametrize('failure', [None, 'load', 'wrong_tenancy', 'partial'])
@@ -33,7 +34,7 @@ def test_full_cleanup_reload_uses_live_load_settings_and_restores_failed_invento
         after=lambda delay, fn: fn(),
         _set_policy_reload_progress_message=lambda msg: None,
         _close_policy_reload_progress_dialog=lambda: None,
-        _post_load_create_intelligence=lambda: calls.append(('intelligence', list(repo.dynamic_groups))),
+        _post_load_create_intelligence=lambda on_stage=None: calls.append(('intelligence', list(repo.dynamic_groups))),
         _post_load_update_ui=lambda: calls.append(('ui', None)),
         update_status_bar=lambda: None,
         _build_data_load_summary=lambda: '',

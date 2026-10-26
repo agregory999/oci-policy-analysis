@@ -38,7 +38,10 @@ class OperationPermissionsRow(TypedDict):
 
     api_name: str
     operation_name: str
+    request_operation: NotRequired[str]
     label: str
     permissions: list[str]
     notes: NotRequired[str]
+    mapping_status: NotRequired[str]
+    source_url: NotRequired[str]
     related_checks: NotRequired[list[RelatedPermissionCheck]]

@@ -4,9 +4,10 @@ import asyncio
 import logging
 from types import SimpleNamespace
 
-import oci_policy_analysis.mcp_server as mcp_server
 import pytest
 from fastmcp.server.auth.providers.jwt import JWTVerifier, RSAKeyPair
+
+import oci_policy_analysis.mcp_server as mcp_server
 
 
 def test_oauth_scope_parser_accepts_spaces_and_commas() -> None:

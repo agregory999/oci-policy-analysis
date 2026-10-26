@@ -1,4 +1,4 @@
-from oci_policy_analysis.presentation.desktop.policies_tab import ALL_POLICY_COLUMNS, POLICY_COLUMN_WIDTHS
+from oci_policy_analysis.presentation.tk.policies_tab import ALL_POLICY_COLUMNS, POLICY_COLUMN_WIDTHS
 
 
 def test_policy_tab_uses_single_raw_condition_column():

@@ -1,0 +1,129 @@
+{
+  "resources": {
+    "alarms": {
+      "verbs": {
+        "inspect": [
+          "ALARM_INSPECT"
+        ],
+        "read": [
+          "ALARM_READ"
+        ],
+        "use": [],
+        "manage": [
+          "ALARM_CREATE",
+          "ALARM_UPDATE",
+          "ALARM_DELETE",
+          "ALARM_MOVE"
+        ]
+      }
+    },
+    "metrics": {
+      "notes": "Metrics access can be scoped with target.metrics.namespace, for example where target.metrics.namespace='oci_computeagent'.",
+      "verbs": {
+        "inspect": [
+          "METRIC_INSPECT"
+        ],
+        "read": [
+          "METRIC_READ"
+        ],
+        "use": [
+          "METRIC_WRITE"
+        ],
+        "manage": []
+      }
+    }
+  },
+  "families": {
+    "monitoring-family": {
+      "resources": [
+        "alarms",
+        "metrics"
+      ],
+      "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/monitoringpolicyreference.htm"
+    }
+  },
+  "operations": {
+    "ListMetrics": {
+      "permissions": [
+        "METRIC_INSPECT"
+      ],
+      "notes": ""
+    },
+    "SummarizeMetricsData": {
+      "permissions": [
+        "METRIC_INSPECT",
+        "METRIC_READ"
+      ],
+      "notes": ""
+    },
+    "PostMetricData": {
+      "permissions": [
+        "METRIC_WRITE"
+      ],
+      "notes": ""
+    },
+    "ListAlarms": {
+      "permissions": [
+        "ALARM_INSPECT"
+      ],
+      "notes": ""
+    },
+    "ListAlarmsStatus": {
+      "permissions": [
+        "ALARM_INSPECT"
+      ],
+      "notes": ""
+    },
+    "GetAlarm": {
+      "permissions": [
+        "ALARM_READ",
+        "METRIC_READ"
+      ],
+      "notes": "METRIC_READ is also required for the metric compartment and namespace."
+    },
+    "GetAlarmHistory": {
+      "permissions": [
+        "ALARM_READ"
+      ],
+      "notes": ""
+    },
+    "CreateAlarm": {
+      "permissions": [
+        "ALARM_CREATE",
+        "METRIC_READ"
+      ],
+      "notes": "METRIC_READ is also required for the metric compartment and namespace."
+    },
+    "ChangeAlarmCompartment": {
+      "permissions": [
+        "ALARM_MOVE"
+      ],
+      "notes": ""
+    },
+    "UpdateAlarm": {
+      "permissions": [
+        "ALARM_UPDATE",
+        "METRIC_READ"
+      ],
+      "notes": "METRIC_READ is also required for the metric compartment and namespace."
+    },
+    "RemoveAlarmSuppression": {
+      "permissions": [
+        "ALARM_UPDATE"
+      ],
+      "notes": ""
+    },
+    "DeleteAlarm": {
+      "permissions": [
+        "ALARM_DELETE"
+      ],
+      "notes": ""
+    },
+    "RetrieveDimensionStates": {
+      "permissions": [
+        "ALARM_INSPECT"
+      ],
+      "notes": ""
+    }
+  }
+}

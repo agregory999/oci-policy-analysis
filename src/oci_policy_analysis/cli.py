@@ -16,6 +16,7 @@
 import argparse
 import csv
 import json
+import os
 import time
 import warnings
 from pathlib import Path
@@ -144,64 +145,31 @@ def _export_permissions_report(report: dict, path_prefix: str, export_format: st
 
 
 def main():  # noqa: C901
-    """
-    Entry point for the OCI Policy and Dynamic Group Viewer CLI.
+    """Load, query, and export an analysis snapshot from the command line.
 
-    Parses command-line arguments to load, filter, display, or export OCI identity and policy information
-    from Oracle Cloud Infrastructure (OCI) using cached or live data.
+    Raises:
+        SystemExit: When help, invalid arguments, or handled command failures exit.
 
-    Parameters
-    ----------
-    --verbose : bool
-        Enable verbose logging.
-    --log-level : str
-        Set CLI log level (CRITICAL, ERROR, WARNING, INFO, or DEBUG).
-    --app-log : bool
-        Log output to app.log instead of console.
-    --instance-principal : bool
-        Use instance principal authentication.
-    --get-caches : str
-        List available caches for the given tenancy.
-    --print-all : bool
-        Print all policies and dynamic groups.
-    --recursive : bool
-        Recursively load policies across all compartments.
-    --use-cache : str, optional
-        Load data from a specified combined cache file.
-    --dont-save-cache-after-load : bool
-        Prevent saving a new combined cache after loading from OCI.
-    --profile : str
-        OCI CLI profile to use (default ``DEFAULT``).
-    --filter-json : str, optional
-        A JSON filter expression for policies.
-    --export-json : str, optional
-        Write collected data to a JSON file.
-    --export-permissions-report : str, optional
-        Write the calculated permissions report to a JSON/CSV path prefix.
-
-    Usage Examples:
-        To print all policies and dynamic groups using the ADMIN profile with verbose logging:
-
-        ``python -m oci_policy_analysis.cli --verbose --profile ADMIN --print-all``
-
-        To list available caches for a tenancy named "example-tenancy":
-
-        ``python -m oci_policy_analysis.cli --get-caches example-tenancy``
-
-        To load data from a specific cache and export to JSON:
-
-        ``python -m oci_policy_analysis.cli --use-cache 2024-11-17T10-43-08+00-00``
-
-        To filter policies with a JSON expression:
-
-        ``python -m oci_policy_analysis.cli --filter-json '{"Subject": "group1", "Verb": "read"}'``
-
-    Returns:
-        None. Provides console output and/or writes files as specified.
-
+    Notes:
+        Reads process arguments, saved settings, and the selected live/cache source.
+        Writes console/file output and optionally caches or exports. CLI options are
+        documented in the CLI guide and available through --help; they are not Python
+        function parameters. Use AppContext and services when embedding analysis.
     """
     cli_start_time = time.perf_counter()
     parser = argparse.ArgumentParser(description='OCI Policy and Dynamic Group Viewer CLI')
+    from oci_policy_analysis.application.core.support.config import load_settings
+
+    settings = load_settings()
+    parser.add_argument(
+        '--compartment-domain-search-depth',
+        type=int,
+        choices=range(1, 7),
+        default=settings.get('domain_compartment_depth', 1),
+    )
+    parser.add_argument(
+        '--load-all-users', action=argparse.BooleanOptionalAction, default=settings.get('load_all_users', True)
+    )
     parser.add_argument('--verbose', action='store_true', help='Enable DEBUG logging')
     parser.add_argument(
         '--log-level',
@@ -211,11 +179,19 @@ def main():  # noqa: C901
         help='Set CLI log level without enabling full verbose mode (for example: --log-level INFO)',
     )
     parser.add_argument('--app-log', action='store_true', help='Enable app.log for logging (default is console)')
-    parser.add_argument('--instance-principal', action='store_true', help='Use instance principal authentication')
+    parser.add_argument(
+        '--instance-principal',
+        action='store_true',
+        default=settings.get('instance_principal', False),
+        help='Use instance principal authentication',
+    )
     parser.add_argument('--get-caches', help='If set, provide the names of tenancy to search for caches')
     parser.add_argument('--print-all', help='Print all of the policies and DGs to screen', action='store_true')
     parser.add_argument(
-        '--recursive', help='Recursive Load across all compartments', action='store_true', default=False
+        '--recursive',
+        help='Recursive Load across all compartments',
+        action=argparse.BooleanOptionalAction,
+        default=settings.get('recursive', False),
     )
     parser.add_argument('--use-cache', help='provide the combined cache date to use', required=False, default=None)
     parser.add_argument(
@@ -228,8 +204,13 @@ def main():  # noqa: C901
         '--dont-save-cache-after-load',
         help='Do not save the combined cache after loading from OCI',
         action='store_true',
+        default=not settings.get('save_cache_after_load', True),
     )
-    parser.add_argument('--profile', default='DEFAULT', help='OCI CLI profile to use (default: DEFAULT)')
+    parser.add_argument(
+        '--profile',
+        default=os.environ.get('OCI_PROFILE', settings.get('named_profile', 'DEFAULT')),
+        help='OCI CLI profile to use (default: DEFAULT)',
+    )
     parser.add_argument('--filter-json', help='JSON string with filter criteria', type=str, default=None)
     parser.add_argument(
         '--export-json',
@@ -267,6 +248,7 @@ def main():  # noqa: C901
 
     # Initialize PolicyCompartmentAnalysis
     policy_analysis = PolicyAnalysisRepository()
+    policy_analysis.settings = settings
     cache_manager = CacheManager()
     save_cache_after_cli_post_load = False
 
@@ -313,7 +295,9 @@ def main():  # noqa: C901
                 logger.error('Failed to initialize PolicyCompartmentAnalysis client')
                 exit(2)
             logger.info(f'Initialized PolicyCompartmentAnalysis client for tenancy: {policy_analysis.tenancy_name}')
-            if not policy_analysis.load_complete_identity_domains():
+            if not policy_analysis.load_complete_identity_domains(
+                load_all_users=args.load_all_users, compartment_domain_search_depth=args.compartment_domain_search_depth
+            ):
                 logger.error('Failed to load identity domains, groups, and users from OCI')
                 exit(2)
             if not policy_analysis.load_policies_and_compartments():

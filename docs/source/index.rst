@@ -5,11 +5,13 @@ Full documentation
    :maxdepth: 1
    :caption: Basics
 
+   release_7_0
    overview
    user_guide
    setup
    architecture
    usage
+   usage_legacy
    logging_and_troubleshooting
 
 .. toctree::
@@ -24,7 +26,6 @@ Full documentation
    tag_based
    limited_modes
    oke_workload_identity
-   optional_ai_assist
 
 .. toctree::
    :maxdepth: 1
@@ -32,13 +33,14 @@ Full documentation
 
    cli
    mcp
-   mcp_examples
    mcp_oauth
+   mcp_assistant
 
 .. toctree::
    :maxdepth: 1
    :caption: Developer Reference
 
+   reference_catalog
    api/oci_policy_analysis
    api/oci_policy_analysis.application_core
    api/oci_policy_analysis.presentation

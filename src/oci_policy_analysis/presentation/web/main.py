@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import secrets
 import warnings
 from importlib.resources import files
@@ -38,11 +39,24 @@ app.mount('/', StaticFiles(directory=str(STATIC_DIR), html=True), name='static')
 
 
 def main() -> None:
-    """Run the web app via CLI-friendly options."""
+    """Serve the FastAPI application using command-line startup options.
+
+    Raises:
+        SystemExit: When argparse handles help or invalid startup arguments.
+
+    Notes:
+        Reads --host, --port, and --reload, with WEB_HOST/WEB_PORT defaults. Starts
+        Uvicorn and blocks until shutdown. ASGI hosts can import the module's app
+        directly; embedded analysis should use AppContext and application services.
+    """
 
     parser = argparse.ArgumentParser(description='Run OCI Policy Analysis web server')
-    parser.add_argument('--host', default='127.0.0.1', help='Bind host (default: 127.0.0.1)')
-    parser.add_argument('--port', type=int, default=8000, help='Bind port (default: 8000)')
+    parser.add_argument(
+        '--host', default=os.environ.get('WEB_HOST', '127.0.0.1'), help='Bind host (default: 127.0.0.1)'
+    )
+    parser.add_argument(
+        '--port', type=int, default=int(os.environ.get('WEB_PORT', '8000')), help='Bind port (default: 8000)'
+    )
     parser.add_argument('--reload', action='store_true', help='Enable auto-reload (dev only)')
     args = parser.parse_args()
 

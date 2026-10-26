@@ -18,6 +18,7 @@ from oci_policy_analysis.application.core.models.models_consolidation import (
     ProtectedStatementSet,
 )
 from oci_policy_analysis.application.core.support.logger import get_logger
+from oci_policy_analysis.application.services.cache_service import CacheService
 
 LOCKED_POLICY_NAME = 'Tenant Admin Policy'
 
@@ -117,14 +118,86 @@ class ConsolidationWorkbenchService:
         )
         return status
 
+    def get_strategy_catalog(self) -> list[dict[str, str]]:
+        """Describe available strategies without exposing engine internals.
+
+        Returns:
+            list[dict[str, str]]: Available display names and planning descriptions.
+                Capability restrictions match the active dataset's strategy list.
+        """
+        descriptions = {
+            'Group Similar Statements': (
+                'Combine named groups or dynamic groups when access, scope, and conditions match. '
+                'Review the combined principals and skipped statements before applying the plan.'
+            ),
+            'Statement Density (Pack Policies)': (
+                'Pack selected statements into an eligible existing policy to reduce policy count. '
+                'The plan respects compartment scope and the 50-statement policy limit.'
+            ),
+            'Move to Root Compartment': (
+                'Move selected statements into a policy at the tenancy root. '
+                'Locations are adjusted to preserve compartment scope.'
+            ),
+            'Move Down Next Level': (
+                'Move statements one compartment level closer to their effective scope. '
+                'Use this to relieve policy pressure higher in the hierarchy.'
+            ),
+            'Move Closer to Target Compartment': (
+                'Place statements nearer their effective compartments, using a common ancestor '
+                'where necessary. Locations are adjusted to preserve scope.'
+            ),
+            'Move Into Target Compartment': (
+                'Place each selected statement in a new policy in its effective compartment. '
+                'Review destination policies, source cleanup, and statements the strategy skips.'
+            ),
+        }
+        return [
+            {'name': name, 'description': descriptions.get(name, 'Generate a plan and review each proposed change.')}
+            for name in self.engine.get_strategy_display_names()
+        ]
+
+    def _selection_sources(self) -> list[dict[str, Any]]:
+        """Project one selection unit per engine ID without changing source evidence.
+
+        Repeated statement text in one policy legitimately shares an internal ID.
+        Older/inconsistent snapshots can also reuse an ID for different sources;
+        retain that evidence but never choose one arbitrarily for a proposal.
+        Occurrence/conflict fields are runtime projection metadata, not cache fields.
+        """
+        rows: list[dict[str, Any]] = []
+        by_id: dict[str, dict[str, Any]] = {}
+        for source in getattr(self.repo, 'regular_statements', []) or []:
+            iid = source.get('internal_id')
+            existing = by_id.get(iid) if iid else None
+            if existing is None:
+                row = {**source, 'source_occurrences': 1, 'selection_conflict': False}
+                rows.append(row)
+                if iid:
+                    by_id[iid] = row
+                continue
+            existing['source_occurrences'] += 1
+            identity_fields = ('policy_ocid', 'policy_name', 'statement_text', 'compartment_ocid')
+            if any(existing.get(key) != source.get(key) for key in identity_fields):
+                if not existing['selection_conflict']:
+                    existing['source_records'] = [{key: existing.get(key) for key in identity_fields}]
+                existing['selection_conflict'] = True
+                existing['selection_reason'] = (
+                    'Different source statements share this internal ID. Protection applies to all copies; '
+                    'consolidation is unavailable for this ID. Reload source data to resolve the conflict.'
+                )
+                existing['source_records'].append({key: source.get(key) for key in identity_fields})
+        return rows
+
     def get_protection_rows(self) -> list[dict[str, Any]]:
         """Build protection browser rows from regular statements.
 
         Returns:
-            list[dict[str, Any]]: Protection row payloads for table rendering.
+            list[dict[str, Any]]: One row per selectable internal ID, with source
+                occurrence counts. Repeated IDs are one protection unit. Source
+                evidence is retained unchanged, including supported older caches.
         """
         rows: list[dict[str, Any]] = []
-        for st in getattr(self.repo, 'regular_statements', []) or []:
+        for st in self._selection_sources():
             rows.append(
                 {
                     'policy_name': st.get('policy_name', ''),
@@ -137,6 +210,13 @@ class ConsolidationWorkbenchService:
                     'statement_effective_path': st.get('effective_path', ''),
                     'principal': st.get('subject_type', ''),
                     'internal_id': st.get('internal_id', ''),
+                    'source_occurrences': st['source_occurrences'],
+                    'selection_conflict': st['selection_conflict'],
+                    **(
+                        {key: st[key] for key in ('selection_reason', 'source_records')}
+                        if st['selection_conflict']
+                        else {}
+                    ),
                 }
             )
         return rows
@@ -194,7 +274,9 @@ class ConsolidationWorkbenchService:
             search: Optional free-text filter against policy name and statement text.
 
         Returns:
-            dict[str, Any]: Candidate rows and counts for protected/invalid/system exclusions.
+            dict[str, Any]: Unique-ID candidate rows with source occurrence counts
+                and protected/invalid/system exclusions. Conflicting IDs are
+                excluded and reported in an optional ``ambiguous`` count.
         """
         protected = {
             ref.get('internal_id')
@@ -204,7 +286,7 @@ class ConsolidationWorkbenchService:
         invalid = {
             st.get('internal_id')
             for st in getattr(self.repo, 'regular_statements', []) or []
-            if st.get('internal_id') and st.get('invalid_reasons')
+            if st.get('internal_id') and (st.get('valid') is False or st.get('invalid_reasons'))
         }
         system = {
             st.get('internal_id')
@@ -212,10 +294,12 @@ class ConsolidationWorkbenchService:
             if st.get('internal_id') and (st.get('policy_name') or '').strip() == LOCKED_POLICY_NAME
         }
         needle = (search or '').strip().lower()
+        sources = self._selection_sources()
+        ambiguous = {st.get('internal_id') for st in sources if st['selection_conflict']}
         rows: list[dict[str, Any]] = []
-        for st in getattr(self.repo, 'regular_statements', []) or []:
+        for st in sources:
             iid = st.get('internal_id', '')
-            if not iid or iid in protected or iid in invalid or iid in system:
+            if not iid or iid in protected or iid in invalid or iid in system or iid in ambiguous:
                 continue
             p = (st.get('policy_name') or '').lower()
             t = (st.get('statement_text') or '').lower()
@@ -231,11 +315,17 @@ class ConsolidationWorkbenchService:
                     'principal': st.get('subject_type', ''),
                     'resource': st.get('resource', ''),
                     'internal_id': iid,
+                    'source_occurrences': st['source_occurrences'],
                 }
             )
         return {
             'rows': rows,
-            'counts': {'protected': len(protected), 'invalid': len(invalid), 'system': len(system)},
+            'counts': {
+                'protected': len(protected),
+                'invalid': len(invalid),
+                'system': len(system),
+                **({'ambiguous': len(ambiguous)} if ambiguous else {}),
+            },
         }
 
     def create_proposal(self, candidate_internal_ids: list[str], strategy_display_name: str) -> dict[str, Any]:
@@ -247,12 +337,21 @@ class ConsolidationWorkbenchService:
 
         Returns:
             dict[str, Any]: Generated plan and UI-oriented proposal rows.
+
+        Raises:
+            ValueError: If a selected ID represents different source statements,
+                the strategy is unavailable, or its plan exceeds policy capacity.
         """
         self.logger.info(
             'Generating consolidation proposal: candidates=%s strategy=%s',
             len(candidate_internal_ids),
             strategy_display_name,
         )
+        ambiguous = {st.get('internal_id') for st in self._selection_sources() if st['selection_conflict']}
+        if ambiguous.intersection(candidate_internal_ids):
+            raise ValueError(
+                'Different source statements share a selected internal ID. Reload source data before consolidating those statements.'
+            )
         protected_ids = {
             str(ref.get('internal_id'))
             for ref in (self.get_protected_set().get('protected') or [])
@@ -517,6 +616,43 @@ class ConsolidationWorkbenchService:
             self.cache.update_run_record(tenancy_ocid, effort_id, updates)
         return {'rows': rows, 'executed': executed, 'total': total, 'completed': bool(total and executed >= total)}
 
+    def check_progress_with_refresh(self, effort_id: str) -> dict[str, Any]:
+        """Check progress and refresh derived consumers after a live policy reload.
+
+        Args:
+            effort_id: Persisted plan identifier for the active tenancy.
+
+        Returns:
+            dict[str, Any]: The same progress result as :meth:`check_progress`.
+                Cached/compliance datasets return stored progress without enrichment.
+
+        Notes:
+            Callers must serialize access to the context and rebind consumers
+            afterward, including on failure. Live reload can partially replace
+            policy data even when it fails. Rebuilds full analysis if a permissions
+            report was present, otherwise query foundations. Preserves prospective
+            statements and uses existing settings. No source caches are rewritten.
+
+        Raises:
+            ValueError: If the plan is missing or live policy reload fails.
+            Exception: If rebuilding derived analysis fails after the progress check.
+        """
+        from oci_policy_analysis.application.post_load import run_minimal_post_load_enrichment
+        from oci_policy_analysis.application.services.recommendations_service import RecommendationsService
+
+        if not self.get_history_run(effort_id):
+            raise ValueError('Plan not found.')
+        live = self.get_status()['can_check_progress']
+        full = bool(getattr(self.context.intelligence, 'permissions_report', {}))
+        try:
+            return self.check_progress(effort_id)
+        finally:
+            if live:
+                if full:
+                    RecommendationsService(self.context).refresh_analysis()
+                else:
+                    run_minimal_post_load_enrichment(self.context)
+
     def _render_plan_summary_block(self, plan: ConsolidationPlan, effort_id: str) -> str:
         """Build a compact summary block for script/instructions output."""
         steps = plan.get('plan_steps') or []
@@ -549,13 +685,12 @@ class ConsolidationWorkbenchService:
         if not tenancy_ocid:
             self.logger.warning('reset_for_tenancy called without an active tenancy')
             raise ValueError('No tenancy is currently loaded.')
-        previous = self.cache.get_or_create_consolidation_state(tenancy_ocid)
-        history_count = len(previous.get('history', []) if isinstance(previous, dict) else [])
-        self.cache.save_consolidation_state(tenancy_ocid, {'protected_set': {}, 'history': []})
+        result = CacheService(self.cache).reset_consolidation(tenancy_ocid)
+        history_count = result['cleared_history_records']
         self.logger.info(
             'Reset consolidation state for tenancy=%s cleared_history_records=%s', tenancy_ocid, history_count
         )
-        return {'tenancy_ocid': tenancy_ocid, 'cleared_history_records': history_count}
+        return result
 
     def _proposal_compartment_display(self, value: str) -> str:
         """Resolve compartment IDs for display, preserving paths and unknown IDs."""

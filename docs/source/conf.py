@@ -1,13 +1,14 @@
 import os
 import sys
 from datetime import datetime
+from importlib.metadata import version as package_version
 
 sys.path.insert(0, os.path.abspath(os.path.join('..', '..', 'src')))
 
 project = 'OCI Policy Analysis'
 author = 'Andrew Gregory'
 copyright = f'{datetime.now().year}, {author}'
-release = '6.2.2'
+release = package_version('oci-policy-analysis')
 
 extensions = [
     'myst_parser',
@@ -32,7 +33,7 @@ myst_enable_extensions = [
 ]
 myst_heading_anchors = 4
 
-autodoc_mock_imports = ['tkinter', 'ttkbootstrap', '_tkinter']
+autodoc_mock_imports = ['tkinter', 'ttkbootstrap', '_tkinter', 'PySide6']
 myst_fence_as_directive = ['mermaid']
 
 html_theme = 'sphinx_rtd_theme'
@@ -46,6 +47,8 @@ autosummary_generate = True
 autodoc_member_order = 'bysource'
 autodoc_default_options = {'members': True, 'undoc-members': False, 'show-inheritance': True}
 napoleon_google_docstring = True
+# Render Google Attributes as field lists; autodoc owns dataclass attribute targets.
+napoleon_use_ivar = True
 napoleon_numpy_docstring = False
 intersphinx_mapping = {'python': ('https://docs.python.org/3', None)}
 todo_include_todos = True

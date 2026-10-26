@@ -45,6 +45,9 @@ class _FakeIdentityDomainClient:
 
 
 def test_fetch_dynamic_groups_for_domain_paginates_all_pages(monkeypatch):
+    # Completion order must not change the API's requested page order, even
+    # when many futures have finished before collection starts.
+    monkeypatch.setattr('concurrent.futures.as_completed', lambda futures: reversed(futures))
     monkeypatch.setattr(
         'oci_policy_analysis.application.core.repo.policy_analysis_repository.THREADS',
         1,

@@ -513,9 +513,9 @@
             "notes": ""
         },
         "MoveCompartment": {
-            "permissions": [
-            ],
-            "notes": "There is not a single permission associated with the MoveCompartment operation. This operation requires manage all-resources permissions on the lowest shared parent compartment of the current compartment and the destination compartment."
+            "permissions": [],
+            "notes": "There is not a single permission associated with the MoveCompartment operation. This operation requires manage all-resources permissions on the lowest shared parent compartment of the current compartment and the destination compartment.",
+            "mapping_status": "context_dependent"
         },
         "GetWorkRequest": {
             "permissions": [

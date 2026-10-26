@@ -94,3 +94,52 @@ def test_policy_metadata_tag_filters_return_policy_statements() -> None:
     assert _names(repo, {'policy_tag': ['platform']}) == ['target-resource-policy']
     assert _names(repo, {'policy_defined_tag': ['CostCenter']}) == ['target-resource-policy']
     assert _names(repo, {'policy_freeform_tag': ['owner']}) == ['target-resource-policy']
+
+
+def test_tag_inventory_is_detached_and_preserves_complete_conditions_and_invalid_sources():
+    from copy import deepcopy
+
+    clause = "all { target.resource.tag.Operations.Env = 'Prod', request.operation = 'GetInstance' }"
+    sources = [
+        {
+            'internal_id': 'tagged',
+            'policy_ocid': 'policy-1',
+            'conditions': clause,
+            'valid': False,
+            'invalid_reasons': ['Example invalid source'],
+            'statement_text': 'allow group Devs to use instances in tenancy where ' + clause,
+        },
+        {'internal_id': 'unparsed', 'conditions': 'target.resource.tag.Broken', 'valid': False},
+        {'internal_id': 'plain', 'conditions': "request.operation = 'ListInstances'"},
+    ]
+    before = deepcopy(sources)
+    result = TagBasedPolicyService.inventory(sources)
+    assert sources == before
+    assert len(result['statements']) == 2
+    assert result['namespace_count'] == 1
+    parsed = result['conditions'][0]
+    assert parsed['tag_scope'] == 'target_resource_tag'
+    assert parsed['tag_namespace'] == 'Operations' and parsed['tag_key'] == 'Env'
+    assert parsed['conditions'] == clause and parsed['policy_ocid'] == 'policy-1'
+    assert not parsed['valid'] and parsed['invalid_reasons'] == ['Example invalid source']
+    assert parsed['tag_expression'] == "target.resource.tag.Operations.Env='Prod'"
+    assert result['conditions'][1]['tag_parse_status'].startswith('Unparsed')
+    result['statements'][0]['invalid_reasons'].append('detached')
+    assert sources == before
+
+
+def test_tag_inventory_keeps_all_scopes_and_variable_comparisons():
+    clauses = [
+        "request.principal.group.tag.Team.Project = 'Blue'",
+        "request.principal.compartment.tag.Team.Project = 'Blue'",
+        'target.resource.tag.Team.Project = request.principal.group.tag.Team.Project',
+        "target.resource.compartment.tag.Team.Project = 'Blue'",
+    ]
+    result = TagBasedPolicyService.inventory([{'conditions': clause} for clause in clauses])
+    assert {row['tag_scope'] for row in result['conditions']} == {
+        'requestor_group_tag',
+        'requestor_compartment_tag',
+        'target_resource_tag',
+        'target_compartment_tag',
+    }
+    assert any('request.principal.group.tag' in str(row['tag_value']) for row in result['conditions'])

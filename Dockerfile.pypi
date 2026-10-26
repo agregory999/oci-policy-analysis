@@ -1,0 +1,32 @@
+# Published application build. Context is docker/; src/ is never available.
+FROM python:3.12-slim AS base
+ARG OPA_VERSION
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
+LABEL org.opencontainers.image.source="https://pypi.org/project/oci-policy-analysis/" \
+      org.opencontainers.image.version="${OPA_VERSION}"
+
+FROM base AS web
+RUN test -n "${OPA_VERSION}" && python -m pip install --index-url https://pypi.org/simple "oci-policy-analysis[web]==${OPA_VERSION}"
+COPY web-entrypoint.sh /usr/local/bin/web-entrypoint.sh
+RUN chmod 0555 /usr/local/bin/web-entrypoint.sh
+ARG IMAGE_TAG
+ARG BUILD_DATE
+LABEL org.opencontainers.image.created="${BUILD_DATE}" org.opencontainers.image.ref.name="${IMAGE_TAG}"
+RUN python -c "import importlib.util,json,os,pathlib; pathlib.Path(importlib.util.find_spec('oci_policy_analysis').origin).with_name('_build_info.json').write_text(json.dumps({'image_tag':os.environ.get('IMAGE_TAG',''),'built_at':os.environ.get('BUILD_DATE','')}))"
+EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=6 CMD python -c "import os,urllib.request; urllib.request.urlopen('http://127.0.0.1:'+os.environ.get('WEB_PORT','8000')+'/health', timeout=3)" || exit 1
+ENTRYPOINT ["/usr/local/bin/web-entrypoint.sh"]
+
+FROM base AS mcp
+RUN test -n "${OPA_VERSION}" && python -m pip install --index-url https://pypi.org/simple "oci-policy-analysis[mcp]==${OPA_VERSION}"
+COPY mcp-entrypoint.sh /usr/local/bin/mcp-entrypoint.sh
+RUN chmod 0555 /usr/local/bin/mcp-entrypoint.sh
+ARG IMAGE_TAG
+ARG BUILD_DATE
+LABEL org.opencontainers.image.created="${BUILD_DATE}" org.opencontainers.image.ref.name="${IMAGE_TAG}"
+RUN python -c "import importlib.util,json,os,pathlib; pathlib.Path(importlib.util.find_spec('oci_policy_analysis').origin).with_name('_build_info.json').write_text(json.dumps({'image_tag':os.environ.get('IMAGE_TAG',''),'built_at':os.environ.get('BUILD_DATE','')}))"
+EXPOSE 8765
+HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=6 CMD python -c "import os,urllib.request; urllib.request.urlopen('http://127.0.0.1:'+os.environ.get('MCP_PORT','8765')+'/health', timeout=3)" || exit 1
+ENTRYPOINT ["/usr/local/bin/mcp-entrypoint.sh"]

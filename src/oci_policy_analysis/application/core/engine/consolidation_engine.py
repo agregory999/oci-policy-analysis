@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from typing import Literal
+from uuid import uuid4
 
 from oci_policy_analysis.application.core.common.consolidation_helpers import (
     flatten_defined_tags,
@@ -358,9 +359,9 @@ class ConsolidationEngine:
             )
 
     def _new_plan_id(self, tenancy_ocid: str, candidate_ids: set[str], strategy: str) -> str:
-        """Generate a stable-ish plan id from tenancy suffix, timestamp, and strategy hash."""
+        """Give every saved run a distinct opaque ID, including rapid repeated proposals."""
         ts = datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')
-        return f'{tenancy_ocid[-6:]}-{ts}-{abs(hash(strategy)) % 10000:04d}'
+        return f'{tenancy_ocid[-6:]}-{ts}-{abs(hash(strategy)) % 10000:04d}-{uuid4().hex[:12]}'
 
     # ---- Rendering (execution + rollback) ----
 
@@ -384,9 +385,9 @@ class ConsolidationEngine:
             p.get('policy_ocid'): p for p in (getattr(repo, 'policies', []) or []) if p.get('policy_ocid')
         }
         lines: list[str] = []
-        lines.append(f"# Consolidation plan: {plan.get('plan_id')} | {plan.get('plan_label')}")
+        lines.append(f'# Consolidation plan: {plan.get("plan_id")} | {plan.get("plan_label")}')
         lines.append(
-            f"# Tenancy: {plan.get('tenancy_ocid')} | Dataset: {self.dataset_version() or 'n/a'} | Source: {self.detect_source_type()}"
+            f'# Tenancy: {plan.get("tenancy_ocid")} | Dataset: {self.dataset_version() or "n/a"} | Source: {self.detect_source_type()}'
         )
         version_date = datetime.now(UTC).strftime('%Y-%m-%d')
         lines.append('#')
@@ -399,7 +400,7 @@ class ConsolidationEngine:
             marker_val = (step.get('plan_tags') or {}).get('marker_tag_value', '')
 
             lines.append(
-                f"## {step.get('step_id')} | {action.upper()} | {pol_name} ({pol_ocid or step.get('compartment_ocid', '')})"
+                f'## {step.get("step_id")} | {action.upper()} | {pol_name} ({pol_ocid or step.get("compartment_ocid", "")})'
             )
             for loc_note in step.get('location_change_notes') or []:
                 lines.append(f'# {loc_note}')
@@ -434,7 +435,7 @@ class ConsolidationEngine:
                 stmt_val = _statements_cli_value(step.get('after_statements', []))
                 ff2_val = _shell_escape_single_quoted(_json_compact(ff2))
                 lines.append('oci iam policy update \\')
-                lines.append(f"  --policy-id {step.get('policy_ocid')} \\")
+                lines.append(f'  --policy-id {step.get("policy_ocid")} \\')
                 lines.append(f'  --statements "{stmt_val}" \\')
                 lines.append(f'  --version-date {version_date} \\')
                 lines.append(f"  --freeform-tags '{ff2_val}' \\")
@@ -444,7 +445,7 @@ class ConsolidationEngine:
                 lines.append('  --force')
             elif action == 'delete':
                 lines.append('# Delete policy. Execution proof is policy absence on reload.')
-                lines.append(f"oci iam policy delete --policy-id {step.get('policy_ocid')} --force")
+                lines.append(f'oci iam policy delete --policy-id {step.get("policy_ocid")} --force')
                 # Rollback (re-create policy) appears only in Rollback / Both section, not in Execution-only output.
             else:
                 lines.append('# (unsupported action)')
@@ -480,8 +481,8 @@ class ConsolidationEngine:
             return ' / '.join(comp_path.strip().split('/'))
 
         lines: list[str] = []
-        lines.append(f"Consolidation plan: {plan.get('plan_id')} | {plan.get('plan_label')}")
-        lines.append(f"Tenancy: {plan.get('tenancy_ocid')} | Source: {self.detect_source_type()}")
+        lines.append(f'Consolidation plan: {plan.get("plan_id")} | {plan.get("plan_label")}')
+        lines.append(f'Tenancy: {plan.get("tenancy_ocid")} | Source: {self.detect_source_type()}')
         lines.append('')
 
         if section in ('all', 'execution'):
@@ -508,7 +509,7 @@ class ConsolidationEngine:
                 marker_key = (step.get('plan_tags') or {}).get('marker_tag_key', 'opa_consolidation')
                 marker_val = (step.get('plan_tags') or {}).get('marker_tag_value', '')
 
-                lines.append(f"Step {i} [{step.get('step_id')}] — {action.upper()}: {pol_name}")
+                lines.append(f'Step {i} [{step.get("step_id")}] — {action.upper()}: {pol_name}')
                 for loc_note in step.get('location_change_notes') or []:
                     lines.append(f'  • {loc_note}')
                 if action == 'add':
@@ -520,30 +521,30 @@ class ConsolidationEngine:
                 lines.append('  • In OCI Console: Identity & Security > Identity > Policies.')
                 if action == 'add':
                     lines.append(
-                        f"  • Create a new policy in this compartment. Name: {step.get('create_policy_name') or 'Consolidated-Root'}"
+                        f'  • Create a new policy in this compartment. Name: {step.get("create_policy_name") or "Consolidated-Root"}'
                     )
                     lines.append(
-                        f"  • Description: {step.get('create_policy_description') or 'Policy created by consolidation.'}"
+                        f'  • Description: {step.get("create_policy_description") or "Policy created by consolidation."}'
                     )
                     lines.append('  • Set Statements to the following list:')
                     for st in step.get('after_statements', [])[:20]:
                         lines.append(f'    - {st}')
                     if len(step.get('after_statements', [])) > 20:
-                        lines.append(f"    ... and {len(step.get('after_statements', [])) - 20} more.")
+                        lines.append(f'    ... and {len(step.get("after_statements", [])) - 20} more.')
                     if marker_val:
                         lines.append(f'  • Add freeform tag: {marker_key} = {marker_val} (to mark step as executed).')
                     lines.append('  • Save the policy.')
                 elif action == 'modify':
-                    lines.append(f"  • Locate policy: {pol_name} (OCID: {step.get('policy_ocid')}).")
+                    lines.append(f'  • Locate policy: {pol_name} (OCID: {step.get("policy_ocid")}).')
                     lines.append('  • Edit policy: set Statements to the following list (replace existing):')
                     for st in step.get('after_statements', [])[:20]:
                         lines.append(f'    - {st}')
                     if len(step.get('after_statements', [])) > 20:
-                        lines.append(f"    ... and {len(step.get('after_statements', [])) - 20} more.")
+                        lines.append(f'    ... and {len(step.get("after_statements", [])) - 20} more.')
                     lines.append(f'  • Add freeform tag: {marker_key} = {marker_val} (to mark step as executed).')
                     lines.append('  • Save the policy.')
                 elif action == 'delete':
-                    lines.append(f"  • Locate policy: {pol_name} (OCID: {step.get('policy_ocid')}).")
+                    lines.append(f'  • Locate policy: {pol_name} (OCID: {step.get("policy_ocid")}).')
                     lines.append(
                         '  • Delete the policy. Execution is confirmed when the policy no longer appears after reload.'
                     )
@@ -578,25 +579,25 @@ class ConsolidationEngine:
                     lines.append(f'  • Navigate to compartment: {nav_path}')
                 if action == 'add':
                     lines.append(
-                        f"  • Delete the policy created in this compartment (name: {step.get('create_policy_name') or 'Consolidated-Root'}). "
-                        f"Find it by freeform tag {r_marker_key} if needed, then delete the policy."
+                        f'  • Delete the policy created in this compartment (name: {step.get("create_policy_name") or "Consolidated-Root"}). '
+                        f'Find it by freeform tag {r_marker_key} if needed, then delete the policy.'
                     )
                 elif action == 'modify':
                     lines.append(
-                        f"  • Edit policy {pol_name} (OCID: {step.get('policy_ocid')}) and restore the original statements below; remove freeform tag {r_marker_key}."
+                        f'  • Edit policy {pol_name} (OCID: {step.get("policy_ocid")}) and restore the original statements below; remove freeform tag {r_marker_key}.'
                     )
-                    lines.append(f"  • Original statements to restore ({len(step.get('before_statements', []))}):")
+                    lines.append(f'  • Original statements to restore ({len(step.get("before_statements", []))}):')
                     for st in step.get('before_statements', []):
                         lines.append(f'    - {st}')
                 elif action == 'delete':
                     lines.append(
-                        f"  • Re-create policy in compartment {pol_comp or '(unknown)'} (path: {nav_path or 'n/a'}) with name: {pol_name}"
+                        f'  • Re-create policy in compartment {pol_comp or "(unknown)"} (path: {nav_path or "n/a"}) with name: {pol_name}'
                     )
-                    lines.append(f"  • Statements to set ({len(step.get('before_statements', []))}):")
+                    lines.append(f'  • Statements to set ({len(step.get("before_statements", []))}):')
                     for st in step.get('before_statements', []):
                         lines.append(f'    - {st}')
                     if pol.get('description'):
-                        lines.append(f"  • Description: {pol.get('description')}")
+                        lines.append(f'  • Description: {pol.get("description")}')
                 lines.append('')
         return '\n'.join(lines).strip()
 
@@ -621,7 +622,7 @@ class ConsolidationEngine:
         }
         lines: list[str] = []
         version_date = datetime.now(UTC).strftime('%Y-%m-%d')
-        lines.append(f"# Rollback commands for plan: {plan.get('plan_id')}")
+        lines.append(f'# Rollback commands for plan: {plan.get("plan_id")}')
         lines.append('# WARNING: Only safe if no newer plan has executed.')
         lines.append('')
         # Reverse order is typically safer
@@ -633,7 +634,7 @@ class ConsolidationEngine:
             pol_name = pol.get('policy_name', '(unknown)') if pol else (step.get('create_policy_name') or 'new-policy')
             pol_comp = pol.get('compartment_ocid', '') if pol else (step.get('compartment_ocid', ''))
 
-            lines.append(f"## ROLLBACK {step.get('step_id')} | {action.upper()} | {pol_name} ({pol_ocid or pol_comp})")
+            lines.append(f'## ROLLBACK {step.get("step_id")} | {action.upper()} | {pol_name} ({pol_ocid or pol_comp})')
             if action == 'add':
                 comp_ocid = step.get('compartment_ocid', '')
                 marker_key = (step.get('plan_tags') or {}).get('marker_tag_key', 'opa_consolidation')
@@ -651,7 +652,7 @@ class ConsolidationEngine:
                 rollback_dd = rollback.get('defined_tags', dd)
                 stmt_val = _statements_cli_value(rollback.get('statements', step.get('before_statements', [])))
                 lines.append('oci iam policy update \\')
-                lines.append(f"  --policy-id {step.get('policy_ocid')} \\")
+                lines.append(f'  --policy-id {step.get("policy_ocid")} \\')
                 lines.append(f'  --statements "{stmt_val}" \\')
                 lines.append(f'  --version-date {version_date} \\')
                 if rollback_ff:

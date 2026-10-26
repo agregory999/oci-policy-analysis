@@ -4,15 +4,72 @@ This page shows example requests and expected response shapes for the compact MC
 
 The examples are intentionally verbose for documentation. MCP tool descriptions should stay terse.
 
+## When to use a policy search set
+
+For “Which groups can manage Object Storage, and which dynamic groups have read policies for it?”, prefer **one `policy_search_set` call** with two child searches:
+
+```json
+{
+  "intent": "access_review",
+  "product_or_service": "Object Storage principal comparison",
+  "searches": [
+    {
+      "search_id": "group-manage",
+      "label": "Groups with manage allow statements",
+      "detail_level": "summary",
+      "filters": {
+        "action": ["allow"],
+        "principal": {"principal_type": "group"},
+        "verb": ["manage"],
+        "resource_family": "object storage"
+      }
+    },
+    {
+      "search_id": "workload-read",
+      "label": "Dynamic groups with read allow statements",
+      "detail_level": "summary",
+      "filters": {
+        "action": ["allow"],
+        "principal": {"principal_type": "dynamic-group"},
+        "verb": ["read"],
+        "resource_family": "object storage"
+      }
+    }
+  ]
+}
+```
+
+The result keeps both counts/breakdowns under their search IDs and reports missing required checks. `evaluation` can be omitted for this ordinary comparison. This example searches exact policy verbs; it does not compute every grant that implies read access. Check scope, conditions and broader grants before concluding effective access.
+
+Use a set for multiple groups/services or a permission checklist; use `policy_search` for one specific lookup. The legacy wrapped examples below still work, but direct `filters` make new requests simpler.
+
 ## Result Detail Levels
 
 Most `policy_search` examples use:
 
-- `detail_level: summary` for counts, breakdowns, and samples.
+- `detail_level: summary` for counts and breakdowns without statement rows.
 - `detail_level: simple` for compact statement rows.
 - `detail_level: full` for parsed statement metadata, principal evidence, condition atoms, residual conditions, resolved compartments, and confidence details.
 
-`limit` controls the maximum number of detailed statement rows returned. The server should evaluate all matches, but return summary output when match count exceeds the limit. MCP-facing calls should cap `limit` at `50` or lower to avoid large protocol payloads.
+`limit` is the largest match count eligible for detailed statement rows, capped at 50. It is not pagination. The server evaluates all matches; unfiltered searches and searches with more matches than the threshold return a compact summary without statement rows. A warning reports when a requested threshold above 50 is capped.
+
+For product names, use `filters.resource_family` rather than guessing an IAM resource type. This query finds group allow statements with a `manage` verb on Object Storage resource types, their family, or `all-resources`:
+
+```json
+{
+  "mode": "simple",
+  "detail_level": "summary",
+  "filters": {
+    "action": ["allow"],
+    "principal": {"principal_type": "group"},
+    "verb": ["manage"],
+    "resource_family": "object storage"
+  },
+  "limit": 50
+}
+```
+
+This is a statement search. Check conditions and compartment scope before describing a group as having effective access.
 
 Each search has three conceptual inputs:
 
@@ -23,12 +80,32 @@ Each search has three conceptual inputs:
 Common top-level output fields:
 
 - `response_type`: `summary`, `simple`, or `full`.
+- `summary_substituted`: true when `simple` or `full` was requested but a summary was returned.
+- `summary_reason`: `requested_summary`, `unfiltered_query`, or `too_many_matches` when the response is a summary.
+- `refinement_hint`: guidance to narrow the query and request statement rows.
+- `detail_row_limit`: the applied detailed-row threshold, at most 50.
 - `total_count`: number of matching statements after all filters run.
-- `returned_count`: number of detailed rows returned.
-- `truncated`: whether matching rows were omitted because of `limit`.
-- `breakdowns`: count buckets by policy, compartment, subject type, verb, resource, and confidence when available.
+- `returned_count`: number of detailed rows returned; zero for a summary.
+- `truncated`: whether matching detailed rows were omitted.
+- `breakdowns`: count buckets by policy, subject type, verb, resource, and confidence. Each category has at most 20 named values plus `__other__`.
 - `warnings`: caveats such as broad filters, unsupported fields, or result truncation.
-- `statements`: detailed rows for `simple` or `full` detail levels.
+- `statements`: detailed rows for `simple` or `full` responses; empty for a summary.
+
+For example, a broad `simple` request can return:
+
+```json
+{
+  "response_type": "summary",
+  "summary_substituted": true,
+  "summary_reason": "too_many_matches",
+  "detail_row_limit": 50,
+  "total_count": 80,
+  "returned_count": 0,
+  "statements": [],
+  "breakdowns": {"by_resource": {"buckets": 70, "objects": 10}},
+  "refinement_hint": "Add or narrow filters such as principal, resource, verb, or effective_path, then request detail_level=\"simple\" or \"full\" for statement rows."
+}
+```
 
 Compact statement rows include fields such as `policy_name`, `compartment_path`, `statement_text`, `subject_type`, `principal_summary`, `verb`, `resource`, `permission`, `location`, `effective_path`, `where_clause_text`, and `match_confidence`.
 

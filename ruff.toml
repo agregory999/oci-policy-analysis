@@ -1,6 +1,12 @@
 # ruff.toml — standalone linter configuration
 line-length = 120
 target-version = "py312"
+force-exclude = true
+extend-exclude = [
+    "src/oci_policy_analysis/application/core/parser/policy_parser",
+    "src/oci_policy_analysis/application/core/parser/condition_parser",
+    "src/condition_parser",
+]
 
 [lint]
 select = [
@@ -17,8 +23,6 @@ max-complexity = 25
 # lint-clean explicit imports.
 "src/oci_policy_analysis/application/core/parser/condition_parser/*.py" = ["F403", "F405", "UP035"]
 "src/oci_policy_analysis/application/core/parser/policy_parser/*.py" = ["F403", "F405", "UP035"]
-"src/oci_policy_analysis/logic/parsers/condition_parser/*.py" = ["F403", "F405", "UP035"]
-"src/oci_policy_analysis/logic/parsers/policy_parser/*.py" = ["F403", "F405", "UP035"]
 
 [format]
 quote-style = "single"
@@ -36,8 +40,4 @@ exclude = [
     "src/oci_policy_analysis/application/core/parser/condition_parser",
     "src/oci_policy_analysis/application/core/parser/policy_parser/*",
     "src/oci_policy_analysis/application/core/parser/condition_parser/*",
-    "src/oci_policy_analysis/logic/parsers/policy_parser",
-    "src/oci_policy_analysis/logic/parsers/condition_parser",
-    "src/oci_policy_analysis/logic/parsers/policy_parser/*",
-    "src/oci_policy_analysis/logic/parsers/condition_parser/*",
 ]

@@ -38,6 +38,35 @@ def strip_non_printable_characters(value: object) -> str:
     return ''.join(character for character in str(value or '') if character.isprintable())
 
 
+def canonicalize_principal_key(value: str) -> str:
+    """Normalize case-insensitive named identities without changing opaque IDs."""
+    key = str(value or '').strip()
+    kind, separator, payload = key.partition(':')
+    if not separator:
+        return key
+    kind = kind.strip().casefold()
+    if kind in {'user', 'group', 'dynamic-group', 'service', 'any-user', 'any-group'}:
+        payload = payload.casefold()
+    return f'{kind}:{payload}'
+
+
+def principal_display_name(principal_key: str) -> str:
+    """Format a principal key for display without changing its canonical identity.
+
+    Args:
+        principal_key: Canonical or original principal key.
+
+    Returns:
+        str: Service label without the synthetic domain; other keys unchanged.
+    """
+    kind, separator, payload = principal_key.partition(':')
+    if kind.casefold() == 'service' and separator:
+        domain, slash, name = payload.partition('/')
+        if slash and domain.casefold() == 'none':
+            return f'{kind}:{name}'
+    return principal_key
+
+
 def calculate_principal_key(subject_type: str, domain: str | None, name: str) -> str:
     """Return the canonical *principal key* string for a subject triple.
 
@@ -47,16 +76,15 @@ def calculate_principal_key(subject_type: str, domain: str | None, name: str) ->
 
     with the following normalization rules:
 
-    * ``subject_type`` is used as provided (callers typically lowercase).
-    * For **user/group/dynamic-group** subjects, if ``domain`` is falsy or
-      equal to ``"default"`` (any casing), the domain component is normalized
-      to the literal string ``"Default"``.
-    * For **any-user/any-group/service** subjects, the domain component is
-      always ``"None"`` in the key. The ``name`` piece should carry the
-      semantic value.
+    * Subject types are case-folded.
+    * Named user/group/dynamic-group identities use lowercase domain/name keys;
+      omitted domains identify the default domain.
+    * Service and any-user/any-group keys use lowercase names and ``none``.
+    * Opaque resource/ID payloads retain their spelling. Display fields and
+      original statement text are never modified by this helper.
     """
 
-    stype = (subject_type or '').strip()
+    stype = (subject_type or '').strip().casefold()
     name_str = str(name).strip()
     domain_str: str | None
 
@@ -71,7 +99,7 @@ def calculate_principal_key(subject_type: str, domain: str | None, name: str) ->
     else:
         domain_str = str(domain) if domain is not None else 'None'
 
-    return f'{stype}:{domain_str}/{name_str}'
+    return canonicalize_principal_key(f'{stype}:{domain_str}/{name_str}')
 
 
 def resolve_effective_path(

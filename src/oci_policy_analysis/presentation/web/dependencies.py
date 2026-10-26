@@ -40,5 +40,5 @@ def get_context() -> AppContext:
     settings = get_settings()
     # Ensure usage tracker is initialized in web runtime when enabled.
     # Desktop initializes this in main.App, but web has separate startup wiring.
-    init_usage_tracker(settings, _resolve_app_version())
+    init_usage_tracker(settings, _resolve_app_version(), interface='web')
     return AppContext.from_settings(settings)

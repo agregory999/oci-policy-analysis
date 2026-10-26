@@ -6,20 +6,20 @@ This document describes the architecture, organization, patterns, and best pract
 
 ## 1. Tab Structure and Organization
 
-All UI (graphical interface) code is located under `src/oci_policy_analysis/presentation/desktop/`. Each major tab or functional panel appears as its own module, named `<feature>_tab.py`. Example: `policies_tab.py`, `users_tab.py`, `cross_tenancy_tab.py`.
+All UI (graphical interface) code is located under `src/oci_policy_analysis/presentation/tk/`. Each major tab or functional panel appears as its own module, named `<feature>_tab.py`. Example: `policies_tab.py`, `users_tab.py`, `cross_tenancy_tab.py`.
 
 Tabs are registered and arranged in `main.py` (see the `App` class). Each tab is instantiated as a class (typically a subclass of `BaseUITab`) and added to the main application's `ttk.Notebook`, which manages the tabbed interface.
 
 **Key notes:**
 - Project tabs are created and referenced in a specific order for a consistent UX.
-- New tabs must be imported and instantiated in the `App` class (`src/oci_policy_analysis/main.py`).
+- New tabs must be imported and instantiated in the `App` class (`src/oci_policy_analysis/presentation/tk/main.py`).
 - Centralized settings and data models (repositories, engines) are passed to each tab on initialization.
 
 ---
 
 ## 2. The BaseUITab: Shared Functionality
 
-Most tabs inherit from `BaseUITab` (`src/oci_policy_analysis/presentation/desktop/base_tab.py`), which provides:
+Most tabs inherit from `BaseUITab` (`src/oci_policy_analysis/presentation/tk/base_tab.py`), which provides:
 - **Unified Context Help**: Automatic insertion of a context help "help area" at the top of each tab, managed through `add_context_help(widget, message)` and propagated from global settings.
 - **UI State and Settings Propagation**: All tabs receive changes to context help toggling, font size, style, and (if extended) theme from the main app via a central `apply_settings` interface.
 - **Boilerplate Reduction**: Subclasses need only define which widgets need help; tab writers do not have to write per-widget Enter/Leave handlers or manual label setup.
@@ -35,7 +35,7 @@ In addition to the page-level help area, `BaseUITab` provides a small helper for
 
 ### The `create_doc_link_label` helper
 
-Defined in `src/oci_policy_analysis/presentation/desktop/base_tab.py`:
+Defined in `src/oci_policy_analysis/presentation/tk/base_tab.py`:
 
 ```python
 class BaseUITab(ttk.Frame):
@@ -211,7 +211,7 @@ This keeps both the visual style and click behavior of doc links consistent acro
 
 ### How Tabs Are Created and Wired Up
 
-- All main tabs are instantiated in the `App` class (`src/oci_policy_analysis/main.py`). Each receives proper references to shared data models, settings, caches, engines, and the parent notebook.
+- All main tabs are instantiated in the `App` class (`src/oci_policy_analysis/presentation/tk/main.py`). Each receives proper references to shared data models, settings, caches, engines, and the parent notebook.
 - Data models such as `PolicyAnalysisRepository`, `PolicySimulationEngine`, and others are also constructed centrally and passed to tabs as needed.
 - This wiring allows for dependency injection, proper testing, and centralized state management.
 
@@ -272,14 +272,14 @@ self.simulation_tab = SimulationTab(self.notebook, self, self.settings)
 ## 5. Creating a New Tab: Best Practices
 
 1. **Create the Module**
-    - Name as `<feature>_tab.py` and place under `src/oci_policy_analysis/presentation/desktop/`.
+    - Name as `<feature>_tab.py` and place under `src/oci_policy_analysis/presentation/tk/`.
     - Inherit from `BaseUITab` if you want plug-and-play context help and unified settings propagation.
 2. **Implement Required Interfaces**
     - Always implement `apply_settings(context_help: bool, font_size: str)`.
     - Define at least one update or refresh method (called by App after load/update).
     - Use `add_context_help(widget, message)` to wire up help for all user-interactive widgets.
 3. **Register with the App**
-    - Import your tab in `src/oci_policy_analysis/main.py`.
+    - Import your tab in `src/oci_policy_analysis/presentation/tk/main.py`.
     - Instantiate in the App's `__init__`, passing required engines/data/settings.
     - Add it to the `self.notebook` with a descriptive label.
 4. **Data/Model Usage**
@@ -312,9 +312,9 @@ self.simulation_tab = SimulationTab(self.notebook, self, self.settings)
 
 ## 7. Reference: Relevant Files
 
-- `src/oci_policy_analysis/main.py`: App wiring, lifecycle, model/engine initialization, centralized tab management.
-- `src/oci_policy_analysis/presentation/desktop/base_tab.py`: Shared base tab implementation.
-- `src/oci_policy_analysis/presentation/desktop/`: All tab modules.
+- `src/oci_policy_analysis/presentation/tk/main.py`: App wiring, lifecycle, model/engine initialization, centralized tab management.
+- `src/oci_policy_analysis/presentation/tk/base_tab.py`: Shared base tab implementation.
+- `src/oci_policy_analysis/presentation/tk/`: All tab modules.
 - `docs/source/context/project/CONTEXT_web_ui.md`: Web UI architecture, data flow, and right-side detail pane patterns.
 - Other `context/project/CONTEXT_*.md` files for individual tab details.
 
@@ -324,7 +324,7 @@ self.simulation_tab = SimulationTab(self.notebook, self, self.settings)
 
 The UI layer of OCI Policy Analysis follows established architectural patterns for maintainability, consistency, and extensibility. Centralized tab management, unified settings propagation, and model/engine separation come together to provide a robust, predictable developer experience for UI extension and maintenance.
 
-For further examples or boilerplate, study `main.py` and `src/oci_policy_analysis/presentation/desktop/` tab source files directly.
+For further examples or boilerplate, study `main.py` and `src/oci_policy_analysis/presentation/tk/` tab source files directly.
 
 ---
 
@@ -334,7 +334,7 @@ Some UI features (such as the **Consolidation Workbench**) are considered experi
 
 ### 9.1. How Experimental Mode is Enabled
 
-Experimental features are toggled at process startup via a hidden command-line flag defined in `src/oci_policy_analysis/main.py`:
+Experimental features are toggled at process startup via a hidden command-line flag defined in `src/oci_policy_analysis/presentation/tk/main.py`:
 
 ```bash
 python -m oci_policy_analysis.main --experimental-features
@@ -369,6 +369,7 @@ The Consolidation Workbench UI is wired into the project but is only instantiate
 
   ```python
   from oci_policy_analysis.ui.consolidation_workbench_tab import ConsolidationWorkbenchTab
+
   ...
   self.consolidation_tab = None
   if self.experimental_features:
@@ -419,9 +420,7 @@ In `App.update_status_bar` (in `main.py`):
 prefix = '**Experimental Mode**  -  ' if self.experimental_features else ''
 
 if loaded:
-    self.status_var.set(
-        f"{prefix}Policy Data: {load_source} loaded at {ts_str}{reloaded_str}"
-    )
+    self.status_var.set(f'{prefix}Policy Data: {load_source} loaded at {ts_str}{reloaded_str}')
 else:
     self.status_var.set(f'{prefix}Policy Data: (Not Loaded)')
 ```

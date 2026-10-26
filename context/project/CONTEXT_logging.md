@@ -90,9 +90,9 @@ In addition to standard log level configuration, the system supports explicit lo
     try:
         result = api_client.call()
         elapsed = time.perf_counter() - t0
-        level_func(f"[API] Fetch completed in {elapsed:.2f}s")
+        level_func(f'[API] Fetch completed in {elapsed:.2f}s')
     except Exception as e:
-        logger.error(f"[API] Call failed after {elapsed:.2f}s: {e}")
+        logger.error(f'[API] Call failed after {elapsed:.2f}s: {e}')
     ```
 - See below for a mermaid diagram showing the flow.
 
@@ -178,6 +178,6 @@ flowchart LR
 ## References
 
 - Logging configuration is defined in [`src/oci_policy_analysis/common/logger.py`](../../src/oci_policy_analysis/common/logger.py)
-- Console logging UI logic is in [`src/oci_policy_analysis/presentation/desktop/console_tab.py`](../../src/oci_policy_analysis/presentation/desktop/console_tab.py)
+- Console logging UI logic is in [`src/oci_policy_analysis/presentation/tk/console_tab.py`](../../src/oci_policy_analysis/presentation/tk/console_tab.py)
 - Settings load/save implementation is in [`src/oci_policy_analysis/common/config.py`](../../src/oci_policy_analysis/common/config.py)
-- All logger setup at startup occurs in [`src/oci_policy_analysis/main.py`](../../src/oci_policy_analysis/main.py)
+- All logger setup at startup occurs in [`src/oci_policy_analysis/presentation/tk/main.py`](../../src/oci_policy_analysis/presentation/tk/main.py)

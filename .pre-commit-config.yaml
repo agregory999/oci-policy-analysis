@@ -1,8 +1,8 @@
+exclude: '^(src/oci_policy_analysis/application/core/parser/(policy_parser|condition_parser)/|src/condition_parser/)'
 repos:
 - repo: https://github.com/astral-sh/ruff-pre-commit
-  rev: v0.1.13
+  rev: v0.16.10
   hooks:
     - id: ruff
-      exclude: "(src/oci_policy_analysis/logic/parsers/(policy_parser|condition_parser)/.*|src/condition_parser/OciIamPolicyCondition(Lexer|Parser|Visitor|Listener)\\.py)"
       args: [--fix, --exit-non-zero-on-fix]
     - id: ruff-format

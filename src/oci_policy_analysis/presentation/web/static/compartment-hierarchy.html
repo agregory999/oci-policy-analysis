@@ -109,8 +109,8 @@
       }
 
       function limitPill(limitState) {
-        const state = String(limitState || 'ok').toLowerCase();
-        const cls = state === 'over' ? 'limit-over' : state === 'warning' ? 'limit-warning' : 'limit-ok';
+        const state = String(limitState || 'unknown').toLowerCase();
+        const cls = state === 'over' ? 'limit-over' : state === 'warning' ? 'limit-warning' : state === 'ok' ? 'limit-ok' : '';
         return `<span class="limit-pill ${cls}">${state}</span>`;
       }
 
@@ -168,8 +168,8 @@
             const description = row.description || '(No description)';
             const tr = document.createElement('tr');
             tr.innerHTML = `
-              <td>${pathWithName}</td>
-              <td>${description}</td>
+              <td>${escapeHtml(pathWithName)}</td>
+              <td>${escapeHtml(description)}</td>
               <td>${renderTags(row.tags)}</td>
               <td>${row.policy_count ?? 0}</td>
               <td>${row.statement_count_direct ?? 0}</td>

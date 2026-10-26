@@ -75,7 +75,7 @@ The top **Dynamic Group Filters** label frame contains:
 All filters use `|` for OR within each field and are combined with AND
 across fields via `DynamicGroupSearch`.
 
-### 2. Output Filters and AI Assist
+### 2. Output Filters
 
 The **Dynamic Group Output Filters** frame exposes:
 
@@ -88,8 +88,6 @@ The **Dynamic Group Output Filters** frame exposes:
   (`BASIC_DG_COLUMNS`) or all available columns
   (`ALL_DG_COLUMNS`). Context help explains that this adds extra
   ID/OCID and metadata fields.
-- **AI Assist** – toggles the shared AI analysis pane for contextual
-  explanation of selected policy statements.
 
 Two label-based counters are maintained:
 

@@ -680,22 +680,20 @@
                 "LOG_ANALYTICS_ONDEMAND_UPLOAD_DELETE",
                 "LOG_ANALYTICS_LOG_GROUP_DELETE_LOGS",
                 "LOG_ANALYTICS_QUERY_VIEW",
-                "C",
-                "P",
                 "COMPARTMENT_READ"
             ],
-            "notes": "and and and Compartment Permissions ()"
+            "notes": "and and and Compartment Permissions () Source requirements: LOG_ANALYTICS_ONDEMAND_UPLOAD_DELETE and LOG_ANALYTICS_LOG_GROUP_DELETE_LOGS and LOG_ANALYTICS_QUERY_VIEW and Compartment Permissions (COMPARTMENT_READ)",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/loganalyticspolicyreference.htm"
         },
         "DeleteUploadFile": {
             "permissions": [
                 "LOG_ANALYTICS_ONDEMAND_UPLOAD_DELETE",
                 "LOG_ANALYTICS_LOG_GROUP_DELETE_LOGS",
                 "LOG_ANALYTICS_QUERY_VIEW",
-                "C",
-                "P",
                 "COMPARTMENT_READ"
             ],
-            "notes": "and and and Compartment Permissions ()"
+            "notes": "and and and Compartment Permissions () Source requirements: LOG_ANALYTICS_ONDEMAND_UPLOAD_DELETE and LOG_ANALYTICS_LOG_GROUP_DELETE_LOGS and LOG_ANALYTICS_QUERY_VIEW and Compartment Permissions (COMPARTMENT_READ)",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/loganalyticspolicyreference.htm"
         },
         "DeleteUploadWarning": {
             "permissions": [

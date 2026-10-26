@@ -15,11 +15,19 @@ from oci_policy_analysis.application.services.analysis_service import AnalysisSe
 
 
 class MCPQueryService:
-    """Service facade for MCP search and filtering operations.
+    """Query loaded policy and identity data independently of MCP transport.
 
-    MCP tools should remain thin protocol adapters. This service centralizes
-    the query operations they expose so MCP follows the same service-oriented
-    application model as web and desktop consumers.
+    Args:
+        context: Loaded runtime with the inventory required by the requested query.
+
+    Attributes:
+        context: Shared runtime used for repository queries.
+        analysis: Statement-filtering facade over the same runtime.
+
+    Notes:
+        MCP tools are protocol adapters around these operations; Python callers do
+        not need to start an MCP server. Queries do not fetch missing OCI data or
+        evaluate authoritative access. Policy-only loads have limited identity data.
     """
 
     def __init__(self, context: AppContext) -> None:

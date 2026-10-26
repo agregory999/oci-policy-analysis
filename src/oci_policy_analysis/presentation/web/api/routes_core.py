@@ -15,7 +15,7 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse
 
-from oci_policy_analysis._version import get_app_version
+from oci_policy_analysis._version import get_app_version, get_image_build_metadata
 from oci_policy_analysis.application.core.models.models import (
     DynamicGroup,
     DynamicGroupSearch,
@@ -27,7 +27,9 @@ from oci_policy_analysis.application.core.models.models import (
     UserSearch,
 )
 from oci_policy_analysis.application.core.parser.condition_structure import format_condition_structure_summary
+from oci_policy_analysis.application.core.repo.policy_loading import validate_policy_load_method
 from oci_policy_analysis.application.core.support import config
+from oci_policy_analysis.application.core.support.api_calls import API_CALLS
 from oci_policy_analysis.application.core.support.helpers import (
     for_display_dynamic_group,
     for_display_group,
@@ -37,16 +39,20 @@ from oci_policy_analysis.application.core.support.helpers import (
 from oci_policy_analysis.application.core.support.logger import get_logger
 from oci_policy_analysis.application.core.support.usage_tracking import get_usage_tracker, init_usage_tracker
 from oci_policy_analysis.application.services.analysis_service import AnalysisService
+from oci_policy_analysis.application.services.audit_command_service import AuditCommandService
 from oci_policy_analysis.application.services.condition_tester_service import ConditionTesterService
 from oci_policy_analysis.application.services.consolidation_workbench_service import (
     ConsolidationWorkbenchService,
 )
+from oci_policy_analysis.application.services.cross_tenancy_analysis_service import CrossTenancyAnalysisService
 from oci_policy_analysis.application.services.historical_analysis_service import HistoricalAnalysisService
 from oci_policy_analysis.application.services.intelligence_service import IntelligenceService
 from oci_policy_analysis.application.services.load_service import LoadService
 from oci_policy_analysis.application.services.logging_service import LoggingService
 from oci_policy_analysis.application.services.permissions_report_service import PermissionsReportService
 from oci_policy_analysis.application.services.policy_browser_service import PolicyBrowserService
+from oci_policy_analysis.application.services.policy_graph_service import PolicyGraphService
+from oci_policy_analysis.application.services.policy_limits_service import PolicyLimitsService
 from oci_policy_analysis.application.services.principal_analysis_service import PrincipalAnalysisService
 from oci_policy_analysis.application.services.prospective_builder_service import ProspectiveBuilderService
 from oci_policy_analysis.application.services.prospective_statements_service import ProspectiveStatementsService
@@ -245,7 +251,7 @@ def app_metadata() -> dict[str, str]:
         dict[str, str]: Application metadata including version and server start time.
     """
 
-    return {'version': get_app_version(), 'server_started_at': SERVER_STARTED_AT}
+    return {'version': get_app_version(), 'server_started_at': SERVER_STARTED_AT, **get_image_build_metadata()}
 
 
 @router.post('/auth/login')
@@ -645,7 +651,7 @@ def _track_web_operation(
         # Flush web operations promptly so analytics PAR refresh can see them
         # without waiting for process exit, then rotate tracker for next op.
         tracker.flush()
-        init_usage_tracker(get_settings(), get_app_version())
+        init_usage_tracker(get_settings(), get_app_version(), interface='web')
     except Exception:
         logger.debug('Usage tracking failed for web route %s', route, exc_info=True)
 
@@ -922,12 +928,31 @@ def download_cache(cache_name: str, export_name: str | None = None) -> FileRespo
     return FileResponse(path=file_path, media_type='application/json', filename=download_name)
 
 
+def _environment_domain_search_depth() -> int | None:
+    """Read the deployment override without changing saved UI preferences."""
+    raw = os.environ.get('OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH')
+    if raw is None:
+        return None
+    raw = raw.strip()
+    if not raw.isdigit() or not 1 <= int(raw) <= 6:
+        raise HTTPException(status_code=503, detail='OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH must be 1 through 6')
+    return int(raw)
+
+
+def _web_settings_payload(settings: dict) -> dict[str, object]:
+    """Present the effective depth while retaining the saved preference."""
+    depth = _environment_domain_search_depth()
+    if depth is None:
+        return {'settings': settings}
+    return {'settings': {**settings, 'domain_compartment_depth': depth}, 'domain_compartment_depth_locked': True}
+
+
 @router.get('/settings')
 def get_settings_api() -> dict[str, object]:
     """Return persisted settings used by the web app."""
     logger.info('GET /settings')
     settings = get_settings()
-    return {'settings': settings}
+    return _web_settings_payload(settings)
 
 
 @router.post('/settings')
@@ -937,9 +962,12 @@ def update_settings_api(payload: dict[str, object]) -> dict[str, object]:
     settings = get_settings()
     updates = payload.get('settings') if isinstance(payload, dict) else None
     if isinstance(updates, dict):
+        updates = dict(updates)
+        if _environment_domain_search_depth() is not None:
+            updates.pop('domain_compartment_depth', None)
         settings.update(updates)
     config.save_settings(settings)
-    return {'settings': settings}
+    return _web_settings_payload(settings)
 
 
 @router.post('/load/cache/{cache_name}')
@@ -1008,6 +1036,41 @@ def list_intelligence_strategies() -> dict[str, object]:
     return {'strategies': strategies}
 
 
+@router.get('/logging/api-calls')
+def list_api_calls(request: Request) -> dict:
+    """List bounded process-wide metadata for authenticated administrators."""
+    _require_authenticated(request)
+    _require_not_limited(request)
+    revision, rows, dropped = API_CALLS.snapshot()
+    return {'revision': revision, 'rows': rows, 'dropped': dropped}
+
+
+@router.post('/logging/api-calls/clear')
+def clear_api_calls(request: Request) -> dict:
+    """Discard current process API metadata; log files and snapshots are unchanged."""
+    _require_authenticated(request)
+    _require_not_limited(request)
+    API_CALLS.clear()
+    return {'success': True}
+
+
+@router.post('/analysis/audit-command-defaults')
+def audit_command_defaults(request: Request, payload: dict[str, object]) -> dict:
+    """Suggest editable Audit search fields from submitted historical evidence."""
+    _require_authenticated(request)
+    return AuditCommandService.defaults(payload.get('change') or {}, payload.get('metadata') or {})
+
+
+@router.post('/analysis/audit-commands')
+def generate_audit_commands(request: Request, payload: dict[str, object]) -> dict:
+    """Generate quoted OCI Logging Search commands without issuing any OCI API calls."""
+    _require_authenticated(request)
+    try:
+        return AuditCommandService.generate(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
 @router.post('/analysis/historical-compare')
 def historical_compare(payload: dict[str, object]) -> dict[str, object]:
     """Compare two named caches and return normalized sectioned diff results."""
@@ -1020,7 +1083,12 @@ def historical_compare(payload: dict[str, object]) -> dict[str, object]:
     ctx = get_context()
     service = HistoricalAnalysisService(ctx.cache)
     try:
-        result = service.compare_caches(left_cache=left_cache, right_cache=right_cache)
+        result = service.compare_caches(
+            left_cache=left_cache,
+            right_cache=right_cache,
+            meaningful_only=payload.get('meaningful_only', True) is True,
+            include_incomplete=payload.get('include_incomplete', True) is True,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -1052,6 +1120,8 @@ def historical_compare(payload: dict[str, object]) -> dict[str, object]:
         'identity_sections': [_section_to_dict(s) for s in result.identity_sections],
         'identity_comparable': result.identity_comparable,
         'skipped_sections': result.skipped_sections,
+        'section_warnings': result.section_warnings,
+        'metadata': result.metadata,
     }
 
 
@@ -1097,6 +1167,63 @@ def filter_policies(request: Request, payload: dict[str, object]) -> dict[str, o
         'matched': len(statements),
         'statements': statements,
     }
+
+
+@router.get('/analysis/policy-inventory')
+def get_policy_inventory(request: Request) -> dict:
+    """Return hierarchical inventory source records and snapshot-scoped limits."""
+    _require_authenticated(request)
+    _require_not_limited(request)
+    context = get_context()
+    repo = context.policy_repo
+    service = PolicyLimitsService(context)
+    return {
+        'tenancy_name': repo.tenancy_name,
+        'tenancy_ocid': repo.tenancy_ocid,
+        'compartments': repo.compartments,
+        'policies': repo.policies,
+        'statements': repo.regular_statements,
+        'limits': getattr(repo, 'tenancy_policy_limits', {}) or {},
+        'offline_editable': not service.is_live_loaded,
+        'can_fetch_live': service.can_fetch_live,
+    }
+
+
+@router.post('/analysis/tenancy-policy-limits/fetch')
+def fetch_live_policy_limits(request: Request) -> dict:
+    """Refresh OCI limit metadata only for a live-loaded tenancy with a client."""
+    _require_authenticated(request)
+    _require_not_limited(request)
+    context = get_context()
+    if not PolicyLimitsService(context).can_fetch_live:
+        raise HTTPException(status_code=409, detail='Load a live OCI tenancy before fetching policy limits.')
+    context.policy_repo.fetch_tenancy_policy_statement_limits()
+    limits = getattr(context.policy_repo, 'tenancy_policy_limits', {}) or {}
+    if not limits:
+        raise HTTPException(
+            status_code=502, detail='OCI policy limits are unavailable. Check API Calls for access or service errors.'
+        )
+    return {'tenancy_policy_limits': limits}
+
+
+@router.get('/analysis/tag-based')
+def get_tag_based_inventory(request: Request) -> dict:
+    """Return detached tag statements, predicates and a snapshot tag catalog."""
+    _require_authenticated(request)
+    _require_not_limited(request)
+    repo = get_context().policy_repo
+    result = TagBasedPolicyService.inventory(repo.regular_statements)
+    result['catalog'] = [
+        {
+            'namespace': namespace,
+            'key': key,
+            'values': values or 'User supplied / no enumeration recorded',
+            'path': entry.get('compartment_path') or '',
+        }
+        for namespace, entry in (getattr(repo, 'defined_tag_namespace_keys', {}) or {}).items()
+        for key, values in (entry.get('keys') or {}).items()
+    ]
+    return result
 
 
 @router.post('/filter/policies/tag-based')
@@ -1521,81 +1648,51 @@ def filter_policies_by_subjects(payload: dict[str, object]) -> dict[str, object]
 
 @router.get('/analysis/cross-tenancy')
 def get_cross_tenancy_basic() -> dict[str, object]:
-    """Return basic cross-tenancy rows for web display with stable keys."""
+    """Return the shared cross-tenancy interpretation for desktop and web consumers."""
     logger.info('GET /analysis/cross-tenancy')
     ctx = get_context()
-    repo = ctx.policy_repo
+    overlay = getattr(ctx.intelligence, 'overlay', {}) or {}
+    service = CrossTenancyAnalysisService(
+        ctx.policy_repo,
+        overlay.get('cross_tenancy_findings', []) or [],
+        corpus=ctx.cross_tenancy_corpus,
+    )
+    payload = service.get_analysis_payload()
+    payload['single_policy'] = service.generate_single_policy(payload)
+    return payload
 
-    defines_raw = list(getattr(repo, 'defined_aliases', []) or [])
-    ct_raw = list(getattr(repo, 'cross_tenancy_statements', []) or [])
 
-    define_rows: list[dict[str, str]] = []
-    for item in defines_raw:
-        define_rows.append(
-            {
-                'policy_name': str(item.get('policy_name') or ''),
-                'defined_type': str(item.get('defined_type') or ''),
-                'defined_name': str(item.get('defined_name') or ''),
-                'ocid_alias': str(item.get('ocid_alias') or ''),
-                'statement_text': str(item.get('statement_text') or ''),
-                'creation_time': str(item.get('creation_time') or ''),
-            }
-        )
-
-    admit_rows: list[dict[str, object]] = []
-    endorse_rows: list[dict[str, object]] = []
-    unknown_rows: list[dict[str, object]] = []
-
-    for item in ct_raw:
-        statement_text = str(item.get('statement_text') or '')
-        text_cf = statement_text.casefold()
-        policy_ocid = str(item.get('policy_ocid') or '')
-        parsed_fields = {
-            str(k): v
-            for k, v in dict(item).items()
-            if str(k)
-            not in {
-                'policy_name',
-                'policy_ocid',
-                'statement_text',
-                'creation_time',
-                'parsed',
-            }
-        }
-        row: dict[str, object] = {
-            'policy_name': str(item.get('policy_name') or ''),
-            'policy_ocid': policy_ocid,
-            'statement_text': statement_text,
-            'creation_time': str(item.get('creation_time') or ''),
-            'parsed': bool(item.get('parsed', False)),
-            'parsed_fields': parsed_fields,
-            'stable_key': _build_cross_tenancy_stable_key(policy_ocid, statement_text),
-        }
-        if text_cf.startswith('admit') or text_cf.startswith('deny admit'):
-            admit_rows.append(row)
-        elif text_cf.startswith('endorse') or text_cf.startswith('deny endorse'):
-            endorse_rows.append(row)
-        else:
-            unknown_rows.append(row)
-
-    return {
-        'defines': define_rows,
-        'admit_statements_basic': admit_rows,
-        'endorse_statements_basic': endorse_rows,
-        'unknown_statements_basic': unknown_rows,
-        'counts': {
-            'defines': len(define_rows),
-            'admit': len(admit_rows),
-            'endorse': len(endorse_rows),
-            'unknown': len(unknown_rows),
-        },
-    }
+@router.get('/analysis/policy-graph')
+def get_policy_graph(
+    principal: str = '',
+    path: str = '',
+    resource: str = '',
+    query: str = '',
+    effect: str = '',
+    page: int = 1,
+    overview: bool = False,
+    all_results: bool = False,
+) -> dict[str, object]:
+    """Return direct graph grants, optionally all matches for the graphical search UI."""
+    return PolicyGraphService(get_context().corpus).get_page(
+        principal=principal,
+        path=path,
+        resource=resource,
+        query=query,
+        effect=effect,
+        page=page,
+        overview=overview,
+        all_results=all_results,
+    )
 
 
 @router.get('/analysis/permissions-report/tree')
 def get_permissions_report_tree(
     show_inherited_principals: bool = False,
     principal_query: str = '',
+    path_query: str = '',
+    principal_type: str = '',
+    include_prospective: bool = False,
 ) -> dict[str, object]:
     """Return permissions report tree rows grouped by effective path.
 
@@ -1609,10 +1706,15 @@ def get_permissions_report_tree(
     """
     logger.info('GET /analysis/permissions-report/tree')
     ctx = get_context()
+    if include_prospective and getattr(ctx.policy_repo, 'tenancy_ocid', None):
+        _get_or_init_prospective_service(ctx)
     service = PermissionsReportService(ctx)
     return service.get_tree(
         show_inherited_principals=show_inherited_principals,
         principal_query=principal_query,
+        path_query=path_query,
+        principal_type=principal_type,
+        include_prospective=include_prospective,
     )
 
 
@@ -1622,6 +1724,8 @@ def get_permissions_report_details(
     subject_key: str = '',
     permission_query: str = '',
     principal_query: str = '',
+    include_prospective: bool = False,
+    include_inherited: bool = False,
 ) -> dict[str, object]:
     """Return allow/deny detail rows for one path and principal key.
 
@@ -1651,16 +1755,20 @@ def get_permissions_report_details(
             raise HTTPException(status_code=400, detail='subject_key does not match principal_query.')
 
     ctx = get_context()
+    if include_prospective and getattr(ctx.policy_repo, 'tenancy_ocid', None):
+        _get_or_init_prospective_service(ctx)
     service = PermissionsReportService(ctx)
     return service.get_details(
         path_key=path_key,
         subject_key=selected_subject_key,
         permission_query=permission_query,
+        include_prospective=include_prospective,
+        include_inherited=include_inherited,
     )
 
 
 @router.get('/analysis/permissions-report/export')
-def get_permissions_report_export() -> dict[str, object]:
+def get_permissions_report_export(include_prospective: bool = False) -> dict[str, object]:
     """Return raw permissions report payload for export workflows.
 
     Returns:
@@ -1668,8 +1776,19 @@ def get_permissions_report_export() -> dict[str, object]:
     """
     logger.info('GET /analysis/permissions-report/export')
     ctx = get_context()
+    if include_prospective and getattr(ctx.policy_repo, 'tenancy_ocid', None):
+        _get_or_init_prospective_service(ctx)
     service = PermissionsReportService(ctx)
-    return service.get_export_payload()
+    return service.get_export_payload(include_prospective=include_prospective)
+
+
+@router.get('/analysis/permissions-report/exclusions')
+def get_permissions_report_exclusions(include_prospective: bool = False) -> dict[str, object]:
+    """Return corpus statements excluded from permission grant facts."""
+    ctx = get_context()
+    if include_prospective and getattr(ctx.policy_repo, 'tenancy_ocid', None):
+        _get_or_init_prospective_service(ctx)
+    return {'exclusions': PermissionsReportService(ctx).get_exclusions(include_prospective=include_prospective)}
 
 
 @router.get('/analysis/recommendations/dashboard')
@@ -1690,21 +1809,17 @@ def set_tenancy_policy_limits(payload: dict[str, object]) -> dict[str, object]:
     """Save operator-supplied limits only with the active cache/CIS snapshot."""
     logger.info('POST /analysis/tenancy-policy-limits')
     ctx = get_context()
-    repo = ctx.policy_repo
-    offline_snapshot = bool(
-        getattr(repo, 'current_cache_name', '') or getattr(repo, 'loaded_from_compliance_output', False)
-    )
-    if not offline_snapshot:
+    service = PolicyLimitsService(ctx)
+    if service.is_live_loaded:
         raise HTTPException(status_code=409, detail='Live tenancy limits are read from OCI and cannot be overridden.')
     try:
-        limits = repo.set_user_supplied_tenancy_policy_limits(
+        service.apply_manual(
             payload.get('policies_count'), payload.get('policy_statements_per_compartment_chain_count')
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    cache_name = str(getattr(repo, 'current_cache_name', '') or '')
-    if cache_name:
-        ctx.cache.update_tenancy_policy_limits(cache_name, limits)
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
     return {'tenancy_policy_limits': RecommendationsService(ctx)._tenancy_policy_limits_payload()}
 
 
@@ -1999,19 +2114,31 @@ def load_tenancy(payload: dict[str, object]) -> dict[str, object]:
     profile = profile if isinstance(profile, str) else None
     session_token = None if use_resource_principal else payload.get('session_token')
     session_token = session_token if isinstance(session_token, str) else None
-    recursive = bool(payload.get('recursive'))
-    load_all_users = payload.get('load_all_users')
-    depth_raw = payload.get('compartment_domain_search_depth', 1)
+    recursive = bool(payload.get('recursive', ctx.settings.get('recursive', False)))
+    load_all_users = payload.get('load_all_users', ctx.settings.get('load_all_users', True))
+    depth_raw = payload.get('compartment_domain_search_depth', ctx.settings.get('domain_compartment_depth', 1))
     try:
         depth = max(1, min(int(depth_raw) if isinstance(depth_raw, (int | str)) else 1, 6))
     except (TypeError, ValueError):
         depth = 1
+
+    environment_depth = _environment_domain_search_depth()
+    if environment_depth is not None:
+        depth = environment_depth
+
+    try:
+        policy_method = validate_policy_load_method(
+            payload.get('policy_load_method') or ctx.settings.get('policy_load_method', 'resource_search')
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     stages, on_stage = _build_stage_collector()
     started = time.perf_counter()
     result = service.load_from_tenancy(
         use_instance_principal=use_instance_principal,
         use_resource_principal=use_resource_principal,
+        policy_load_method=policy_method,
         profile=profile,
         session_token=session_token,
         recursive=recursive,
@@ -2667,7 +2794,7 @@ def load_compliance(payload: dict[str, object]) -> dict[str, object]:
     service = LoadService(ctx)
     dir_path_raw = payload.get('dir_path')
     dir_path = dir_path_raw if isinstance(dir_path_raw, str) else ''
-    load_all_users = payload.get('load_all_users')
+    load_all_users = payload.get('load_all_users', ctx.settings.get('load_all_users', True))
     run_post_load_intelligence = payload.get('run_post_load_intelligence')
     if not dir_path:
         _track_web_operation('/load/compliance', status='error', ctx=ctx, source='compliance')

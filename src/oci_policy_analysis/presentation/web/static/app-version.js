@@ -36,6 +36,12 @@
       createPair('Application Version', metadata.version || 'dev'),
       createPair('Server Started', formatStartTime(metadata.server_started_at))
     );
+    if (metadata.image_tag) {
+      footer.append(createPair('Image Tag', metadata.image_tag));
+    }
+    if (metadata.built_at) {
+      footer.append(createPair('Built', formatStartTime(metadata.built_at)));
+    }
     return footer;
   }
 
@@ -47,6 +53,8 @@
       return {
         version: payload.version || 'dev',
         server_started_at: payload.server_started_at || '',
+        image_tag: payload.image_tag || '',
+        built_at: payload.built_at || '',
       };
     } catch (_err) {
       return { version: 'dev', server_started_at: '' };

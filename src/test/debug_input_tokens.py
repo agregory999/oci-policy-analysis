@@ -1,4 +1,5 @@
 from antlr4 import InputStream
+
 from oci_policy_analysis.application.core.parser.policy_parser.PolicyLexer import PolicyLexer
 
 

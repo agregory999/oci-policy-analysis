@@ -1,0 +1,20 @@
+{
+    "resources": {
+        "cloud-shell": {
+            "mapping_status": "no_published_mapping",
+            "catalog_status": "documented_resource",
+            "verbs": {
+                "use": []
+            },
+            "supported_verbs": [
+                "use"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/API/Concepts/cloudshellintro.htm",
+            "notes": "Oracle documents use cloud-shell in tenancy, but the linked access guide does not publish named permission or API-operation mappings. Empty catalog expansion does not mean no authorization is required. Operations performed inside Cloud Shell still require their own OCI policies.",
+            "search_terms": [
+                "cloud shell",
+                "OCI Cloud Shell"
+            ]
+        }
+    }
+}

@@ -505,6 +505,7 @@ th {
 }
 
 .app-version-item {
+  max-width: 100%;
   display: inline-flex;
   align-items: baseline;
   gap: 0.4rem;
@@ -519,6 +520,8 @@ th {
 }
 
 .app-version-value {
+  overflow-wrap: anywhere;
+  white-space: normal;
   color: #1f1b1a;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-weight: 700;
@@ -2278,3 +2281,6 @@ html {
   }
 
 }
+
+/* Preserve invalid source evidence while making validity visible across analysis tables. */
+.invalid-statement-row { color: #b42318; font-style: italic; }

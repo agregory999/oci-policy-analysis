@@ -2,97 +2,50 @@
 
 Analyze OCI IAM policies, compartments, identity domains, groups, users, and dynamic groups from a desktop app, web app, CLI, or MCP server. The tool is read-only: it analyzes data but does not change your tenancy.
 
-## Quick start
+The [full documentation](https://agregory999.github.io/oci-policy-analysis) covers setup, OCI access, sample and saved data, web hosting, command-line use, troubleshooting, and embedding.
 
-Choose the path that fits you:
+For 7.0 highlights and a getting-started guide, see [What's new in 7.0](https://agregory999.github.io/oci-policy-analysis/release_7_0.html). The original desktop app remains available; the new desktop app is the recommended experience going forward.
 
-- **Desktop:** local, single-user visual analysis.
-- **Web:** browser-based access, locally or for a team.
-- **CLI:** scripting, exports, and automation.
-- **MCP:** use OCI policy data with an MCP client.
+## Quick Start: Download a desktop app
 
-### Easiest: download an application
+Download either maintained desktop app for macOS or Windows from the [Releases page](https://github.com/agregory999/oci-policy-analysis/releases). The modern app is the recommended experience going forward; the original app remains available and works as before. No Python setup is needed to run a downloaded app.
 
-Download the latest macOS or Windows application from the [Releases page](https://github.com/agregory999/oci-policy-analysis/releases). If your operating system asks for approval, allow the downloaded application to run.
+## Quick Start: Choose your data source
 
-### Install with pip
+You do **not** have to connect this tool to a live tenancy. Choose from:
 
-You need Python 3.12 or later. Create and activate a virtual environment:
+- **Sample data:** choose **Sample** in the modern app to explore fictional data without credentials.
+- **Live OCI load:** requires an OCI user/API-key profile **and** IAM permissions granted to that principal. Before loading a tenancy, complete [tenancy access](#required-obtain-tenancy-access).
+- **Offline CIS Compliance import:** import the directory of OCI CIS Compliance output files without connecting to the tenancy.
 
-```bash
-python -m venv .venv
+## Quick Start: Begin Analysis
 
-# macOS/Linux
-source .venv/bin/activate
+Once data has been loaded, it will be available for access later via a local cache.  At this point you can navigate the application and start looking at policy data.
 
-# Windows PowerShell
-.venv\Scripts\Activate.ps1
+## REQUIRED for Live Tenancy: Obtain tenancy access
+
+Using a downloaded executable from your desktop will enable you direct access to your OCI tenancy.  In order gain access, you will require an API Key for a tenancy.  It is recommended to limit this tool's access to the tenancy to a read-only set of operations.  
+
+Admin API Keys with your DEFAULT profile will work, but it is easy to set up a limited access key specifically for this tool.
+
+### OCI Limited User
+
+1) From your OCI Console, create a new OCI Group in the Default Identity Domain - for example `PolicyAnalysisUsers`.   
+2) Next, create a new OCI User in the Default Identity Domain called `policy-analysis-user` - place this user in the group from the previous step
+3) Create an (API Key)[https://docs.oracle.com/en-us/iaas/Content/Identity/access/to_upload_an_API_signing_key.htm] for the user that was just created. 
+4) Update your local `.oci/config` with a new named profile for this key, for example `POLICY-ANALYSIS`.
+5) Create a new IAM Policy in the tenancy root, for example `PolicyAnalysisPolicy`.  The following statement is all that is needed:
+```text
+allow group <your_group> to {POLICY_READ, COMPARTMENT_INSPECT, DOMAIN_INSPECT, DYNAMIC_GROUP_INSPECT, GROUP_INSPECT, USER_INSPECT, LIMITS_VIEW_INSPECT} in tenancy
 ```
 
-Install only the mode you intend to use:
+Once completed, the tool's profile selection dropdown should show `POLICY-ANALYSIS` and can be used to safely run the tool with limited permissions within the tenancy.
 
-```bash
-# Desktop application (requires a working Tkinter installation)
-python -m pip install oci-policy-analysis
+## REQUIRED for CIS COMPLIANCE scripts
 
-# Browser-based web server
-python -m pip install "oci-policy-analysis[web]"
-
-# Command-line interface
-python -m pip install oci-policy-analysis
-
-# MCP server
-python -m pip install "oci-policy-analysis[mcp]"
-```
-
-Start the selected mode:
-
-```bash
-oci-policy-analysis-ui                 # Desktop
-oci-policy-analysis-web                # Web: open http://127.0.0.1:8000
-oci-policy-analysis-cli --help         # CLI
-oci-policy-analysis-mcp --help         # MCP
-```
-
-**NOTE:** For the desktop app, confirm Tkinter works before starting if needed - one time test:
-
-```bash
-python -m tkinter
-```
-If this fails, collect your python version and then install TK for that version.  For example, on Mac:
-```
-((.venv) ) agregory@agregory-mac oci-policy-analysis % python -V
-Python 3.12.13
-((.venv) ) agregory@agregory-mac oci-policy-analysis % python -m tkinter
-(fails)
-((.venv) ) agregory@agregory-mac oci-policy-analysis % brew install python-tk@3.12
-...
-==> Installing python-tk@3.12
-==> Pouring python-tk@3.12--3.12.14.arm64_tahoe.bottle.tar.gz
-...
-((.venv) ) agregory@agregory-mac oci-policy-analysis % python -m tkinter
-(works)
-```
-
-## Choose your data source
-
-You do **not** have to connect this tool to a live tenancy.
-
-- **Live OCI load:** requires an OCI user/API-key profile, session token, instance principal, or resource principal **and** IAM permissions granted to that principal. Before loading a tenancy, complete [Authentication and principals](docs/source/setup.md#authentication-and-principals) and [Permissions required](docs/source/setup.md#permissions-required).
-- **Offline CIS compliance import:** import the directory of OCI CIS Compliance output files instead. This lets you analyze the supplied data without the tool connecting to your tenancy. In the desktop or web app, choose **Load Compliance Data**; from the CLI, use:
-
-  ```bash
-  oci-policy-analysis-cli --load-from-compliance /path/to/compliance_csv_output
-  ```
-
-  See the [CLI guide](docs/source/cli.md) for expected files and options.
+Assuming you have access to an OCI tenancy already, you can run the supported (CIS Compliance scripts)[https://github.com/oci-landing-zones/oci-cis-landingzone-quickstart] with the `--raw` option.  This will produce a directory - if you were sent a zipped archive, simply unzip it locally.  Then in the Policy Analysis tool, point the CIS Compliance load directory to the unzipped location.   
 
 ## More help
 
 The [full documentation](https://agregory999.github.io/oci-policy-analysis) covers mode-specific setup, OCI authentication and permissions, CIS compliance imports, web hosting, CLI and MCP usage, troubleshooting, architecture, and API reference.
 
-## License and support
-
-Licensed under UPL-1.0.
-
-This is not an Oracle-supported application. It uses supported OCI Python SDK calls and is designed to request the minimum access needed to read and analyze the selected data.

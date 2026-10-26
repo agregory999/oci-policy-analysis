@@ -168,6 +168,22 @@ class ProspectiveBuilderService:
         seen: set[str] = set()
         details: dict[str, tuple[str, str | None, str]] = {}
 
+        # Inventory also includes principals that have no policy yet, which are
+        # useful candidates when drafting their first grant. Preserve source
+        # spelling in generated statements while keeping canonical choice keys.
+        for attribute, ptype, name_field in (
+            ('groups', 'group', 'group_name'),
+            ('dynamic_groups', 'dynamic-group', 'dynamic_group_name'),
+        ):
+            for principal in getattr(self._policy_repo, attribute, []) or []:
+                name = str(principal.get(name_field) or '').strip()
+                if not name:
+                    continue
+                domain = str(principal.get('domain_name') or 'Default').strip()
+                key = calculate_principal_key(ptype, domain, name)
+                seen.add(key)
+                details[key] = (ptype, domain, name)
+
         for stmt in getattr(self._policy_repo, 'regular_statements', []) or []:
             ptype = str(stmt.get('subject_type') or '').strip()
             subjects = stmt.get('subject') or []

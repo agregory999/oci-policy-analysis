@@ -1,596 +1,175 @@
-# Usage
-
-This guide explains how to use the interactive desktop and web applications after installation. For installation, authentication, OCI permissions, and deployment options, see the [Setup Guide](./setup.md). CLI and standalone MCP workflows have their own [CLI](./cli.md) and [MCP Server](./mcp.md) guides.
-
-## The usual workflow
-
-1. **Choose a data source.** Load current data from OCI, open a saved combined cache, or import OCI CIS Compliance output. The [data-source setup](./setup.md#choose-a-data-source) section explains what each option provides and where the data comes from.
-2. **Load the dataset.** In the desktop application, start on **Settings**. In the web application, use the data operations on the home page. Every analysis page uses the currently loaded dataset.
-3. **Investigate the question.** Start with Policy Browser or Policy Analysis, then move to the identity, permissions, historical, or specialist views that fit the question. Review the Limits view when policy counts are close to a tenancy limit.
-4. **Validate everything.** Use Condition Tester, API Simulation, Recommendations, or the policy-statement detail view to understand why access is granted, denied, or flagged, and where a tenancy limit is being approached.
-5. **Consolidate or clean up.** Use Recommendations and the Consolidation Workbench to identify policy cleanup or consolidation opportunities. This is a guided process; the tool does not change OCI policies itself.
-6. **Export, compare, or share.** Save a cache for later comparison, export a report, or expose the loaded dataset through MCP when appropriate.
-
-### Pick the right data source
-
-- **Live OCI load** reads the current tenancy through your configured OCI authentication. It is the best choice when current policy and identity data is required.
-- **Combined cache** reopens data previously saved by the application. It is useful for repeatable analysis, historical comparison, and working without current OCI access.
-- **CIS Compliance output** imports the supplied compliance CSV output directory. It is the best choice when the analysis environment must not connect directly to a tenancy. A policy-and-compartments-only export is supported for placement and limit work; see [Limited Compliance Loading](limited_modes.md#limited-compliance-loading) for the available and unavailable workflows.
-
-The application analyzes the selected data; it does not change IAM policies or other OCI resources.
-
-## Starting the interactive application
-
-Use the startup command for the interface you installed:
-
-```bash
-oci-policy-analysis-ui                 # desktop
-oci-policy-analysis-web                # web on http://127.0.0.1:8000
-```
-
-### Desktop startup options
-
-```bash
-oci-policy-analysis-ui --verbose
-```
-
-`--verbose` enables detailed application logging for troubleshooting. Desktop has no normal host, port, or data-source command-line options; select the data source from **Settings** after launch.
-
-### Web startup options
-
-```bash
-oci-policy-analysis-web --host 127.0.0.1 --port 8000
-oci-policy-analysis-web --host 0.0.0.0 --port 8080
-oci-policy-analysis-web --reload       # local development only
-```
-
-`--host` controls the listening interface and defaults to `127.0.0.1`; `--port` defaults to `8000`. Use `0.0.0.0` only when clients or a reverse proxy must reach the server. `--reload` restarts the server when source files change and is not intended for production. On each startup, copy the runtime access key from the server log into the browser login modal.
-
-For CLI and MCP startup options, use `oci-policy-analysis-cli --help` and `oci-policy-analysis-mcp --help`, then see their dedicated [CLI](./cli.md) and [MCP Server](./mcp.md) guides.
-
-## Analysis Concepts
-
-Before using the tabs, it helps to separate the search styles this app supports.
-
-### Basic vs Advanced Filters
-
-Basic filters are the fast, text-oriented controls you use for general policy browsing:
-
-- statement text
-- subject / principal text
-- resource, verb, permission, and path filters
-- validity and compartment scoping
-
-Advanced filters are for parsed policy structure and identity evidence:
-
-- structured principals
-- parsed `where`-clause atoms
-- tag conditions
-- resource principals and OKE workload identities
-- confidence and residual-condition details
-
-Use basic filters when you know the text you want to find. Use advanced filters when you need to explain why a statement matches.
-
-### Principals
-
-This app treats principals as a first-class concept.
-
-- **Human principals**: users and groups
-- **Dynamic groups**: resource-based membership rules
-- **Resource principals**: OCI services or compute-style principals represented by `any-user` / `any-group` statements with `request.principal.*` conditions
-- **OKE workload identities**: a resource-principal variant constrained by `request.principal.type = 'workload'`, namespace, service account, and cluster OCID
-
-The OKE workflow has its own dedicated page: [OKE Workload Identity Querying](./oke_workload_identity.md).
-
-### Tag-Based Access
-
-Tag-based policy search is also a distinct advanced path.
-
-- Use the dedicated [Tag-based Policy Search](./tag_based.md) page for parsed tag conditions, semantic tag access, and tag metadata filters.
-- The Policy tab still exposes a `Tag-based` helper for quick filtering.
-- Tag-based workflows share the same underlying parsed-condition model as the tag-focused page and MCP tool.
-
-## Desktop UI
-
-Each tab in the UI provides a specific area of functionality. To understand the full technical rationale and data flow for each area, see the [Architecture](./architecture.md) page.
-
-**Tabs include:**
-
-### Settings Tab (Start Here)
-<!-- Anchor link; do not change or remove this line! -->
-
-The **Settings Tab** is where you establish the foundation for all analysis in the application. This is typically your first stop after launching the UI or whenever you switch tenancies/environments.
-
-**Purpose**  
-- Configure tenancy, identity, and environment options.  
-- Import/export cached tenancy data (policies, users, groups, dynamic groups, etc.) for reuse across sessions or machines.  
-- Adjust global display and performance preferences that impact how other tabs behave.
- - Control **anonymous usage tracking** (whether the app sends non-personal feature usage metrics to a write-only Object Storage endpoint).
-
-**General Flow**  
-1. Select or enter tenancy-specific details and any required authentication/region parameters.  
-2. Load or import policy data for that tenancy (from OCI or from a previously exported cache file).  
-3. Tune UI preferences such as table density, caching options, and logging levels.
-4. Save your configuration so it is reused on subsequent launches.
-
-**Key Widgets and Actions**  
-- **Tenancy / Profile selectors:** Choose which tenancy or profile you are currently analyzing.  
-- **Import/Export Data buttons:** Load existing cached data or save the currently loaded tenancy data to a file for reuse or sharing.  
-- **Advanced Settings / Caching options:** Control snapshot retention, cache refresh behavior, and logging verbosity.  
-  A policy-only reload creates a new cache named like `tenancy_timestamp_reload-01` rather than changing the original full snapshot. It refreshes policies and compartments while retaining the original IAM data; Historical Comparison marks IAM results unavailable whenever either selected cache is a policy-only reload snapshot. Compartments remain comparable. Reload All refreshes IAM as well as policies and supports both comparisons.
- - **(Planned) Usage Tracking toggle:** A simple on/off control for anonymous usage tracking. Today this flag is stored as `"usage_tracking_enabled"` in the local settings file (`~/.oci-policy-analysis/settings.json`) and defaults to **On** on first run. You can see whether tracking is currently enabled in the status bar text ("Tool Usage Tracking: On/Off").
-
-Changes made here are **application-wide**: once you import a different policy dataset or adjust global options, all other tabs (Policy Browser, Policy, Simulation, Recommendations, etc.) will immediately reflect the new environment.
-
-### Policy Browser Tab
-<!-- Anchor link; do not change or remove this line! -->
-
-The **Policy Browser Tab** provides a hierarchical, tree-style view of your entire tenancy. It is designed for **navigation and context**, helping you see how compartments, policies, and statements are organized.
-
-**Purpose**  
-- Visualize the compartment hierarchy and attached policies at each level.  
-- Quickly locate policies and statements that apply to a given compartment or path.  
-- View tenancy limits and consumption for policy count and policy compartment chain count
-- Act as a launching point for deeper analysis in more specialized tabs.
-
-**General Flow**  
-1. Expand the root compartment and drill down through child compartments to the area of interest.  
-2. Inspect attached policies and their individual statements for the selected compartment.  
-3. Use context/right-click actions to pivot into more detailed views (Policy Tab, Permissions Report, Cross Tenancy, etc.).  
-4. Optionally export subsets of policies or paths for offline review.
-
-**Key Widgets and Right-Click Actions**  
-- **Compartment/Policy Tree:** Expandable nodes representing compartments and policies. Selecting a node shows details (statements, metadata) in the side panel.  
-- **Limit Data:** Shows or hides the limit data and highlights places where the tenancy is or is close to a limit.  Use this information for cleanup or requesting a limit increase from the tenancy.
-- **Statement Detail Pane:** Shows parsed statement text, subject, verbs, resource families, and where-clauses.  
-- **Right-click on a Compartment:**
-  - "Open in Policy Tab" – filters the Policy Tab to that compartment scope.  
-  - "Open in Permissions Report" – jump to an effective-permissions view rooted at that path.  
-  - "Export Policies under this Compartment" – generate a focused export.  
-- **Right-click on a Policy or Statement:**
-  - "Show in Policy Tab" – focus on this specific policy/statement for more advanced filtering and analysis.  
-  - "Copy Path / OCID" – copy identifiers for documentation or scripting.  
-
-Use this tab when you want a **top-down**, visually oriented understanding of your tenancy’s policies before diving into advanced analysis.
-
-### Policy Tab
-<!-- Anchor link; do not change or remove this line! -->
-
-The **Policy Tab** is the primary workspace for **searching, filtering, and deeply inspecting** policy statements across the tenancy.
-
-**Purpose**  
-- Perform detailed audits of policy statements across compartments.  
-- Search by text, subject, resource family, compartment, or access level.  
-- Quickly isolate special policy patterns such as tag-based conditions, invalid statements, or prospective (what-if) statements.  
-- Understand how individual statements are structured and which subjects they affect.
-
-**General Flow**  
-1. Select initial filters (compartment path, subject type, resource family, etc.) to narrow down the policy set.  
-2. Use helper filter controls (for example `any-user|any-group`, `ROOTONLY`, and resource hierarchy expansion) to build broader or more precise filter sets.  
-3. Use optional filter toggles (Action = Allow/Deny, Invalid Only, Tag-based, Show Prospective) to focus on specific policy classes.  
-4. Use the main policy table to sort and refine (e.g., by path, access level, risk flags).  
-5. Select a statement to see a structured breakdown (subject, verb, resource, where-clause).  
-6. Pivot to Groups/Users, Dynamic Groups, or Resource Principals tabs when you want to see **who** is affected by a given statement.
-
-**Key Widgets and Right-Click Actions**  
-- **Filter Bar / Search Panel:** Filter by Subject, Verb, Resource, Permission, Location/Hierarchy, statement text, policy name, and raw conditions. Multiple values in a field can be entered with `|` for OR matching.  
-- **Helper Filter Buttons:**
-  - **Add any-user / any-group** inserts `any-user|any-group` in Subject.
-  - **Add ROOTONLY** inserts `ROOTONLY` in Hierarchy.
-  - **Add Hierarchy** expands resources to include `all-resources` and the containing family when known.
-- **Filter Toggles / Options:**
-  - **Action** selector (Both / Allow / Deny).
-  - **Invalid Only** to focus on invalid statements.
-  - **Tag-based** helper to quickly target statements with `.tag.` conditions.
-  - **Show Prospective** to include prospective `[Prospective]` rows in the same filtered view.
-- **Prospective Editor… button:** Opens the tenancy-scoped prospective statement editor popup for creating/editing what-if statements used by this tab and Simulation.  
-- **Policy Statement Table:** Shows normalized statements with columns for path, subject, verb, resource, risk markers, and where-clauses.  
-- **Statement Details / Inspector:** A side panel that breaks a statement into its parsed components and may show derived metadata (e.g., permissions, risk categorizations).  
-- **Right-click on a Statement:**
-  - "Open in Policy Browser" – highlight the statement in its original hierarchical context.  
-  - "Show Affected Users/Groups" – pivot into the relevant principals tab.  
-  - "Explain with AI" – request a human-readable explanation (if enabled).  
-
-Use this tab for **compliance checks, policy clean-up, and forensic investigations** into particular statements.
-
-### Prospective Editor Popup
-<!-- Anchor link; do not change or remove this line! -->
-
-The **Prospective Editor Popup** is a shared, tenancy-scoped window used to manage **prospective (what-if) policy statements**.
-
-**Purpose**
-- Create hypothetical IAM statements that are *not* deployed in OCI.
-- Validate and organize these statements before using them in analysis/simulation.
-- Maintain one shared prospective statement set used consistently across the UI.
-
-**Where You Open It**
-- **Policy Tab** via **Prospective Editor…**.
-- **API Simulation Tab** via **Manage Prospective Statements…**.
-- (In advanced workflows) from **Tag-based Access Tab** integrations.
-
-**What It Contains**
-- A CRUD grid for statement rows (compartment/location, description, statement text, parse status).
-- Per-row **Parse** actions for validation and diagnostics.
-- Per-row **Delete** actions.
-- A statement builder area (including optional tag-based where-clause helpers) to synthesize complete Allow/Deny statements quickly.
-- **Save and Close** to persist prospective statements for the current tenancy.
-
-**How It Affects Other Tabs**
-- On save, statements are persisted per tenancy and pushed to the simulation engine.
-- **Policy Tab** can immediately show them when **Show Prospective** is enabled.
-- **API Simulation Tab** includes them in scenario evaluation as what-if inputs.
-
-Use this popup when your question is: **“What would happen if we added/changed this policy statement?”**
-
-### Groups / Users Tab
-<!-- Anchor link; do not change or remove this line! -->
-
-The **Groups / Users Tab** centers the UI around **human principals** and their effective access.
-
-**Purpose**  
-- Find a specific user or group and see which policies and statements affect them.  
-- Understand group memberships, inheritance, and the combined effect of multiple policies.  
-- Summarize a principal’s access for documentation or review.
-
-**General Flow**  
-1. Search for a user or group by name or identifier.  
-2. Select the principal to load their group memberships and relevant policies.  
-3. Review associated policy statements and derived permissions.  
-4. Pivot to the Policy, Policy Browser, or Permissions Report tabs to see the same information from a policy- or compartment-centric perspective.
-
-**Key Widgets and Right-Click Actions**  
-- **Principal Search / Selector:** Autocomplete or filter lists for users and groups.  
-- **Membership View:** Table or tree showing which groups a user belongs to (and possibly nested memberships).  
-- **Related Policies / Statements Panel:** Lists policies that reference the selected principal or its groups.  
-- **Right-click on a Principal or Policy Entry:**
-  - "Open in Policy Tab" – inspect the underlying statement set.  
-  - "Open in Permissions Report" – view all effective permissions for this principal.  
-
-Use this tab when the starting point of your question is **“What can this user or group do?”**
-
-### Dynamic Groups Tab
-<!-- Anchor link; do not change or remove this line! -->
-
-The **Dynamic Groups Tab** focuses on **non-human identities** represented as dynamic groups.
-
-**Purpose**  
-- List and inspect all dynamic groups in the tenancy.  
-- Understand which policies target each dynamic group and what resources they control.  
-- Identify unused or overly permissive dynamic groups.
-
-**General Flow**  
-1. Use search or filters to locate dynamic groups by name, usage status, or attributes.  
-2. Select a dynamic group to see its definition, matching rules, and linked policies.  
-3. Review associated policy statements and, if necessary, pivot to Policy or Permissions Report tabs for deeper analysis.  
-4. Use this information to refine dynamic group definitions or tighten access controls in OCI.
-
-**Key Widgets and Right-Click Actions**  
-- **Dynamic Group List / Filter Controls:** Search and filter by group name, tenancy, or usage indicators.  
-- **Group Definition Panel:** Shows the rule expression that defines which resources are members of the dynamic group.  
-- **Linked Policies / Statements Table:** Lists policy statements referencing the dynamic group.  
-- **Right-click on a Dynamic Group or Policy:**
-  - "Open in Policy Tab" – detailed statement inspection.  
-  - "Open in Resource Principals" – see related resource principal views where applicable.  
-  - "Open in Permissions Report" – inspect effective permissions for the dynamic group.  
-
-Use this tab when you’re investigating **resource-based identities and their access footprint**.
-
-### Workload Principals Tab
-<!-- Anchor link; do not change or remove this line! -->
-
-The **Resource Principals Tab** surfaces policies and permissions related to **resource principals and workload identities**.
-
-**Purpose**  
-- Identify where non-human identities have been granted access via dynamic groups or `any-user` statements.
-- Understand which OCI services, compute-style principals, and OKE workload identities are allowed to call which services and APIs.
-- Support security reviews focused on workload-to-service access and parsed `request.principal.*` evidence.
-
-**General Flow**  
-1. Browse or filter for dynamic groups and statements that correspond to resource principals.
-2. Review which services, compartments, and operations those principals can access.
-3. Pivot to Dynamic Groups or Policy tabs to refine or correct identified risks.
-4. Use Permissions Report to generate a full list of effective permissions for a given resource principal identity.
-5. Switch to the OKE mode described in [OKE Workload Identity Querying](./oke_workload_identity.md) when you want namespace/service-account/cluster filtering rather than generic resource-principal matching.
-
-**Key Widgets and Right-Click Actions**  
-- **Resource Principal Summary Table:** Shows which dynamic groups and policies are tied to resource-based identities.  
-- **Statement Breakdown View:** Parses statements that mention dynamic groups or `any-user` in the context of resource principals and workload identities.
-- **Right-click on a Row / Statement:**
-  - "Open in Dynamic Groups" – see the underlying dynamic group configuration.  
-  - "Open in Policy Tab" – detailed view of the source statement.  
-  - "Open in Permissions Report" – generate or navigate to an effective-access view.
-
-Use this tab when your question is **“What can this compute instance, function, or OKE workload actually do?”**
-
-### Cross Tenancy Tab
-<!-- Anchor link; do not change or remove this line! -->
-
-The **Cross Tenancy Tab** highlights **trust relationships between tenancies**.
-
-**Purpose**  
-- Discover statements that define, endorse, or admit cross-tenancy access.  
-- Understand which external tenancies can act in your tenancy, and where you have granted trust outward.  
-- Support security and compliance reviews around external access.
-
-**General Flow**  
-1. Load the cross-tenancy view to see all detected cross-tenancy statements.  
-2. Filter by direction (incoming vs outgoing trust), remote tenancy, or statement type (define/endorse/admit).  
-3. Select an entry to see its full statement text and normalized breakdown.  
-4. Use links to pivot to Policy, Policy Browser, or Permissions Report tabs to inspect the broader impact.
-
-**Key Widgets and Right-Click Actions**  
-- **Cross-Tenancy Summary Table:** Lists each cross-tenancy relationship with columns for local/remote tenancy identifiers, principal, resource, and type (define/endorse/admit).  
-- **Detail Pane:** Shows parsed statement components and any detected risk or configuration notes.  
-- **Right-click on a Row:**
-  - "Open in Policy Tab" – focus on the originating policy and related statements.  
-  - "Open in Permissions Report" – drill down into effective permissions associated with that cross-tenancy relationship.
-
-Use this tab when you’re asking **“Where do we trust or get trusted by other tenancies?”**
-
-### Permissions Report Tab
-<!-- Anchor link; do not change or remove this line! -->
-
-The **Permissions Report Tab** is the application’s **effective-access auditor**.
-
-**Purpose**  
-- Generate comprehensive reports of allow and deny permissions by effective compartment and principal.
-- Trace each listed permission back to source policy statement text where available.
-- Produce JSON artifacts from desktop/web, or JSON/CSV artifacts from CLI, for audits and offline reviews.
-
-**General Flow**  
-1. Load tenancy data through desktop or web so the full post-load pipeline builds the report.  
-2. Expand an effective compartment path and select a principal key.  
-3. Review explicit and inherited allow/deny permission rows.  
-4. Right-click a permission row to open the source policy statement.  
-5. Export the report for offline analysis or documentation.
-
-**Principal Keys**
-- Named identities use canonical keys such as `group:Default/Admins`, `dynamic-group:Default/Builders`, and `service:None/objectstorage`.
-- Broad `any-user` and `any-group` statements remain visible as original subject keys unless their where clause identifies a resource principal or OKE workload identity.
-- Resource-principal statements with `request.principal.type` are shown with keys like `resource-principal:computecontainerinstance/ocid1.compartment...`.
-- OKE workload identity statements with workload conditions are shown with keys like `oke-workload-identity:<cluster_id>/<namespace>/<service_account>`.
-- These keys come from policy condition evidence only; the report does not validate live OCI resources, Kubernetes namespaces, or service accounts.
-
-**Key Widgets and Right-Click Actions**  
-- **Effective Path / Subject Tree:** Lists effective compartment paths and principal keys.
-- **Allow/Deny Permission Tables:** Lists each permission with condition status and source statement text.
-- **Right-click on a Permission Row:**
-  - "Show Policy Statement" – jump to the Policy Analysis tab with the statement text pre-applied.
-
-Use this tab when you want a **clear, report-style view** of what access actually exists.
-
-### Historical Comparison Tab
-<!-- Anchor link; do not change or remove this line! -->
-
-The **Historical Comparison Tab** lets you compare **snapshots of policy and IAM data over time**.
-
-Snapshot details show the cache type, capture/data timestamps, and reload source when available. New **Reload All** snapshots are explicitly labeled. Comparisons require the same tenancy and evaluate each section separately: missing inventory, unloaded users, inherited IAM in policy-only reloads, reported API errors, or known differences in load scope produce an explanation instead of misleading additions/deletions. Legacy caches use the metadata available in those files; unknown historical load scope cannot be verified.
-
-**Purpose**  
-- Detect what changed between two points in time (policies, statements, memberships, etc.).  
-- Support audit, incident response, and change-management reviews.  
-- Correlate access changes with operational events.
-
-**General Flow**  
-1. Select two (or more) cached snapshots taken at different times.  
-2. Run a comparison to identify added, removed, or modified policies, statements, and memberships.  
-3. Review grouped results by compartment, principal, or policy.  
-4. Drill into individual diffs and pivot to live views (Policy, Groups/Users, Permissions Report) to understand current state.  
-5. Export or document differences as needed for audits or change records.
-
-**Key Widgets and Right-Click Actions**  
-- **Snapshot Selector:** Choose which historical snapshots to compare.  
-- **Change Summary View:** High-level summary of added/removed/changed items.  
-- **Detailed Diff Tables:** Show per-item changes, including before/after details where available.  
-- **Right-click on a Change Row:**
-  - "Open in Policy Tab" – inspect the current (or historical) version of a policy.  
-  - "Open Principal" – jump to the corresponding principal tab where applicable.  
-
-Use this tab whenever you’re asking **“What changed between then and now?”**
-
-**Web flow update:** The web Historical Analysis page now keeps context help focused at the card/section level (instead of every per-entry diff row) for cleaner navigation during large compare sessions.
-
-### Embedded MCP Tab
-<!-- Anchor link; do not change or remove this line! -->
-
-The **Embedded MCP Tab** lets you start and manage the **embedded Model Context Protocol (MCP) server** from within the UI.
-
-**Purpose**  
-- Expose your currently loaded policy and permissions data to MCP-compatible clients (such as VS Code, Claude, or other tools).  
-- Support local automation, scripted analysis, and AI-assisted workflows using the same data the UI is showing.  
-- Monitor basic MCP server status and activity while continuing to use the UI.
-
-**General Flow**  
-1. Configure any necessary MCP endpoint or port settings as exposed in the tab.  
-2. Click **Start** to launch the embedded MCP server while the UI is running.  
-3. Connect an MCP client (e.g., VS Code extension, Claude desktop) to the server using the URL/port indicated in the tab.  
-4. Use MCP tools (e.g., policy queries, simulations, recommendations) from the client while watching logs or status in the Embedded MCP tab.  
-5. Click **Stop** before closing the UI, or simply close the UI to stop the embedded server.
-
-**Key Widgets and Actions**  
-- **Server Control Buttons:** Start/Stop the embedded MCP server instance.  
-- **Configuration Panel:** Shows or allows configuration of host, port, protocol (HTTP), and any authentication options used by the embedded server.  
-- **Status Indicator:** Displays whether the MCP server is running and any recent errors.  
-- **Log/Activity View:** Shows basic request/response or connection activity, useful for troubleshooting client connections.
-
-When using this tab, you are exposing your **loaded policy statement set** over MCP. For detailed information about available tools, payloads, and security considerations, see the dedicated [MCP Server](./mcp.md) documentation (pay particular attention to the sections describing the HTTP server mode used by the embedded server).  
-
-This is **different** from starting the standalone MCP server from the command line, which runs without the UI. In the Embedded MCP Tab, the MCP server and the UI share the same process lifecycle: when the UI closes, the embedded MCP server stops. For information about running MCP in a more permanent or remote configuration, see the [MCP Server](./mcp.md) documentation.
-
-### Condition Tester Tab
-<!-- Anchor link; do not change or remove this line! -->
-
-The **Condition Tester Tab** is a focused utility for **parsing and evaluating IAM policy `where` clauses** in isolation.
-
-**Purpose**  
-- Experiment with and validate complex `where` clauses before committing them to live policies.  
-- See exactly how a condition parses and which variables it expects.  
-- Test sample variable values to understand match vs no-match behavior.
-
-**General Flow**  
-1. Paste or type a `where` clause (or a full policy statement with a `where` clause) into the input area.  
-2. Let the tool parse the condition and list the discovered variables.  
-3. Enter one or more sets of variable values to simulate different scenarios.  
-4. Run the condition evaluation to see which scenarios match and why others fail.  
-5. Use these results to refine your policy conditions, then copy updated conditions back into your policy authoring process.
-
-**Key Widgets and Right-Click Actions**  
-- **Condition Input Editor:** Text area for entering or editing `where` clauses or full statements.  
-- **Parsed Variables Panel:** Lists variable names detected in the condition (e.g., `request.principal.name`, `user.department`).  
-- **Variable Value Grid:** Lets you enter sample values for one or more test cases.  
-- **Evaluation Results Table:** Shows per-test-case match/no-match status and any parse or evaluation errors.  
-- **Integration Shortcuts:** From other tabs (e.g., Policy), you may be able to right-click a statement and send its condition to the Condition Tester for quick experimentation.
-
-This tab complements the **API Simulation Tab** by focusing on **conditions only**. For full policy + permission evaluation against API operations, see the Simulation tab (and the dedicated [Simulation](./simulation.md) documentation).
-
-### Tag-based Access Tab
-<!-- Anchor link; do not change or remove this line! -->
-
-Use **Tag-based Access** to find statements with `.tag.` conditions, narrow them by namespace, key, value, or access type, and inspect the parsed condition elements. Open the Prospective Editor or Condition Tester when a matching statement needs to be tested or revised.
-
-For tag-condition concepts and detailed search behavior, see [Tag-based Policy Search](./tag_based.md).
-
-### Recommendations Tab
-<!-- Anchor link; do not change or remove this line! -->
-
-Use **Policy Recommendations** to review risk, overlap, supersession, cleanup, consolidation, and limit findings for the loaded dataset. Filter the relevant subtab, inspect a finding's evidence, and use its actions to open the underlying policy or stage a review item. The tab identifies work to consider; it does not modify OCI policies.
-
-For the full finding model, limits workflow, and remediation guidance, see [Recommendations](./recommendations.md).
-
-### Reports Tab
-<!-- Anchor link; do not change or remove this line! -->
-
-Use **Reports** to select a report, generate a point-in-time artifact, preview it, and export it for sharing or audit records. Choose Policy Inventory for policy data, Effective Permissions for calculated access, or Full Policy Overlaps when you explicitly need that analysis.
-
-For report types and their contents, see [Reports](./reports.md).
-
-### Consolidation Workbench Tab
-<!-- Anchor link; do not change or remove this line! -->
-
-Use **Consolidation** to protect statements, select candidates, choose a strategy, and generate a reviewable proposal with rollback instructions. Review and apply any resulting OCI CLI or Console actions yourself, then reload the dataset to check progress.
-
-For strategies, plan lifecycle, placement rules, and rollback details, see [Consolidation planning](./consolidation.md).
-
-### API Simulation Tab
-<!-- Anchor link; do not change or remove this line! -->
-
-The **API Simulation Tab** provides a full **what-if simulation environment** for OCI API calls.
-
-**Purpose**  
-- Test whether a specific OCI API operation would be allowed or denied under the currently loaded policies.  
-- Understand which statements (including **prospective** what-if statements) contribute to a decision.  
-- Perform pre-deployment validation of new or changed policies.
-
-**General Flow**  
-1. Select the **simulation environment**: effective compartment path and principal (user, group, dynamic group, resource principal via `any-user`, etc.).  
-2. Load applicable statements (real + prospective) and select which ones to include in the scenario.  
-3. Configure any required `where`-clause variables for the included statements.  
-4. Choose an OCI API operation to test (e.g., `oci:ListBuckets`).  
-5. Run the simulation, then review the allow/deny result, final permission set, and per-statement trace.  
-6. Iterate by toggling statements, adjusting variables, or modifying prospective statements to explore different what-if outcomes.
-
-**Key Widgets and Right-Click Actions**  
-- **Simulation Environment Subtab:** Controls for effective path, principal type, and principal identity.  
-- **Statements and Context Subtab:**
-  - Table of applicable statements (real + `[Prospective]`), with checkboxes to include/exclude each one.  
-  - **Manage Prospective Statements** button to add/edit/remove hypothetical statements stored per tenancy.  
-  - Dynamic where-variable input panel that rebuilds when the set of included statements changes.  
-- **API Operation Selector:** Drop-down or input for selecting the target OCI API operation.  
-- **Simulation History Subtab:** Shows previous runs, their inputs (principal, operation, variables, included prospective statements), and trace details; supports JSON export.
-
-For a deeper, engine-focused explanation of how simulation works (including prospective statements and MCP integration), see the dedicated [Simulation](./simulation.md) page. Maintainers can also consult the [simulation engine context](https://github.com/agregory999/oci-policy-analysis/blob/main/context/project/CONTEXT_simulation_engine.md).
-
-### Console & Maintenance Tabs
-<!-- Anchor link; do not change or remove this line! -->
-
-Use **Console Logging** to inspect application events while troubleshooting. Use **Maintenance** for cache and diagnostic operations, then refresh any affected analysis tabs.
-
-## Web UI
-
-The web interface mirrors the same analysis model, but the entry points are card- and page-based instead of tab-based.
-
-### Home / Data Operations Page
-
-Use the home page to choose one data source—live tenancy, CIS compliance output, cache, or export—and follow progress while the shared dataset loads. Its navigation cards open the analysis and utility pages below.
-
-### Settings / Caches Page
-
-Use Settings to review web options and manage saved caches before or after loading a dataset. For source selection and cache behavior, see the [Setup Guide](./setup.md).
-
-### Policy Analysis Page
-
-Use Policy Analysis to filter and inspect policy statements by text, subject, resource, verb, permission, path, or parsed conditions. Use the advanced panels for structured-principal, tag, and workload-identity searches.
-
-### Cross-Tenancy Analysis Page
-
-Use this page to filter and inspect `define`, `endorse`, and `admit` statements, then open the supporting policy details when a trust relationship needs review.
-
-### Historical Analysis Page
-
-Use this page to select saved snapshots, compare them, and inspect added, removed, or changed policy and identity data.
-
-### User/Group Analysis Page
-
-Use this page to select a user or group, review memberships and related statements, and pivot to the relevant policy evidence.
-
-### Dynamic Group Analysis Page
-
-Use this page to find dynamic groups, inspect their matching rules, and review policies that grant them access.
-
-### Workload Principals Analysis Page
-
-Use this page for resource principals and workload identities. It supports the same namespace, service-account, and cluster filters as the desktop tab; see [OKE Workload Identity Querying](./oke_workload_identity.md) for that workflow.
-
-### Policy Simulation Page
-
-Use Simulation to select an effective path, principal, statements, context values, and an API operation, then review the decision trace and history. For simulation concepts and interpretation, see [Simulation](./simulation.md).
-
-### Recommendations / Limits Page
-
-Use Recommendations to review risk, overlap, supersession, cleanup, consolidation, and tenancy-limit findings. Filter a finding, inspect its evidence, and use its action to open the source policy or send an actionable consolidation opportunity to the workbench. See [Recommendations](./recommendations.md) for the complete model and guidance.
-
-### Consolidation Workbench Page
-
-Use the workbench to select or receive candidates, choose a strategy, generate a proposal, and review rollback instructions. Apply any OCI changes outside the application, then reload to check progress. See [Consolidation planning](./consolidation.md) for strategy and lifecycle details.
-
-### Permissions Analysis Page
-
-Use this page to browse effective permissions by compartment and principal, inspect the source statement, and export the resulting data.
-
-### Reports Page
-
-Use Reports to generate, preview, and download a Policy Inventory, Effective Permissions, or explicitly requested Full Policy Overlaps artifact. See [Reports](./reports.md) for report contents.
-
-### Tag Namespaces Page
-
-Use this page to inspect tenancy tag namespaces and values that can be used when reviewing tag-based access. For parsed tag-policy searches and condition semantics, see [Tag-based Policy Search](./tag_based.md).
-
-### Compartment Hierarchy Page
-
-Use this page to browse the loaded compartment tree and its policy-statement counts, then select a compartment to focus subsequent analysis.
-
-### Condition Tester Page
-
-Use this page to paste a `where` clause, enter sample variables, and evaluate the condition before using it in a policy or simulation.
-
-### Reference Data Page
-
-Use Reference Data for permission lookup, API-operation checks, overlap tests, and source references without leaving the browser.
-
-### Logging Page
-
-Use Logging to inspect application events and adjust the displayed level while troubleshooting a load or analysis workflow.
-
-### Limited Scope Management Page
-
-Use this page when working with a limited dataset to see available capabilities and manage the supported scope. See [Limited Compliance Loading](./limited_modes.md#limited-compliance-loading) for its constraints.
-
-## MCP
-
-The MCP server is documented separately in [MCP Server](./mcp.md). It is kept on its own page because it has its own tool catalog, transport modes, and client setup patterns.
-
-Use MCP when you want AI tooling or automation to query the same policy model from outside the UI.
-
----
-
-For the underlying logic, data model, and architecture see the [Architecture page](./architecture.md).
+# New Desktop UI Usage
+
+This guide covers the new desktop app, launched with
+`oci-policy-analysis-ui`. It walks through loading data, using the analysis
+pages, and finding logs and supporting tools. For installation, OCI access, and
+permissions, see [Setup](setup.md). The original Tkinter app has a separate
+[legacy UI guide](usage_legacy.md).
+
+## Start with Overview & Settings
+
+When the app opens, use **Overview & Settings** to choose a data source and
+load the data you want to review. The source choices are:
+
+- **Live Tenancy** — connect to OCI using a profile or instance principal.
+- **Local Snapshot** — open a saved snapshot or cache from disk.
+- **CIS Compliance** — import supported CIS Compliance output.
+- **Sample** — load fictional data to explore the app without connecting to
+  OCI or using credentials.
+
+For live data, choose an authentication method and profile, then select the
+compartment depth for identity-domain searches. Advanced options include
+loading all users and all compartments, and choosing the policy-loading scope.
+Select **Load from OCI** when the options are ready.
+
+After a successful load, the **Active Data Set** card shows the current source,
+profile or connection, status, data summary, and recent load activity. A failed
+load leaves the last successfully loaded data active. Other analysis pages
+become available after data loads.
+
+The sample snapshot includes fictional compartments, policies, identities,
+and workload examples. Use it to learn the navigation and filters before
+connecting to a tenancy.
+
+## Find policy information
+
+### Policy Inventory
+
+Use **Policy Inventory** for a compartment-first view. The **Hierarchy** tab
+shows the loaded compartment tree and associated policies. The other tabs let
+you browse compartments, policies, policy statements, and tags as tables.
+Select a row to inspect it. Right-click a row to open its details, including
+all available fields, or to move to a related view.
+
+### Policy Browser
+
+Use **Policy Browser** to search and filter source policy statements. Combine
+text searches with filters for policy, compartment, principal, resource,
+permission, verb, effect, validity, and conditions. Select a row to see its
+statement details; use the context menu for related actions and complete
+evidence.
+
+The browser preserves source text, including invalid or unresolved statements.
+Review the original statement and its conditions when a parsed field or summary
+does not tell the whole story.
+
+### Policy Graph
+
+Use **Policy Graph** to explore relationships between principals, source
+grants, and compartment paths. Search by principal, path, resource or
+permission, policy or statement text, and effect. Selecting a node updates the
+search and narrows the graph. The lower panel shows related statements and
+selected evidence. Use **Fit**, **+**, and **−** to adjust the view; drag to pan.
+
+The graph shows direct policy evidence. It does not evaluate conditions or
+make an OCI authorization decision.
+
+## Review identities and access
+
+- **Users / Groups** — find a user or group and review memberships and related
+  policy statements.
+- **Dynamic Groups** — inspect dynamic-group rules and the policies that refer
+  to each group. Filter to groups that are in use or not in use, then select a
+  group to see its statements.
+- **Resource Principals** — explore policies for resource-oriented identities,
+  including dynamic groups and OKE workload identities. Use the OKE filters
+  when reviewing namespace, service account, or cluster evidence.
+- **Cross-Tenancy** — review tenancy aliases, cross-tenancy statements, and
+  unresolved references or findings.
+- **Permissions Analysis** — inspect permissions represented in the loaded
+  policy evidence. Keep conditions, exclusions, and data coverage in view when
+  interpreting results.
+
+Use the row context menus to inspect complete details or navigate between
+related records. Details include source fields even when they are not displayed
+as table columns.
+
+## Review findings and plan changes
+
+- **Recommendations** — review findings and possible policy cleanups. The
+  **Cleanup** view shows the source records behind a recommendation; right-click
+  a row to inspect all available details. The **Limits** view shows policy and
+  compartment-hierarchy limits. For saved or imported data, you can enter
+  known limits; a live-loaded dataset can fetch them from OCI.
+- **Prospective Statements** — create hypothetical statements for analysis.
+  They are kept separate from the loaded source policies and are not sent to
+  OCI.
+- **Simulation** — select a principal, operation, and request context to see
+  how the loaded policy evidence relates to a proposed request. Use the result
+  tabs to inspect statement evidence and condition comparisons.
+- **Consolidation Workbench** — review policy consolidation proposals, their
+  changes, skipped statements, and rollback information. The workbench prepares
+  a plan; it does not apply changes in OCI.
+- **Historical Comparison** — compare two saved snapshots or JSON files. Use
+  the change tables and details to see what changed. For a policy change,
+  **Find OCI Audit Records** can prepare an OCI Logging Search command using
+  the policy and compartment information from the selected change.
+
+These pages analyze the selected snapshot and any explicitly included
+prospective statements. They do not update OCI policies or perform the service
+operations shown in a simulation.
+
+## Tools
+
+Open **Tools** for the supporting work areas:
+
+- **Condition Tester** — enter a policy `where` clause and sample values to
+  inspect how its conditions behave.
+- **Reports** — generate and preview supported policy and permissions reports.
+- **Maintenance** — manage saved caches and tenancy-specific consolidation
+  data.
+- **Logging** — adjust the displayed application log level and component
+  overrides.
+
+Use the **Live Log** button at the bottom of the left navigation to open the
+log and activity window from any page.
+
+## Live logs and OCI call details
+
+The log window has three tabs:
+
+- **Live log** shows application messages as they arrive. Filter by component
+  or severity while troubleshooting.
+- **Load activity** shows stages and status messages for the current or most
+  recent load.
+- **API Calls** shows completed OCI request metadata, including time, duration,
+  status, service code, reason, and request ID when available. Search the list
+  or select **Errors only**, then select a row to inspect its details.
+
+The API call history is held in memory and can be cleared from the API Calls
+tab. It does not include request or response bodies. A request error does not
+by itself prove that a resource was deleted or inaccessible; review its status,
+reason, and request ID alongside the load activity.
+
+The **Logging** tool controls application log levels. The Live Log button opens
+the viewer; it does not change which data source is loaded.
+
+## Advanced pages
+
+Turn on **Advanced mode** to show additional pages and workflows:
+
+- **Tag-Based Policies** helps search statements that use tag conditions.
+- **Prospective Statements**, **Simulation**, and **Consolidation Workbench**
+  support what-if analysis and plan review.
+- **Historical Comparison** compares saved snapshots and can help trace policy
+  changes to OCI audit records.
+- **MCP & Assistant** shares the loaded snapshot with compatible MCP clients
+  and offers in-app Codex CLI and Claude Code conversations. Read the
+  [MCP Assistant guide](mcp_assistant.md) before connecting a client; Codex or
+  Claude tools need to be installed and signed in first.
+
+The MCP Assistant uses the loaded snapshot and remains active only while the
+app is open. Its answers are based on returned policy evidence, not an OCI
+authorization decision.
+
+## Appearance and analysis settings
+
+Use **Overview & Settings** to adjust the appearance, table density, logging,
+and post-load analysis options. The intelligence setting affects what analysis
+is prepared on the next load; changing it does not refresh the current data.
+Theme and display choices apply across the app.
+
+For OCI authentication, available data sources, saved snapshots, and required
+permissions, see [Setup](setup.md). For policy condition limits, unresolved
+evidence, and other interpretation details, see the relevant topic pages in
+the documentation index.

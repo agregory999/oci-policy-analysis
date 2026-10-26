@@ -146,6 +146,8 @@ class UsageDoc:
     tenancy_suffix: str | None
     events: list[UsageEvent] = field(default_factory=list)
     operations: list[UsageOperation] = field(default_factory=list)
+    interface: str = 'unknown'
+    schema_version: int = 0
 
     @classmethod
     def from_dict(
@@ -188,8 +190,10 @@ class UsageDoc:
         if not isinstance(python_ver, str):
             python_ver = 'unknown'
 
-        events_raw: Iterable[dict[str, Any]] = raw.get('events') or []
-        operations_raw: Iterable[dict[str, Any]] = raw.get('operations') or []
+        events_raw: Iterable[dict[str, Any]] = raw.get('events') if isinstance(raw.get('events'), list) else []
+        operations_raw: Iterable[dict[str, Any]] = (
+            raw.get('operations') if isinstance(raw.get('operations'), list) else []
+        )
 
         events: list[UsageEvent] = []
         for item in events_raw:
@@ -210,7 +214,10 @@ class UsageDoc:
             ended_at=ended_at,
             os=os_name,
             python=python_ver,
-            tenancy_suffix=tenancy_suffix,
+            tenancy_suffix=tenancy_suffix
+            or (raw.get('tenancy_suffix') if isinstance(raw.get('tenancy_suffix'), str) else None),
+            interface=raw.get('interface') if isinstance(raw.get('interface'), str) else 'unknown',
+            schema_version=raw.get('schema_version') if isinstance(raw.get('schema_version'), int) else 0,
             events=events,
             operations=operations,
         )

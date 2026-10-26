@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+
 from oci_policy_analysis.application.core.repo.policy_analysis_repository import _resolve_compliance_output_csv
 
 

@@ -3,7 +3,7 @@
 # --- Include core source tree ---
 recursive-include src/oci_policy_analysis *.py
 recursive-include src/oci_policy_analysis/ui *
-recursive-include src/oci_policy_analysis/logic *
+recursive-include src/oci_policy_analysis/application/core/resources *
 
 # --- Include non-code resources if needed ---
 recursive-include icons *

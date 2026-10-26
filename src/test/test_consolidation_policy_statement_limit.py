@@ -1,6 +1,7 @@
 """Tests for the OCI per-policy statement limit on consolidation proposals."""
 
 import pytest
+
 from oci_policy_analysis.application.core.engine.consolidation_engine import ConsolidationEngine
 
 

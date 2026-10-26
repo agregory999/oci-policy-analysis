@@ -4,9 +4,1033 @@
   "result": {
     "tools": [
       {
-        "name": "policy_search",
-        "description": "Search OCI IAM policies. Principal filters: use filters.principal for one structured selector (for example {\"principal_type\":\"group\",\"domain_name\":\"Default\",\"name\":\"Admins\"} or {\"principal_type\":\"dynamic-group\"}), filters.principals for OR selectors, and filters.principal_keys for exact canonical keys such as group:Default/Admins. Combine with resource, verb, permission, effective_path, policy_name, conditions, and statement_text.",
+        "name": "resource_reference",
+        "description": "Discover OCI policy resource types and families from names, aliases or everyday wording (for example virtual machines). Returns canonical catalog identifiers, documented source spellings, family membership and cumulative allow-verb permissions. Use before policy_search when the resource name is uncertain. Empty or unavailable mappings are explicit; no tenancy load or OCI API call is needed. Results describe bundled reference data, not access decisions.",
         "inputSchema": {
+          "properties": {
+            "query": {
+              "description": "Resource/family identifier, alias or everyday wording.",
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "kind": {
+              "default": "either",
+              "enum": [
+                "resource",
+                "family",
+                "either"
+              ],
+              "type": "string"
+            },
+            "verb": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "inspect",
+                    "read",
+                    "use",
+                    "manage"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "match": {
+              "default": "search",
+              "enum": [
+                "search",
+                "exact"
+              ],
+              "type": "string"
+            },
+            "limit": {
+              "default": 10,
+              "maximum": 25,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "cursor": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "type": "object",
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "$defs": {
+            "PermissionExpansion": {
+              "description": "A bounded cumulative permission list, with an explicit total and truncation.",
+              "properties": {
+                "permissions": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "total_count": {
+                  "type": "integer"
+                },
+                "truncated": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "permissions",
+                "total_count",
+                "truncated"
+              ],
+              "type": "object"
+            },
+            "ResourceReferenceMatch": {
+              "description": "Resource/family identity, membership and cumulative allow-verb expansion.",
+              "properties": {
+                "canonical_name": {
+                  "type": "string"
+                },
+                "match_type": {
+                  "enum": [
+                    "identifier",
+                    "alias",
+                    "search_term",
+                    "text"
+                  ],
+                  "type": "string"
+                },
+                "matched_text": {
+                  "type": "string"
+                },
+                "notes": {
+                  "default": "",
+                  "type": "string"
+                },
+                "source_urls": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "catalog_status": {
+                  "default": "unreviewed",
+                  "type": "string"
+                },
+                "mapping_status": {
+                  "default": "mapped",
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "resource",
+                    "family"
+                  ],
+                  "type": "string"
+                },
+                "source_resource_name": {
+                  "type": "string"
+                },
+                "aliases": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "search_terms": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "families": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "member_resources": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "member_count": {
+                  "default": 0,
+                  "type": "integer"
+                },
+                "members_truncated": {
+                  "default": false,
+                  "type": "boolean"
+                },
+                "unmapped_member_resources": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "unmapped_member_count": {
+                  "default": 0,
+                  "type": "integer"
+                },
+                "supported_verbs": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "permissions_by_verb": {
+                  "additionalProperties": {
+                    "$ref": "#/$defs/PermissionExpansion"
+                  },
+                  "propertyNames": {
+                    "enum": [
+                      "inspect",
+                      "read",
+                      "use",
+                      "manage"
+                    ]
+                  },
+                  "type": "object"
+                }
+              },
+              "required": [
+                "canonical_name",
+                "match_type",
+                "matched_text",
+                "kind",
+                "source_resource_name",
+                "permissions_by_verb"
+              ],
+              "type": "object"
+            }
+          },
+          "description": "Structured resource discovery and expansion result.",
+          "properties": {
+            "catalog_id": {
+              "type": "string"
+            },
+            "catalog_version": {
+              "type": "string"
+            },
+            "total_matches": {
+              "type": "integer"
+            },
+            "matches": {
+              "items": {
+                "$ref": "#/$defs/ResourceReferenceMatch"
+              },
+              "type": "array"
+            },
+            "next_cursor": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "warnings": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "catalog_id",
+            "catalog_version",
+            "total_matches",
+            "matches",
+            "next_cursor",
+            "warnings"
+          ],
+          "type": "object"
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "operation_reference",
+        "description": "Discover OCI API operation names and their catalog permission requirements. Returns qualified identities such as core:LaunchInstance, request.operation values, conditional notes, related checks and unmapped permissions. Bare operation names can match multiple API groups; do not choose silently. Use before permission lookup or simulation. Bundled catalog only; no OCI calls.",
+        "inputSchema": {
+          "properties": {
+            "query": {
+              "description": "Qualified/bare API name or discovery wording.",
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "api_group": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "match": {
+              "default": "search",
+              "enum": [
+                "search",
+                "exact"
+              ],
+              "type": "string"
+            },
+            "limit": {
+              "default": 10,
+              "maximum": 25,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "cursor": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "type": "object",
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "$defs": {
+            "OperationReferenceMatch": {
+              "description": "Qualified API identity, known requirements and unresolved resource mappings.",
+              "properties": {
+                "canonical_name": {
+                  "type": "string"
+                },
+                "match_type": {
+                  "enum": [
+                    "identifier",
+                    "alias",
+                    "search_term",
+                    "text"
+                  ],
+                  "type": "string"
+                },
+                "matched_text": {
+                  "type": "string"
+                },
+                "notes": {
+                  "default": "",
+                  "type": "string"
+                },
+                "source_urls": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "catalog_status": {
+                  "default": "unreviewed",
+                  "type": "string"
+                },
+                "mapping_status": {
+                  "default": "mapped",
+                  "type": "string"
+                },
+                "api_group": {
+                  "type": "string"
+                },
+                "operation_name": {
+                  "type": "string"
+                },
+                "request_operation": {
+                  "type": "string"
+                },
+                "permissions": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "permission_count": {
+                  "type": "integer"
+                },
+                "permissions_truncated": {
+                  "type": "boolean"
+                },
+                "unmapped_permissions": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "related_checks": {
+                  "items": {
+                    "$ref": "#/$defs/RelatedReferenceCheck"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "canonical_name",
+                "match_type",
+                "matched_text",
+                "api_group",
+                "operation_name",
+                "request_operation",
+                "permissions",
+                "permission_count",
+                "permissions_truncated",
+                "unmapped_permissions"
+              ],
+              "type": "object"
+            },
+            "RelatedReferenceCheck": {
+              "additionalProperties": true,
+              "description": "Conditional or related API requirements retained from the catalog.",
+              "properties": {
+                "resource": {
+                  "default": "",
+                  "type": "string"
+                },
+                "permissions": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "operation": {
+                  "default": "",
+                  "type": "string"
+                },
+                "applies_when": {
+                  "default": "",
+                  "type": "string"
+                },
+                "reason": {
+                  "default": "",
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "description": "Structured API operation discovery result.",
+          "properties": {
+            "catalog_id": {
+              "type": "string"
+            },
+            "catalog_version": {
+              "type": "string"
+            },
+            "total_matches": {
+              "type": "integer"
+            },
+            "matches": {
+              "items": {
+                "$ref": "#/$defs/OperationReferenceMatch"
+              },
+              "type": "array"
+            },
+            "next_cursor": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "warnings": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "catalog_id",
+            "catalog_version",
+            "total_matches",
+            "matches",
+            "next_cursor",
+            "warnings"
+          ],
+          "type": "object"
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "permission_reference",
+        "description": "Find OCI permission names and reverse-map them to known resources, families, lowest granting allow verbs and API operations. Search a partial permission or use match=exact. Additional permissions show the broader grant at that verb; this is not a complete least-privilege policy plan. Operation-only permissions remain visible when resource mapping is unavailable. No tenancy load, OCI calls or authorization decisions.",
+        "inputSchema": {
+          "properties": {
+            "query": {
+              "description": "Permission identifier or partial permission wording.",
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "resource": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "match": {
+              "default": "search",
+              "enum": [
+                "search",
+                "exact"
+              ],
+              "type": "string"
+            },
+            "limit": {
+              "default": 10,
+              "maximum": 25,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "cursor": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "type": "object",
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "$defs": {
+            "PermissionExpansion": {
+              "description": "A bounded cumulative permission list, with an explicit total and truncation.",
+              "properties": {
+                "permissions": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "total_count": {
+                  "type": "integer"
+                },
+                "truncated": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "permissions",
+                "total_count",
+                "truncated"
+              ],
+              "type": "object"
+            },
+            "PermissionReferenceMatch": {
+              "description": "Permission evidence from resource tables and operation requirements.",
+              "properties": {
+                "canonical_name": {
+                  "type": "string"
+                },
+                "match_type": {
+                  "enum": [
+                    "identifier",
+                    "alias",
+                    "search_term",
+                    "text"
+                  ],
+                  "type": "string"
+                },
+                "matched_text": {
+                  "type": "string"
+                },
+                "notes": {
+                  "default": "",
+                  "type": "string"
+                },
+                "source_urls": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "catalog_status": {
+                  "default": "unreviewed",
+                  "type": "string"
+                },
+                "mapping_status": {
+                  "default": "mapped",
+                  "type": "string"
+                },
+                "resource_mappings": {
+                  "items": {
+                    "$ref": "#/$defs/PermissionResourceMatch"
+                  },
+                  "type": "array"
+                },
+                "resource_mapping_count": {
+                  "type": "integer"
+                },
+                "resource_mappings_truncated": {
+                  "type": "boolean"
+                },
+                "operations": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "operation_count": {
+                  "type": "integer"
+                },
+                "operations_truncated": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "canonical_name",
+                "match_type",
+                "matched_text",
+                "resource_mappings",
+                "resource_mapping_count",
+                "resource_mappings_truncated",
+                "operations",
+                "operation_count",
+                "operations_truncated"
+              ],
+              "type": "object"
+            },
+            "PermissionResourceMatch": {
+              "description": "Lowest catalog granting verb for one resource, not a complete policy plan.",
+              "properties": {
+                "resource": {
+                  "type": "string"
+                },
+                "source_resource_name": {
+                  "type": "string"
+                },
+                "families": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "lowest_granting_verb": {
+                  "enum": [
+                    "inspect",
+                    "read",
+                    "use",
+                    "manage"
+                  ],
+                  "type": "string"
+                },
+                "granting_verbs": {
+                  "items": {
+                    "enum": [
+                      "inspect",
+                      "read",
+                      "use",
+                      "manage"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "additional_permissions": {
+                  "$ref": "#/$defs/PermissionExpansion"
+                },
+                "source_urls": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "resource",
+                "source_resource_name",
+                "families",
+                "lowest_granting_verb",
+                "granting_verbs",
+                "additional_permissions",
+                "source_urls"
+              ],
+              "type": "object"
+            }
+          },
+          "description": "Structured permission discovery and reverse mapping result.",
+          "properties": {
+            "catalog_id": {
+              "type": "string"
+            },
+            "catalog_version": {
+              "type": "string"
+            },
+            "total_matches": {
+              "type": "integer"
+            },
+            "matches": {
+              "items": {
+                "$ref": "#/$defs/PermissionReferenceMatch"
+              },
+              "type": "array"
+            },
+            "next_cursor": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "warnings": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "catalog_id",
+            "catalog_version",
+            "total_matches",
+            "matches",
+            "next_cursor",
+            "warnings"
+          ],
+          "type": "object"
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "policy_search",
+        "description": "Search OCI IAM policies for one question. For two or more related checks, comparisons across groups/services, or a deployment permission checklist, prefer policy_search_set in one call. Principal filters: use filters.principal for one structured selector (for example {\"principal_type\":\"group\",\"domain_name\":\"Default\",\"name\":\"Admins\"} or {\"principal_type\":\"dynamic-group\"}), filters.principals for OR selectors, and filters.principal_keys for exact canonical keys such as group:default/admins (mixed-case inputs are accepted). Resource values are OCI policy types, not product names. Use resource_reference to discover resource names before searching when uncertain. For \"which groups can manage Object Storage\", use filters.action=[\"allow\"], filters.principal={\"principal_type\":\"group\"}, filters.verb=[\"manage\"], and filters.resource_family=\"object storage\". This expands to buckets, objects, objectstorage-namespaces, object-family, and all-resources. Results are matching statements, not a proof of effective access; conditions and scope still matter. The limit is a detailed-row threshold capped at 50, not pagination. Unfiltered or larger results return a summary with summary_substituted, summary_reason, and a hint to narrow the filters instead of statement rows.",
+        "inputSchema": {
+          "$defs": {
+            "MCPPolicyFilters": {
+              "additionalProperties": true,
+              "description": "Discoverable common policy filters, with additional legacy fields retained.",
+              "properties": {
+                "action": {
+                  "anyOf": [
+                    {
+                      "items": {
+                        "enum": [
+                          "allow",
+                          "deny"
+                        ],
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Statement actions. Use [\"allow\"] when asking which identities are granted access."
+                },
+                "principal": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/MCPPrincipalSelector"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "One structured identity selector, such as {\"principal_type\":\"group\"}."
+                },
+                "principals": {
+                  "anyOf": [
+                    {
+                      "items": {
+                        "$ref": "#/$defs/MCPPrincipalSelector"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Alternative identity selectors; any one may match."
+                },
+                "principal_keys": {
+                  "anyOf": [
+                    {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Exact canonical principal keys."
+                },
+                "verb": {
+                  "anyOf": [
+                    {
+                      "items": {
+                        "enum": [
+                          "inspect",
+                          "read",
+                          "use",
+                          "manage"
+                        ],
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "OCI IAM policy verbs. Values are exact matches; multiple values are alternatives."
+                },
+                "resource": {
+                  "anyOf": [
+                    {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "OCI policy resource type identifiers, not service names. Values are alternatives. For Object Storage, use buckets, objects, objectstorage-namespaces, object-family, and all-resources; or use resource_family=\"object storage\" to include that full scope."
+                },
+                "resource_family": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Reference-data family name or alias. For example, \"object storage\" expands to buckets, objects, objectstorage-namespaces, object-family, and all-resources."
+                },
+                "permission": {
+                  "anyOf": [
+                    {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "OCI permission names or substrings."
+                },
+                "policy_name": {
+                  "anyOf": [
+                    {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Policy name substrings."
+                },
+                "effective_path": {
+                  "anyOf": [
+                    {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Effective compartment paths."
+                },
+                "statement_text": {
+                  "anyOf": [
+                    {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Raw policy statement text substrings."
+                }
+              },
+              "type": "object"
+            },
+            "MCPPrincipalSelector": {
+              "additionalProperties": true,
+              "description": "One identity selector; populated fields are matched together.",
+              "properties": {
+                "principal_type": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Identity kind, such as group, dynamic-group, resource-principal, or instance-principal."
+                },
+                "domain_name": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Identity domain, such as Default."
+                },
+                "name": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Group, user, or dynamic-group name."
+                },
+                "ocid": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Exact identity OCID."
+                },
+                "principal_key": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Exact canonical principal key."
+                },
+                "resource_type": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Resource-principal OCI resource type."
+                },
+                "compartment_ocid": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Resource-principal compartment OCID."
+                }
+              },
+              "type": "object"
+            }
+          },
           "properties": {
             "mode": {
               "default": "simple",
@@ -28,8 +1052,7 @@
             "filters": {
               "anyOf": [
                 {
-                  "additionalProperties": true,
-                  "type": "object"
+                  "$ref": "#/$defs/MCPPolicyFilters"
                 },
                 {
                   "type": "null"
@@ -39,6 +1062,7 @@
             },
             "limit": {
               "default": 50,
+              "description": "Detailed-row threshold, 1-50. Broader results become a summary; not pagination.",
               "type": "integer"
             }
           },
@@ -54,22 +1078,220 @@
         "description": "Search parsed tag-based policy conditions with contextual warnings.",
         "inputSchema": {
           "properties": {
-            "tag_access_type": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "default": null},
-            "tag_access_semantics": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "default": null},
-            "tag_namespace": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "default": null},
-            "tag_key": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "default": null},
-            "tag_value": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "default": null},
-            "tag_operator": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "default": null},
-            "condition_atom_terms": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "default": null},
-            "policy_tag": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "default": null},
-            "policy_defined_tag": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "default": null},
-            "policy_freeform_tag": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "default": null},
-            "verb": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "default": null},
-            "resource": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "default": null},
-            "permission": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "default": null},
-            "principal_keys": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "default": null},
-            "effective_path": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "default": null},
-            "limit": {"default": 50, "type": "integer"}
+            "tag_access_type": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "tag_access_semantics": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "tag_namespace": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "tag_key": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "tag_value": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "tag_operator": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "condition_atom_terms": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "policy_tag": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "policy_defined_tag": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "policy_freeform_tag": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "verb": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "resource": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "permission": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "principal_keys": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "effective_path": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "limit": {
+              "default": 50,
+              "type": "integer"
+            }
           },
           "type": "object"
         },
@@ -221,8 +1443,428 @@
       },
       {
         "name": "policy_search_set",
-        "description": "Run related policy searches and summarize coverage. Each item in searches may be a direct policy_search payload with search_id/label/required plus mode/detail_level/limit/filters, or the legacy wrapped form {\"search_id\":\"id\",\"query\":{...}}. For principal filters inside each search, use filters.principal for one selector, filters.principals for OR selectors, or filters.principal_keys for exact keys.",
+        "description": "Run multiple related OCI policy queries in one call and compare their coverage. Prefer this tool over repeated policy_search calls when the question asks about two or more groups, services, human versus workload permissions, or a product/deployment permission checklist. Supply one searches item per check with search_id, label and filters (same fields as policy_search, including resource_family and structured principals). Use detail_level=\"summary\" for comparisons. Use intent=\"access_review\" for access comparisons, \"install_validation\" for a permission checklist, or \"workload_analysis\" for workload checks. product_or_service is a label, not a search filter. Returns search_results per check and set_summary with missing_required_searches and coverage caveats. Matches and likely_ready are statement evidence, not proof of effective access or installation readiness. Legacy items with query:{...} are still accepted. For a single lookup use policy_search.",
         "inputSchema": {
+          "$defs": {
+            "MCPPolicyFilters": {
+              "additionalProperties": true,
+              "description": "Discoverable common policy filters, with additional legacy fields retained.",
+              "properties": {
+                "action": {
+                  "anyOf": [
+                    {
+                      "items": {
+                        "enum": [
+                          "allow",
+                          "deny"
+                        ],
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Statement actions. Use [\"allow\"] when asking which identities are granted access."
+                },
+                "principal": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/MCPPrincipalSelector"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "One structured identity selector, such as {\"principal_type\":\"group\"}."
+                },
+                "principals": {
+                  "anyOf": [
+                    {
+                      "items": {
+                        "$ref": "#/$defs/MCPPrincipalSelector"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Alternative identity selectors; any one may match."
+                },
+                "principal_keys": {
+                  "anyOf": [
+                    {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Exact canonical principal keys."
+                },
+                "verb": {
+                  "anyOf": [
+                    {
+                      "items": {
+                        "enum": [
+                          "inspect",
+                          "read",
+                          "use",
+                          "manage"
+                        ],
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "OCI IAM policy verbs. Values are exact matches; multiple values are alternatives."
+                },
+                "resource": {
+                  "anyOf": [
+                    {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "OCI policy resource type identifiers, not service names. Values are alternatives. For Object Storage, use buckets, objects, objectstorage-namespaces, object-family, and all-resources; or use resource_family=\"object storage\" to include that full scope."
+                },
+                "resource_family": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Reference-data family name or alias. For example, \"object storage\" expands to buckets, objects, objectstorage-namespaces, object-family, and all-resources."
+                },
+                "permission": {
+                  "anyOf": [
+                    {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "OCI permission names or substrings."
+                },
+                "policy_name": {
+                  "anyOf": [
+                    {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Policy name substrings."
+                },
+                "effective_path": {
+                  "anyOf": [
+                    {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Effective compartment paths."
+                },
+                "statement_text": {
+                  "anyOf": [
+                    {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Raw policy statement text substrings."
+                }
+              },
+              "type": "object"
+            },
+            "MCPPolicySearchQuery": {
+              "additionalProperties": true,
+              "description": "The same query fields used by policy_search, usable within a search set.",
+              "properties": {
+                "mode": {
+                  "default": "simple",
+                  "enum": [
+                    "simple",
+                    "advanced"
+                  ],
+                  "type": "string"
+                },
+                "detail_level": {
+                  "default": "simple",
+                  "description": "Use summary for comparisons; simple/full for bounded statement evidence.",
+                  "enum": [
+                    "summary",
+                    "simple",
+                    "full"
+                  ],
+                  "type": "string"
+                },
+                "filters": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/MCPPolicyFilters"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "The same typed filters as policy_search."
+                },
+                "limit": {
+                  "default": 50,
+                  "description": "Detailed-row threshold capped at 50, not pagination.",
+                  "type": "integer"
+                }
+              },
+              "type": "object"
+            },
+            "MCPPolicySetEvaluation": {
+              "additionalProperties": true,
+              "description": "Optional evidence-coverage checks; matching statements are not effective authorization proof.",
+              "properties": {
+                "min_confidence": {
+                  "default": "broad",
+                  "description": "Minimum acceptable statement-match confidence for required searches.",
+                  "enum": [
+                    "exact",
+                    "subject_match_with_conditions",
+                    "identity_match_with_residual",
+                    "rule_evidence",
+                    "broad",
+                    "ambiguous"
+                  ],
+                  "type": "string"
+                },
+                "require_human_principal_coverage": {
+                  "default": false,
+                  "description": "Check for group-principal evidence across results.",
+                  "type": "boolean"
+                },
+                "require_workload_principal_coverage": {
+                  "default": false,
+                  "description": "Check for workload-principal evidence across results.",
+                  "type": "boolean"
+                },
+                "require_service_principal_coverage": {
+                  "default": false,
+                  "description": "Check for service-principal evidence across results.",
+                  "type": "boolean"
+                },
+                "require_tag_condition_coverage": {
+                  "default": false,
+                  "description": "Request tag coverage caveats; this is not evaluated authorization.",
+                  "type": "boolean"
+                }
+              },
+              "type": "object"
+            },
+            "MCPPolicySetSearch": {
+              "additionalProperties": true,
+              "description": "One named check; direct query fields are preferred, legacy query wrappers remain accepted.",
+              "properties": {
+                "mode": {
+                  "default": "simple",
+                  "enum": [
+                    "simple",
+                    "advanced"
+                  ],
+                  "type": "string"
+                },
+                "detail_level": {
+                  "default": "simple",
+                  "description": "Use summary for comparisons; simple/full for bounded statement evidence.",
+                  "enum": [
+                    "summary",
+                    "simple",
+                    "full"
+                  ],
+                  "type": "string"
+                },
+                "filters": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/MCPPolicyFilters"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "The same typed filters as policy_search."
+                },
+                "limit": {
+                  "default": 50,
+                  "description": "Detailed-row threshold capped at 50, not pagination.",
+                  "type": "integer"
+                },
+                "search_id": {
+                  "default": "",
+                  "description": "Unique identifier used in search_results and missing_required_searches.",
+                  "type": "string"
+                },
+                "label": {
+                  "default": "",
+                  "description": "Short description of this comparison or required permission check.",
+                  "type": "string"
+                },
+                "required": {
+                  "default": true,
+                  "description": "Include this check in required-match coverage; false makes it informational.",
+                  "type": "boolean"
+                },
+                "query": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/MCPPolicySearchQuery"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Legacy wrapped query, if supplied it takes precedence over direct query fields."
+                }
+              },
+              "type": "object"
+            },
+            "MCPPrincipalSelector": {
+              "additionalProperties": true,
+              "description": "One identity selector; populated fields are matched together.",
+              "properties": {
+                "principal_type": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Identity kind, such as group, dynamic-group, resource-principal, or instance-principal."
+                },
+                "domain_name": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Identity domain, such as Default."
+                },
+                "name": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Group, user, or dynamic-group name."
+                },
+                "ocid": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Exact identity OCID."
+                },
+                "principal_key": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Exact canonical principal key."
+                },
+                "resource_type": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Resource-principal OCI resource type."
+                },
+                "compartment_ocid": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Resource-principal compartment OCID."
+                }
+              },
+              "type": "object"
+            }
+          },
           "properties": {
             "intent": {
               "default": "custom",
@@ -242,8 +1884,7 @@
               "anyOf": [
                 {
                   "items": {
-                    "additionalProperties": true,
-                    "type": "object"
+                    "$ref": "#/$defs/MCPPolicySetSearch"
                   },
                   "type": "array"
                 },
@@ -251,19 +1892,42 @@
                   "type": "null"
                 }
               ],
-              "default": null
+              "default": null,
+              "description": "Related checks; provide one item per group/service/permission question. Direct filters are preferred.",
+              "examples": [
+                [
+                  {
+                    "filters": {
+                      "resource_family": "object storage",
+                      "verb": [
+                        "manage"
+                      ]
+                    },
+                    "search_id": "storage-admins"
+                  },
+                  {
+                    "filters": {
+                      "resource_family": "object storage",
+                      "verb": [
+                        "read"
+                      ]
+                    },
+                    "search_id": "storage-readers"
+                  }
+                ]
+              ]
             },
             "evaluation": {
               "anyOf": [
                 {
-                  "additionalProperties": true,
-                  "type": "object"
+                  "$ref": "#/$defs/MCPPolicySetEvaluation"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "default": null
+              "default": null,
+              "description": "Optional coverage requirements; omit for ordinary side-by-side comparisons."
             }
           },
           "type": "object"

@@ -18,13 +18,20 @@ wheelhouse/
 *.spec
 *.log
 docs/build/
+docs/_build/
 frozen.txt
+deps.txt
+deps2.txt
 uv.lock
-package*.json
+run/.env
+run/.env.*
+!run/.env.example
+run/.container-private-ip
+run/.container-instance-id
 src/oci_policy_analysis/version.txt
 
 # Parser Jar
-src/oci_policy_analysis/logic/parsers/antlr-4.13.2-complete.jar
+src/oci_policy_analysis/application/core/resources/parsers/antlr-4.13.2-complete.jar
 *.interp
 *.tokens
 
@@ -38,7 +45,14 @@ Thumbs.db
 *.tmp
 *.bkp
 
-# --- Ruff & MyPy caches ---
+# --- Test, coverage, Ruff & MyPy caches ---
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.tox/
+.nox/
 .ruff_cache/
 .mypy_cache/
 
@@ -47,17 +61,12 @@ Thumbs.db
 old/
 private/
 
-# --- GitHub & CI ---
-# Keep workflow files
-!.github/workflows/
-# Ignore everything else under .github that isn't a workflow
-.github/*
-!.github/workflows/*
-
 # --- Cline ---
 .cline/
-node_modules
-env.sh
+node_modules/
+# Local npm installs for release tooling; CI installs tools explicitly.
+/package.json
+/package-lock.json
 usage-par.txt
 iam-api-diagnostics*.csv
 parsing-diagnostics*.csv
@@ -65,3 +74,15 @@ parsing-diagnostics*.csv
 # --- Codex ---
 .codex/
 .gstack/
+
+# Shared operator configuration and generated deployment state
+run-build/.env
+run-build/.env.*
+!run-build/.env.example
+run-build/*.json
+env.sh
+run/container.env
+
+# Local OCI credentials and application cache/settings
+.oci/
+.oci-policy-analysis/

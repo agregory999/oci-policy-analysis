@@ -6,7 +6,9 @@ from collections.abc import Callable
 from typing import Any
 
 from oci_policy_analysis.application.context import AppContext
+from oci_policy_analysis.application.core.cross_tenancy_corpus import CrossTenancyCorpusBuilder
 from oci_policy_analysis.application.core.engine import (
+    PolicyCorpusBuilder,
     PolicyIntelligenceEngine,
     PolicySimulationEngine,
 )
@@ -24,12 +26,20 @@ def run_minimal_post_load_enrichment(
     *,
     on_stage: Callable[[str, str, str], None] | None = None,
 ) -> None:
-    """Run non-UI post-load enrichment needed by CLI/MCP query surfaces.
+    """Rebuild the foundations needed for focused snapshot queries.
 
-    This intentionally avoids the full intelligence strategy overlay and
-    recommendation calculation. CLI/MCP do not expose the recommendations
-    workflow, but still need effective paths, invalidity flags, and dynamic
-    group usage state for reliable search and cache content.
+    Args:
+        context: Loaded context to enrich in place.
+        on_stage: Optional callback receiving stage, detail, and state strings.
+            Callback exceptions propagate to the caller.
+
+    Notes:
+        Replaces the intelligence engine, calculates effective paths and validity,
+        marks dynamic-group usage, resolves cross-tenancy aliases, and builds both
+        corpora. Attaches the regular corpus to the existing simulation engine.
+        Does not run the full recommendation strategies or project a permissions
+        report. No OCI refresh occurs here; results reflect the loaded repository.
+        Call through LoadService when progress should also update context.status.
     """
 
     def _emit(stage: str, detail: str, state: str = 'running') -> None:
@@ -37,6 +47,7 @@ def run_minimal_post_load_enrichment(
             on_stage(stage, detail, state)
 
     repo = context.policy_repo
+    context.cross_tenancy_corpus = None
     LOGGER.info('Running minimal post-load enrichment: effective paths, invalid statements, dynamic-group usage')
     _emit('Preparing Enrichment', 'Initializing policy intelligence engine')
 
@@ -50,6 +61,15 @@ def run_minimal_post_load_enrichment(
     _emit('Analyzing Dynamic Groups', 'Marking dynamic groups referenced by policy statements')
     context.intelligence.run_dg_in_use_analysis()
 
+    _emit('Building Cross-Tenancy Corpus', 'Resolving aliases and preserving cross-tenancy sources')
+    context.intelligence.resolve_cross_tenancy_aliases()
+    context.cross_tenancy_corpus = CrossTenancyCorpusBuilder().build(repo)
+
+    _emit('Building Policy Corpus', 'Compiling valid authorization facts')
+    context.corpus = PolicyCorpusBuilder().build(repo)
+    if context.simulation is not None:
+        context.simulation.set_corpus(context.corpus)
+
     _emit('Enrichment Complete', 'Minimal post-load enrichment is ready', 'success')
     LOGGER.info('Minimal post-load enrichment completed successfully')
 
@@ -59,14 +79,21 @@ def run_post_load_pipeline(
     *,
     on_stage: Callable[[str, str, str], None] | None = None,
 ) -> None:
-    """Rebuild full UI intelligence/simulation state after policy data loads.
+    """Rebuild full intelligence, corpora, reports, and simulation state.
 
     Args:
-        context: Shared application context containing repo and engine state.
-        on_stage: Optional stage callback used to emit progress details.
+        context: Loaded context to enrich in place using its active settings.
+        on_stage: Optional callback receiving stage, detail, and state strings.
+            Callback exceptions propagate to the caller.
 
-    Returns:
-        None
+    Notes:
+        Replaces the intelligence engine, applies configured strategies and risk
+        parameters, builds cross-tenancy and regular corpora, projects the permissions
+        report, and replaces the simulation engine. Existing simulation/prospective
+        state is not preserved. Some strategies can use available OCI clients.
+        This mutates the context incrementally; failures do not roll back earlier
+        stages. It analyzes the current snapshot, not OCI-authoritative access.
+        Call through LoadService when progress should also update context.status.
     """
 
     def _emit(stage: str, detail: str, state: str = 'running') -> None:
@@ -74,6 +101,7 @@ def run_post_load_pipeline(
             on_stage(stage, detail, state)
 
     repo = context.policy_repo
+    context.cross_tenancy_corpus = None
     LOGGER.info('Running post-load pipeline: rebuilding intelligence and simulation engines')
     _emit('Preparing Intelligence', 'Initializing policy intelligence engine')
 
@@ -109,12 +137,27 @@ def run_post_load_pipeline(
     )
 
     _emit('Running Intelligence', 'Executing enabled intelligence strategies')
-    context.intelligence.run_all(enabled_strategy_ids=enabled_strategy_ids, params=risk_params)
+    context.intelligence.run_all(
+        enabled_strategy_ids=enabled_strategy_ids,
+        params=risk_params,
+        on_stage=lambda detail: _emit('Running Intelligence', detail),
+    )
+    _emit('Building Cross-Tenancy Corpus', 'Compiling cross-tenancy sources and relationships')
+    context.cross_tenancy_corpus = CrossTenancyCorpusBuilder().build(
+        repo, context.intelligence.overlay.get('cross_tenancy_findings', [])
+    )
 
-    _emit('Building Permissions Report', 'Generating in-memory permissions report model')
-    context.intelligence.build_permissions_report()
+    _emit('Building Policy Corpus', 'Compiling valid authorization facts')
+    context.corpus = PolicyCorpusBuilder().build(repo)
+
+    _emit('Building Permissions Report', 'Projecting effective permissions from policy corpus')
+    context.intelligence.build_permissions_report(context.corpus)
 
     _emit('Refreshing Simulation Engine', 'Rebuilding simulation engine against active dataset')
-    context.simulation = PolicySimulationEngine(policy_repo=repo, ref_data_repo=context.reference_data)
+    context.simulation = PolicySimulationEngine(
+        policy_repo=repo,
+        ref_data_repo=context.reference_data,
+        corpus=context.corpus,
+    )
     _emit('Intelligence Complete', 'Post-load intelligence and permissions report are ready', 'success')
     LOGGER.info('Post-load pipeline completed successfully')

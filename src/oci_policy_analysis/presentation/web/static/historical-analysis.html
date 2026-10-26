@@ -12,7 +12,7 @@
         <div class="masthead-brand">
           <span class="masthead-badge">OCI</span>
           <div>
-            <h1>Historical Analysis</h1>
+            <h1>Historical Comparison</h1>
             <p>Cache Snapshot Compare • Policy + Identity Diffs</p>
           </div>
         </div>
@@ -36,16 +36,43 @@
           <select id="rightCache"></select>
           <button id="compareBtn">Compare</button>
         </div>
+        <div class="pill-row" style="margin-top:12px">
+          <label><input type="checkbox" id="meaningfulOnly" checked> Ignore ephemeral internal IDs</label>
+          <label><input type="checkbox" id="includeIncomplete" checked> Compare incomplete snapshots with warnings</label>
+        </div>
+        <p class="helper-text">Original JSON is retained. Missing records in incomplete snapshots are unverified differences, not confirmed OCI deletions.</p>
         <div id="status" class="status"></div>
       </div>
 
       <div class="historical-sections">
-        <div class="card" data-help-title="Policy sections" data-help-body="Displays section-by-section policy-related differences between snapshots."><h2>Policy Sections</h2><div id="policySections"></div></div>
-        <div class="card" data-help-title="Identity sections" data-help-body="Displays section-by-section identity-related differences between snapshots."><h2>Identity Sections</h2><div id="identitySections"></div></div>
+        <div class="card" data-help-title="Policy sections" data-help-body="Displays section-by-section policy-related differences between snapshots."><h2>Policy Changes</h2><div id="policySections"></div></div>
+        <div class="card" data-help-title="Identity sections" data-help-body="Displays section-by-section identity-related differences between snapshots."><h2>IAM Changes</h2><div id="identitySections"></div></div>
       </div>
     </main>
 
+    <dialog id="auditPanel" style="position:fixed;inset:auto 0 0;width:min(1200px,95vw);max-height:75vh;overflow:auto;padding:20px;border:1px solid #bbb;border-radius:12px 12px 0 0">
+      <h2>Find OCI Audit Records (Logging Search)</h2>
+      <p>Generate Logging Search commands to run yourself; no OCI calls are performed. Use the policy/resource compartment and appropriate region. Resource filtering runs on the server. Policy searches include only CreatePolicy, UpdatePolicy and DeletePolicy attempts; check status for success. Tables show formatted time with timezone, operation, actor name/OCID, IP and status. Each command returns at most 100 results, newest first, not a complete history. Narrow the time range or use --page with the response opc-next-page token (remove --query and use --output json to see response metadata). Audit read permission is required; IAM domain activity may require its domain audit report.</p>
+      <form id="auditForm" class="form-grid">
+        <label>Policy/resource compartment OCID<input name="compartment_id" required></label>
+        <label>Resource OCID (optional)<input name="resource_id"></label>
+        <label>Start (inclusive, UTC/offset)<input name="start_time" required></label>
+        <label>End (exclusive, UTC/offset)<input name="end_time" required></label>
+        <label>Region (blank uses CLI configuration)<input name="region"></label>
+        <label>Profile (blank uses CLI configuration)<input name="profile"></label>
+        <label>Shell<select name="shell"><option value="posix">POSIX shell</option><option value="powershell">PowerShell</option></select></label>
+        <button type="submit">Generate commands (14-day windows)</button>
+      </form>
+      <p id="auditStatus" role="status"></p>
+      <textarea id="auditOutput" readonly style="width:100%;height:180px;font-family:monospace"></textarea>
+      <div class="pill-row"><button id="copyAudit" disabled>Copy commands</button><button id="closeAudit">Close</button></div>
+    </dialog>
     <script>
+      const meaningfulOnly = document.getElementById('meaningfulOnly');
+      const includeIncomplete = document.getElementById('includeIncomplete');
+      let comparisonGeneration = 0;
+      let comparisonPayload = null;
+      const escapeHtml = value => String(value ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('\"','&quot;').replaceAll("'", '&#39;');
       const leftCache = document.getElementById('leftCache');
       const rightCache = document.getElementById('rightCache');
       const compareBtn = document.getElementById('compareBtn');
@@ -84,13 +111,15 @@
         card.setAttribute('data-help-title', `${section.section} differences`);
         card.setAttribute('data-help-body', 'Review added, removed, and modified items for this section. Expand rows for details.');
         card.innerHTML = `
-          <div class="diff-section-title">${section.section}</div>
+          <div class="diff-section-title">${escapeHtml(section.section)}</div>
           <div class="pill-row">
             <span class="pill">Added: ${section.added}</span>
             <span class="pill">Removed: ${section.removed}</span>
             <span class="pill">Modified: ${section.modified}</span>
           </div>
         `;
+        const warning = comparisonPayload?.section_warnings?.[section.section];
+        if (warning) { const note = document.createElement('p'); note.className = 'status'; note.textContent = warning; card.appendChild(note); }
         if (!Array.isArray(section.items) || section.items.length === 0) {
           const empty = document.createElement('div');
           empty.className = 'diff-muted';
@@ -102,7 +131,7 @@
         }
         section.items.forEach((item) => {
           const details = document.createElement('details');
-          details.innerHTML = `<summary>${item.title} (${item.action})</summary>`;
+          details.innerHTML = `<summary>${escapeHtml(item.title)} (${escapeHtml(item.action)})</summary>`;
           const keyEl = document.createElement('div');
           keyEl.className = 'diff-muted';
           keyEl.textContent = `Stable key: ${item.stable_key}`;
@@ -132,11 +161,47 @@
             details.appendChild(pre);
           }
           }
+          const audit = document.createElement('button'); audit.textContent = 'Find OCI Audit records…'; audit.addEventListener('click', () => openAudit(item)); details.appendChild(audit);
           card.appendChild(details);
         });
         container.appendChild(card);
         bindContextHelp(card);
       }
+
+      async function openAudit(item) {
+        const panel = document.getElementById('auditPanel');
+        const form = document.getElementById('auditForm');
+        const response = await fetch('/analysis/audit-command-defaults', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({change:item,metadata:comparisonPayload?.metadata || {}})});
+        if (!response.ok) { statusEl.textContent = 'Could not prepare the Audit command helper.'; return; }
+        const defaults = await response.json();
+        Object.entries(defaults).forEach(([key,value]) => { if (form.elements.namedItem(key)) form.elements.namedItem(key).value = value; });
+        document.getElementById('auditOutput').value = '';
+        document.getElementById('copyAudit').disabled = true;
+        document.getElementById('auditStatus').textContent = 'Edit the time range and scope, then generate. Times expand to minute boundaries.';
+        panel.showModal();
+      }
+      document.getElementById('auditForm').addEventListener('input', () => { document.getElementById('auditOutput').value = ''; document.getElementById('copyAudit').disabled = true; });
+      document.getElementById('auditForm').addEventListener('submit', async event => {
+        event.preventDefault();
+        const output = document.getElementById('auditOutput'); const status = document.getElementById('auditStatus');
+        const inputs = Object.fromEntries(new FormData(event.target));
+        output.value = ''; document.getElementById('copyAudit').disabled = true;
+        try {
+          const response = await fetch('/analysis/audit-commands', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(inputs)});
+          const payload = await response.json();
+          if (!response.ok) throw new Error(payload.detail || 'Command generation failed');
+          if (JSON.stringify(Object.fromEntries(new FormData(event.target))) !== JSON.stringify(inputs)) return;
+          output.value = payload.commands.join('\n\n');
+          const paging = `At most ${payload.limit} results per window; additional pages may exist.`;
+          status.textContent = `${payload.commands.length} commands · ${paging} · Start inclusive, end exclusive · Nothing executed.`;
+          document.getElementById('copyAudit').disabled = false;
+        } catch(error) { status.textContent = error.message; }
+      });
+      document.getElementById('closeAudit').addEventListener('click', () => document.getElementById('auditPanel').close());
+      document.getElementById('copyAudit').addEventListener('click', async () => {
+        const output = document.getElementById('auditOutput');
+        try { await navigator.clipboard.writeText(output.value); } catch { output.focus(); output.select(); }
+      });
 
       async function loadCaches() {
         const res = await fetch('/caches');
@@ -168,7 +233,12 @@
         if (rightExists) rightCache.value = prevRight;
       }
 
+      function invalidateComparison() { comparisonGeneration++; comparisonPayload = null; policySectionsEl.replaceChildren(); identitySectionsEl.replaceChildren(); statusEl.textContent = 'Inputs changed. Compare again.'; }
+      for (const control of [leftCache, rightCache, meaningfulOnly, includeIncomplete]) control.addEventListener('change', invalidateComparison);
+
       async function runCompare() {
+        const generation = ++comparisonGeneration;
+        compareBtn.disabled = true;
         statusEl.textContent = 'Comparing...';
         statusEl.className = 'status';
         policySectionsEl.innerHTML = '';
@@ -177,13 +247,15 @@
           const res = await fetch('/analysis/historical-compare', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ left_cache: leftCache.value, right_cache: rightCache.value }),
+            body: JSON.stringify({ left_cache: leftCache.value, right_cache: rightCache.value, meaningful_only: meaningfulOnly.checked, include_incomplete: includeIncomplete.checked }),
           });
           if (!res.ok) {
             const err = await res.json();
             throw new Error(err.detail || 'Historical compare failed');
           }
           const payload = await res.json();
+          if (generation !== comparisonGeneration) return;
+          comparisonPayload = payload;
           (payload.policy_sections || []).forEach((section) => renderSection(policySectionsEl, section));
           (payload.identity_sections || []).forEach((section) => renderSection(identitySectionsEl, section));
           Object.entries(payload.skipped_sections || {}).forEach(([section, reason]) => {
@@ -192,12 +264,13 @@
             const policyNames = ['Policies', 'Regular Statements', 'Defined Aliases', 'Cross-Tenancy Statements'];
             (policyNames.includes(section) ? policySectionsEl : identitySectionsEl).appendChild(note);
           });
-          statusEl.textContent = 'Comparison complete.';
+          statusEl.textContent = Object.keys(payload.section_warnings || {}).length ? 'Observed snapshot differences. Collection is incomplete; missing records are not confirmed OCI deletions.' : 'Comparison complete.';
           statusEl.className = 'status success';
         } catch (err) {
+          if (generation !== comparisonGeneration) return;
           statusEl.textContent = `Failed: ${err}`;
           statusEl.className = 'status error';
-        }
+        } finally { compareBtn.disabled = false; }
       }
 
       compareBtn.addEventListener('click', runCompare);

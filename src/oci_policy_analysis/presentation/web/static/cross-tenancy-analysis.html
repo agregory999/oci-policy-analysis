@@ -4,323 +4,403 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>OCI Policy Analysis - Cross-Tenancy Analysis</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <link rel="stylesheet" href="/app.css" />
+    <style>
+      .relationship-stage { position:relative; display:grid; grid-template-columns:minmax(0,1fr) minmax(220px,.82fr) minmax(0,1fr); gap:clamp(.8rem,3vw,3rem); align-items:center; min-height:240px; padding:1.2rem .5rem; }
+      .relationship-lines { position:absolute; inset:0; width:100%; height:100%; z-index:0; pointer-events:none; overflow:visible; }
+      .relationship-lane, .home-tenancy { position:relative; z-index:1; min-width:0; }
+      .relationship-lane h3 { margin:0 0 .2rem; font-size:1rem; }
+      .relationship-lane > p { margin:.1rem 0 .8rem; color:var(--oci-steel); font-size:.82rem; }
+      .relationship-node-list { display:grid; gap:.65rem; }
+      .relationship-node-group { display:grid; gap:.3rem; }
+      .subnode-list { display:flex; flex-wrap:wrap; gap:.3rem; padding-left:.7rem; border-left:2px solid var(--oci-line); margin-left:.65rem; }
+      .subnode { margin:0; padding:.22rem .45rem; border:1px solid var(--oci-line); border-radius:8px; background:#fff; color:var(--oci-ink); font-size:.73rem; cursor:pointer; text-align:left; overflow-wrap:anywhere; }
+      .subnode:hover, .subnode[aria-pressed=true] { border-color:var(--oci-red); background:var(--oci-red-soft); }
+      .subnode-kind { color:var(--oci-steel); font-size:.65rem; text-transform:uppercase; margin-right:.3rem; }
+      .linked-entities { margin-top:.5rem; text-align:left; }
+      .linked-entities .subnode-list { justify-content:center; padding:.45rem 0 0; margin:0; border:0; }
+      .relationship-node { width:100%; margin:0; display:flex; align-items:center; gap:.7rem; padding:.65rem .75rem; text-align:left; border:1px solid var(--oci-line); border-radius:12px; background:#fff; color:var(--oci-ink); cursor:pointer; box-shadow:0 4px 12px rgba(38,30,26,.05); }
+      .relationship-node:hover, .relationship-node[aria-pressed=true] { border-color:var(--oci-red); background:var(--oci-red-soft); }
+      .relationship-node[aria-pressed=true] { box-shadow:0 0 0 2px rgba(199,70,52,.18); }
+      .relationship-node .node-mark { flex:none; display:grid; place-items:center; width:2.15rem; height:2.15rem; border-radius:50%; background:#eef2f6; color:#245979; font-weight:800; font-size:.77rem; }
+      .relationship-node.incoming .node-mark { background:#fff0e4; color:#9d541f; }
+      .relationship-node.association .node-mark { border:2px dashed #865ba6; background:#f4effa; color:#69438a; }
+      .relationship-node.special .node-mark { background:#f4effa; color:#69438a; }
+      .node-copy { min-width:0; flex:1; }
+      .node-copy strong, .node-copy small { display:block; overflow-wrap:anywhere; }
+      .node-copy small { margin-top:.12rem; color:var(--oci-steel); font-size:.73rem; }
+      .home-tenancy { padding:1.1rem; border:2px solid #c74634; border-radius:18px; background:linear-gradient(145deg,#fff 0%,#fff3ee 100%); text-align:center; box-shadow:0 12px 25px rgba(83,38,27,.1); }
+      .home-tenancy .home-icon { display:grid; place-items:center; width:3.1rem; height:3.1rem; margin:0 auto .55rem; border-radius:50%; background:#c74634; color:#fff; font-weight:800; letter-spacing:.04em; }
+      .home-tenancy h2 { margin:0; font-size:1.12rem; overflow-wrap:anywhere; }
+      .home-tenancy p { margin:.4rem 0 0; font-size:.76rem; color:var(--oci-steel); overflow-wrap:anywhere; }
+      .graph-legend { display:flex; gap:1rem; flex-wrap:wrap; color:var(--oci-steel); font-size:.78rem; }
+      .legend-line { display:inline-block; width:1.6rem; border-top:2px solid #9d541f; vertical-align:middle; margin-right:.35rem; }
+      .legend-line.outgoing { border-color:#245979; }
+      .legend-line.association { border-color:#865ba6; border-top-style:dashed; }
+      .defined-entities { border-top:1px solid var(--oci-line); margin-top:1rem; padding-top:.85rem; }
+      .defined-entities h3 { margin:0 0 .45rem; font-size:.9rem; }
+      .entity-chip-list { display:flex; flex-wrap:wrap; gap:.45rem; }
+      .entity-chip { margin:0; padding:.35rem .6rem; border:1px solid var(--oci-line); border-radius:999px; background:#fff; color:var(--oci-ink); font-size:.78rem; cursor:pointer; }
+      .entity-chip:hover, .entity-chip[aria-pressed=true] { border-color:var(--oci-red); background:var(--oci-red-soft); }
+      .entity-chip .entity-type { text-transform:uppercase; font-size:.66rem; color:var(--oci-steel); font-weight:700; margin-right:.25rem; }
+      .explorer-filters { display:flex; align-items:end; gap:.6rem; flex-wrap:wrap; margin:.8rem 0 .5rem; }
+      .explorer-filters label { display:grid; gap:.2rem; min-width:180px; flex:1; font-size:.75rem; font-weight:700; color:var(--oci-steel); }
+      .explorer-filters input, .explorer-filters select { width:100%; margin:0; }
+      .explorer-filters button { margin:0; }
+      .statement-table-scroll { max-height:54vh; }
+      #statementsTable td { vertical-align:top; }
+      #statementsTable td.statement-text { min-width:280px; white-space:normal; overflow-wrap:anywhere; }
+      #statementsTable tbody tr { cursor:pointer; }
+      #statementsTable tbody tr:focus-visible { outline:2px solid var(--oci-red); outline-offset:-2px; }
+      .kind-badge { display:inline-block; padding:.16rem .4rem; border-radius:999px; background:#f2eeeb; font-size:.7rem; font-weight:700; }
+      .kind-badge.admit { background:#fff0e4; color:#8d4b1b; }
+      .kind-badge.endorse { background:#eaf2f9; color:#245979; }
+      .kind-badge.define { background:#edf4ec; color:#36633c; }
+      .finding-details summary { cursor:pointer; font-weight:700; }
+      .finding-details .table-shell { margin-top:.75rem; }
+      #findingsTable tbody tr { cursor:pointer; }
+      #findingsTable tbody tr:focus-visible { outline:2px solid var(--oci-red); outline-offset:-2px; }
+      .finding-source { margin:.8rem 0; padding:.6rem; border:1px solid var(--oci-line); border-radius:8px; }
+      .finding-source summary { font-size:.8rem; overflow-wrap:anywhere; }
+      .finding-source .inspector-table { margin-top:.5rem; }
+      #singlePolicyDialog { border:0; border-radius:14px; padding:0; max-width:95vw; background:transparent; }
+      #singlePolicyDialog::backdrop { background:rgba(18,28,34,.58); }
+      @media(max-width:900px) { .relationship-stage { grid-template-columns:1fr; gap:1rem; } .relationship-lines { display:none; } .home-tenancy { grid-row:1; } .relationship-lane { padding:.4rem 0; } }
+    </style>
   </head>
   <body>
     <div class="top-row has-fixed-help">
-      <header class="app-masthead" data-help-title="Cross-Tenancy Analysis" data-help-body="Use this page to review define/admit/endorse statements and filter admit/endorse results by selected aliases.">
-        <div class="masthead-brand">
-          <span class="masthead-badge">OCI</span>
-          <div>
-            <h1>Cross-Tenancy Analysis</h1>
-            <p>Define, Admit, and Endorse statement review with alias filtering</p>
-          </div>
-        </div>
-        <div class="masthead-meta">
-          <a href="/" class="card-link secondary" data-help-title="Back to home" data-help-body="Return to the application home page.">← Back to home</a>
-        </div>
+      <header class="app-masthead" data-help-title="Cross-Tenancy Analysis" data-help-body="Explore tenancy relationships and inspect every parsed cross-tenancy statement.">
+        <div class="masthead-brand"><span class="masthead-badge">OCI</span><div><h1>Cross-Tenancy Analysis</h1><p>Tenancies, definitions, and policy statements</p></div></div>
+        <div class="masthead-meta"><a href="/" class="card-link secondary">← Back to home</a></div>
       </header>
-
       <div class="context-help-card context-help-fixed" id="contextHelpCard">
         <p class="context-help-kicker">Context Help</p>
         <h3 id="contextHelpTitle" class="context-help-title">How To Use This Page</h3>
-        <p id="contextHelpBody" class="context-help-body">Hover over cards, tables, and controls to see guidance for each widget.</p>
+        <p id="contextHelpBody" class="context-help-body">Click a tenancy or defined entity to filter the statements below. Select a statement to inspect its known and parsed fields.</p>
       </div>
     </div>
 
     <main class="layout-single">
-      <div class="card" data-help-title="Toolbar + counts" data-help-body="Refresh loads latest cross-tenancy data. Clear Alias Filter removes all selected define aliases and shows all admit/endorse statements.">
-        <div class="policy-toolbar">
-          <div>
-            <h3 style="margin:0;">Cross-Tenancy (Basic Fields)</h3>
-            <div class="helper-text">Alias filtering uses statement text contains matching (case-insensitive).</div>
-          </div>
-          <div class="panel-actions">
-            <button id="refreshBtn" data-help-title="Refresh data" data-help-body="Reloads cross-tenancy data from /analysis/cross-tenancy and refreshes all widgets.">Refresh</button>
-            <button id="clearAliasBtn" class="ghost" data-help-title="Clear alias filter" data-help-body="Clears all selected define aliases so admit and endorse tables show all statements.">Clear Alias Filter</button>
-          </div>
+      <section class="card" data-help-title="Tenancy relationship graph" data-help-body="The center is the loaded tenancy. Left shows Admit statements; right shows Endorse statements. Dashed lines mark Associate statements, whose endpoint roles require review.">
+        <div class="policy-toolbar"><div><strong>Tenancy Relationships</strong><div class="helper-text">Policy direction shows who is admitted here and where our principals are endorsed. Reciprocal policies are not verified.</div></div><div class="pill-row"><button id="generatePolicyBtn" class="ghost">Generate single Cross-Tenancy Policy</button><button id="refreshBtn" class="ghost" data-help-title="Refresh view" data-help-body="Re-fetches the current analysis from memory. It does not reload policies from OCI, and works with cached datasets too." title="Re-fetches the current analysis from memory; does not reload OCI policy data.">Refresh view</button></div></div>
+        <div class="relationship-stage" id="relationshipStage">
+          <svg id="relationshipLines" class="relationship-lines" aria-hidden="true"></svg>
+          <div class="relationship-lane"><h3>Admitted here</h3><p>Remote principals can act in this tenancy</p><div id="incomingNodes" class="relationship-node-list"></div></div>
+          <div class="home-tenancy" id="homeTenancy"><span class="home-icon">OCI</span><h2 id="localTenancyName">This tenancy</h2><p id="localTenancyOcid">Tenancy OCID unavailable</p><div id="localEntities" class="linked-entities"></div></div>
+          <div class="relationship-lane"><h3>Endorsed elsewhere</h3><p>Our principals can act in another tenancy</p><div id="outgoingNodes" class="relationship-node-list"></div></div>
         </div>
+        <div class="graph-legend"><span><i class="legend-line"></i>Admit</span><span><i class="legend-line outgoing"></i>Endorse</span><span><i class="legend-line association"></i>Associate participant (both directions)</span></div>
+        <div id="unplacedSection" class="defined-entities" hidden><h3>Linked entities · tenancy unclear</h3><div id="unplacedEntities" class="entity-chip-list"></div></div>
+        <div id="orphanSection" class="defined-entities" hidden><h3>Other defined entities</h3><div id="definedEntities" class="entity-chip-list"></div></div>
+      </section>
+
+      <section class="card" data-help-title="Cross-tenancy statements" data-help-body="The table includes Define, Admit, Endorse, and unclassified statements. Click a graph node or entity chip to filter; click a row for all known fields.">
+        <div class="policy-toolbar"><div><h3 style="margin:0;">Statements</h3><div id="filterSummary" class="helper-text">All cross-tenancy statements</div></div><div class="pill-row"><span id="countDefines" class="pill">Defines: 0</span><span id="countAdmits" class="pill">Admit: 0</span><span id="countEndorses" class="pill">Endorse: 0</span><span id="countUnknown" class="pill">Unknown: 0</span></div></div>
         <div id="status" class="status"></div>
-        <div class="pill-row" style="margin-top:0.6rem;">
-          <div id="countDefines" class="pill">Defines: 0</div>
-          <div id="countAdmits" class="pill">Admit: 0</div>
-          <div id="countEndorses" class="pill">Endorse: 0</div>
-          <div id="countUnknown" class="pill">Unknown: 0</div>
+        <div class="explorer-filters"><label>Statement text<input id="statementSearch" type="search" placeholder="Search statement text" /></label><label>Defined entity<select id="definedEntityFilter"><option value="">All defined entities</option></select></label><button id="clearFiltersBtn" class="ghost">Clear filters</button></div>
+        <div id="policyLayout" class="analysis-layout">
+          <div class="table-shell analysis-table-offset"><div class="table-scroll custom-scrollbar statement-table-scroll"><table id="statementsTable" class="analysis-table"><thead><tr><th>Type</th><th>Policy</th><th>Statement</th><th>Associated tenancy</th></tr></thead><tbody></tbody></table></div></div>
+          <aside id="policyInspector" class="inspector-panel" aria-live="polite"><div class="inspector-header"><strong id="inspectorTitle">Statement Details</strong><button id="closeInspectorBtn" class="ghost" aria-label="Close details">×</button></div><div class="inspector-body custom-scrollbar"><div id="inspectorEmpty" class="inspector-empty">Select a statement to inspect all known and parsed fields.</div><table id="inspectorTable" class="inspector-table" hidden><tbody></tbody></table></div></aside>
         </div>
-      </div>
+      </section>
 
-      <div class="card" data-help-title="Defined aliases table" data-help-body="Select one or more aliases using checkboxes to filter admit/endorse statements by statement text match.">
-        <div class="policy-toolbar">
-          <strong>Defined Aliases</strong>
-          <div class="helper-text">Select aliases via checkbox for filtering. Define statement text is shown directly in the table.</div>
-        </div>
-        <div class="table-shell analysis-table-offset"><div class="table-scroll custom-scrollbar"><table id="definesTable" class="analysis-table"><thead><tr><th>Select</th><th>Policy Name</th><th>Defined Type</th><th>Defined Name</th><th>Define Statement</th></tr></thead><tbody></tbody></table></div></div>
-      </div>
-
-      <div id="policyLayout" class="analysis-layout">
-        <div class="layout-row layout-row-1">
-          <div class="card" data-help-title="Admit statements" data-help-body="Rows shown here are filtered by selected aliases. Click a row to open detailed fields in the inspector.">
-            <strong>Admit Statements</strong>
-            <div class="table-shell analysis-table-offset"><div class="table-scroll custom-scrollbar"><table id="admitTable" class="analysis-table"><thead><tr><th>Policy Name</th><th>Statement Text</th></tr></thead><tbody></tbody></table></div></div>
-          </div>
-
-          <div class="card" data-help-title="Endorse statements" data-help-body="Rows shown here are filtered by selected aliases. Click a row to open detailed fields in the inspector.">
-            <strong>Endorse Statements</strong>
-            <div class="table-shell analysis-table-offset"><div class="table-scroll custom-scrollbar"><table id="endorseTable" class="analysis-table"><thead><tr><th>Policy Name</th><th>Statement Text</th></tr></thead><tbody></tbody></table></div></div>
-          </div>
-        </div>
-
-        <aside id="policyInspector" class="inspector-panel" aria-live="polite">
-          <div class="inspector-header">
-            <strong id="inspectorTitle">Statement Details</strong>
-            <button id="closeInspectorBtn" class="ghost" style="margin-top:0;">×</button>
-          </div>
-          <div class="inspector-body custom-scrollbar">
-            <div id="inspectorEmpty" class="inspector-empty">No admit/endorse statement selected.</div>
-            <table id="inspectorTable" class="inspector-table" style="display:none;"><tbody></tbody></table>
-          </div>
-        </aside>
-      </div>
+      <section class="card" data-help-title="Cross-tenancy findings" data-help-body="Shows unresolved or ambiguous definitions and duplicate Admit or Endorse statements. Click a finding to inspect its source statements."><details class="finding-details"><summary id="findingsSummary">Findings: 0</summary><div id="findingLayout" class="analysis-layout"><div class="table-shell analysis-table-offset"><div class="table-scroll custom-scrollbar"><table id="findingsTable" class="analysis-table"><thead><tr><th>Finding</th><th>Severity</th><th>Policy</th><th>Alias</th><th>Issue</th><th>Statements</th></tr></thead><tbody></tbody></table></div></div><aside id="findingInspector" class="inspector-panel" aria-live="polite"><div class="inspector-header"><strong id="findingInspectorTitle">Finding Details</strong><button id="closeFindingInspectorBtn" class="ghost" aria-label="Close finding details">×</button></div><div id="findingInspectorBody" class="inspector-body custom-scrollbar"></div></aside></div></details></section>
     </main>
 
+    <dialog id="singlePolicyDialog" class="modal-dialog">
+      <form method="dialog" class="card" style="width:min(900px,90vw);max-height:85vh;display:flex;flex-direction:column;gap:.7rem;">
+        <div class="policy-toolbar"><strong>Single Cross-Tenancy Policy</strong><button class="ghost" value="close" aria-label="Close">Close</button></div>
+        <p id="singlePolicySummary" class="helper-text"></p>
+        <select id="singlePolicySelector" aria-label="Generated policy"></select>
+        <textarea id="singlePolicyText" readonly spellcheck="false" style="min-height:50vh;font-family:monospace;white-space:pre;overflow:auto;"></textarea>
+        <div><button id="copySinglePolicyBtn" type="button">Copy policy</button></div>
+      </form>
+    </dialog>
+
     <script>
-      const definesBody = document.querySelector('#definesTable tbody');
-      const admitBody = document.querySelector('#admitTable tbody');
-      const endorseBody = document.querySelector('#endorseTable tbody');
-      const policyLayout = document.getElementById('policyLayout');
-      const policyInspector = document.getElementById('policyInspector');
-      const inspectorTitle = document.getElementById('inspectorTitle');
-      const closeInspectorBtn = document.getElementById('closeInspectorBtn');
-      const inspectorEmpty = document.getElementById('inspectorEmpty');
-      const inspectorTable = document.getElementById('inspectorTable');
-      const inspectorTableBody = document.querySelector('#inspectorTable tbody');
-      const statusEl = document.getElementById('status');
-      const countDefines = document.getElementById('countDefines');
-      const countAdmits = document.getElementById('countAdmits');
-      const countEndorses = document.getElementById('countEndorses');
-      const countUnknown = document.getElementById('countUnknown');
-      const contextHelpTitle = document.getElementById('contextHelpTitle');
-      const contextHelpBody = document.getElementById('contextHelpBody');
+      const $ = (id) => document.getElementById(id);
+      const svgNs = 'http://www.w3.org/2000/svg';
+      let payload = {};
+      let rows = [];
+      let selectedGraph = null;
+      let selectedEntity = '';
+      let selectedSubnode = '';
+      let selectedKey = '';
+      let selectedFinding = -1;
+      const text = (value) => String(value ?? '');
+      const graph = () => payload.relationship_graph || { tenancies: [], links: [], defined_entities: [], subnodes: [] };
 
-      const defaultContextHelp = {
-        title: 'How To Use This Page',
-        body: 'Hover over cards, tables, and controls to see guidance for each widget.',
-      };
-
-      let allDefines = [];
-      let allAdmits = [];
-      let allEndorses = [];
-      let selectedAliases = new Set();
-      let selectedAdmitStableKey = null;
-      let selectedEndorseStableKey = null;
-      let selectedInspectorType = null;
-
-      const esc = (v) => String(v ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
-      const ocidWithBreaks = (v) => esc(v).replaceAll('.', '.<wbr>');
-
-      function setContextHelp(title, body) {
-        if (contextHelpTitle) contextHelpTitle.textContent = title || defaultContextHelp.title;
-        if (contextHelpBody) contextHelpBody.textContent = body || defaultContextHelp.body;
+      function setStatus(message, kind = '') { $('status').textContent = message; $('status').className = kind ? `status ${kind}` : 'status'; }
+      function setHelp(title, body) { $('contextHelpTitle').textContent = title || 'How To Use This Page'; $('contextHelpBody').textContent = body || 'Click a tenancy or defined entity to filter the statements below.'; }
+      function emptyMessage(host, message) { const span = document.createElement('span'); span.className = 'helper-text'; span.textContent = message; host.replaceChildren(span); }
+      function subnodeId(node) { return node.id || `${node.tenancy_alias.toLowerCase()}|${node.kind.toLowerCase()}|${node.name.toLowerCase()}`; }
+      function makeSubnode(node) {
+        const button = document.createElement('button'); button.type = 'button'; button.className = 'subnode';
+        button.setAttribute('aria-pressed', selectedSubnode === subnodeId(node) ? 'true' : 'false');
+        const kind = document.createElement('span'); kind.className = 'subnode-kind'; kind.textContent = node.kind;
+        button.append(kind, document.createTextNode(node.name));
+        button.title = node.tenancy_alias ? `Linked to ${node.tenancy_alias}` : 'Tenancy could not be established from the statement';
+        button.addEventListener('click', () => {
+          selectedSubnode = selectedSubnode === subnodeId(node) ? '' : subnodeId(node);
+          selectedGraph = null; selectedEntity = ''; $('definedEntityFilter').value = '';
+          renderGraph(); renderTable();
+        });
+        return button;
       }
-
-      function setStatus(message, kind = '') {
-        statusEl.textContent = message || '';
-        statusEl.className = kind ? `status ${kind}` : 'status';
+      function makeNode(tenancy, direction) {
+        const matching = graph().links.filter((link) => link.alias.toLowerCase() === tenancy.alias.toLowerCase() && link.direction === direction);
+        const associatedOnly = matching.every((link) => link.association);
+        const active = selectedGraph?.alias === tenancy.alias.toLowerCase() && selectedGraph?.direction === direction;
+        const button = document.createElement('button');
+        button.type = 'button'; button.className = `relationship-node ${direction}${associatedOnly ? ' association' : ''}${tenancy.special ? ' special' : ''}`;
+        button.dataset.alias = tenancy.alias.toLowerCase(); button.dataset.direction = direction;
+        button.setAttribute('aria-pressed', active ? 'true' : 'false');
+        button.title = tenancy.special ? 'Any tenancy · special OCI scope; no Define required' : tenancy.ocid || 'Tenancy OCID unresolved';
+        const mark = document.createElement('span'); mark.className = 'node-mark'; mark.textContent = tenancy.special ? '*' : tenancy.alias.slice(0, 2).toUpperCase();
+        const copy = document.createElement('span'); copy.className = 'node-copy';
+        const name = document.createElement('strong'); name.textContent = tenancy.alias;
+        const note = document.createElement('small'); note.textContent = `${matching.reduce((sum, link) => sum + link.count, 0)} statement(s)${tenancy.special ? ' · any tenancy' : tenancy.resolved ? '' : ' · OCID unresolved'}`;
+        copy.append(name, note); button.append(mark, copy);
+        button.addEventListener('click', () => {
+          selectedGraph = active ? null : { alias: tenancy.alias.toLowerCase(), direction };
+          selectedSubnode = '';
+          renderGraph(); renderTable();
+        });
+        const group = document.createElement('div'); group.className = 'relationship-node-group'; group.append(button);
+        const children = (graph().subnodes || []).filter((node) => node.tenancy_alias.toLowerCase() === tenancy.alias.toLowerCase() && node.statement_keys.some((key) => matching.some((link) => link.statement_keys.includes(key))));
+        if (children.length) { const list = document.createElement('div'); list.className = 'subnode-list'; list.append(...children.map(makeSubnode)); group.append(list); }
+        return group;
       }
-
-      function containsAlias(statementText, aliases) {
-        const normalized = String(statementText || '').toLowerCase();
-        for (const alias of aliases) {
-          if (normalized.includes(alias)) return true;
+      function drawLines() {
+        const svg = $('relationshipLines');
+        svg.replaceChildren();
+        if (window.matchMedia('(max-width: 900px)').matches) return;
+        const stage = $('relationshipStage').getBoundingClientRect();
+        svg.setAttribute('viewBox', `0 0 ${stage.width} ${stage.height}`);
+        const defs = document.createElementNS(svgNs, 'defs');
+        for (const [id, color] of [['incomingArrow', '#9d541f'], ['outgoingArrow', '#245979']]) {
+          const marker = document.createElementNS(svgNs, 'marker');
+          marker.setAttribute('id', id); marker.setAttribute('viewBox', '0 0 8 8'); marker.setAttribute('refX', '7'); marker.setAttribute('refY', '4'); marker.setAttribute('markerWidth', '7'); marker.setAttribute('markerHeight', '7'); marker.setAttribute('orient', 'auto');
+          const arrow = document.createElementNS(svgNs, 'path'); arrow.setAttribute('d', 'M0 0 L8 4 L0 8 Z'); arrow.setAttribute('fill', color); marker.append(arrow); defs.append(marker);
         }
-        return false;
+        svg.append(defs);
+        const home = $('homeTenancy').getBoundingClientRect();
+        const buttons = [...document.querySelectorAll('.relationship-node')];
+        for (const link of graph().links) {
+          const button = buttons.find((node) => node.dataset.alias === link.alias.toLowerCase() && node.dataset.direction === link.direction);
+          if (!button) continue;
+          const box = button.getBoundingClientRect();
+          const incoming = link.direction === 'incoming';
+          const x1 = (incoming ? box.right : home.right) - stage.left;
+          const x2 = (incoming ? home.left : box.left) - stage.left;
+          const y1 = (incoming ? box : home).top + (incoming ? box : home).height / 2 - stage.top + (link.association ? 5 : -5);
+          const y2 = (incoming ? home : box).top + (incoming ? home : box).height / 2 - stage.top + (link.association ? 5 : -5);
+          const path = document.createElementNS(svgNs, 'path');
+          path.setAttribute('d', `M${x1},${y1} C${(x1+x2)/2},${y1} ${(x1+x2)/2},${y2} ${x2},${y2}`);
+          path.setAttribute('fill', 'none'); path.setAttribute('stroke', link.association ? '#865ba6' : incoming ? '#9d541f' : '#245979'); path.setAttribute('stroke-width', '2');
+          if (link.association) path.setAttribute('stroke-dasharray', '5 5');
+          else path.setAttribute('marker-end', `url(#${incoming ? 'incomingArrow' : 'outgoingArrow'})`);
+          svg.append(path);
+        }
       }
-
-      function applyAliasFilter() {
-        if (!selectedAliases.size) return { admits: allAdmits, endorses: allEndorses };
-        const aliases = Array.from(selectedAliases).map((a) => a.toLowerCase());
-        return {
-          admits: allAdmits.filter((row) => containsAlias(row.statement_text, aliases)),
-          endorses: allEndorses.filter((row) => containsAlias(row.statement_text, aliases)),
-        };
+      function renderGraph() {
+        const local = payload.local_tenancy || {};
+        $('localTenancyName').textContent = local.name || 'This tenancy';
+        $('localTenancyOcid').textContent = local.ocid || 'Tenancy OCID unavailable';
+        const localNodes = (graph().subnodes || []).filter((node) => node.tenancy_alias === 'local');
+        const localHost = $('localEntities');
+        if (localNodes.length) { const list = document.createElement('div'); list.className = 'subnode-list'; list.append(...localNodes.map(makeSubnode)); localHost.replaceChildren(list); }
+        else localHost.replaceChildren();
+        for (const direction of ['incoming', 'outgoing']) {
+          const host = $(direction === 'incoming' ? 'incomingNodes' : 'outgoingNodes');
+          const tenancies = graph().tenancies.filter((tenancy) => graph().links.some((link) => link.alias.toLowerCase() === tenancy.alias.toLowerCase() && link.direction === direction));
+          if (!tenancies.length) emptyMessage(host, 'No parsed relationships in this direction.');
+          else host.replaceChildren(...tenancies.map((tenancy) => makeNode(tenancy, direction)));
+        }
+        const unplaced = (graph().subnodes || []).filter((node) => !node.tenancy_alias);
+        $('unplacedSection').hidden = !unplaced.length;
+        $('unplacedEntities').replaceChildren(...unplaced.map(makeSubnode));
+        const entities = graph().defined_entities;
+        const orphans = entities.map((entity, index) => ({ entity, index })).filter(({ entity }) => entity.orphan);
+        $('orphanSection').hidden = !orphans.length;
+        const host = $('definedEntities');
+        host.replaceChildren(...orphans.map(({ entity, index }) => {
+          const button = document.createElement('button'); button.type = 'button'; button.className = 'entity-chip';
+          button.setAttribute('aria-pressed', selectedEntity === String(index) ? 'true' : 'false');
+          button.title = entity.ocid_alias || 'OCID unavailable';
+          const type = document.createElement('span'); type.className = 'entity-type'; type.textContent = entity.defined_type;
+          button.append(type, document.createTextNode(`${entity.defined_name} · ${entity.reference_count} reference(s)`));
+          button.addEventListener('click', () => { selectedEntity = selectedEntity === String(index) ? '' : String(index); selectedSubnode = ''; $('definedEntityFilter').value = selectedEntity; renderGraph(); renderTable(); });
+          return button;
+        }));
+        requestAnimationFrame(drawLines);
       }
-
-      function renderDefines() {
-        definesBody.innerHTML = allDefines.map((row, i) => {
-          const alias = String(row.defined_name || '').trim();
-          const checked = alias && selectedAliases.has(alias.toLowerCase());
-          const rowClass = `${checked ? 'active-row' : ''}`.trim();
-          return `<tr data-row-id="${i}" class="${rowClass}"><td><input type="checkbox" ${checked ? 'checked' : ''} ${alias ? '' : 'disabled'} /></td><td>${esc(row.policy_name)}</td><td>${esc(row.defined_type)}</td><td>${esc(row.defined_name)}</td><td>${esc(row.statement_text || '')}</td></tr>`;
-        }).join('');
-
-        [...definesBody.querySelectorAll('tr')].forEach((tr) => {
-          const idx = Number(tr.dataset.rowId);
-          tr.querySelector('input')?.addEventListener('change', (event) => {
-            const alias = String(allDefines[idx]?.defined_name || '').trim().toLowerCase();
-            if (!alias) return;
-            if (event.target.checked) selectedAliases.add(alias);
-            else selectedAliases.delete(alias);
-            renderDefines();
-            renderStatements();
-          });
+      function renderEntityOptions() {
+        const select = $('definedEntityFilter');
+        select.replaceChildren(new Option('All defined entities', ''));
+        graph().defined_entities.forEach((entity, index) => select.add(new Option(`${entity.defined_type} · ${entity.defined_name}`, String(index))));
+        select.value = selectedEntity;
+      }
+      function visibleRows() {
+        const query = $('statementSearch').value.trim().toLowerCase();
+        let graphKeys = null;
+        if (selectedGraph) {
+          graphKeys = new Set(graph().links.filter((link) => link.alias.toLowerCase() === selectedGraph.alias && link.direction === selectedGraph.direction).flatMap((link) => link.statement_keys));
+          for (const row of payload.defines || []) if (text(row.defined_name).toLowerCase() === selectedGraph.alias && text(row.defined_type).toLowerCase() === 'tenancy') graphKeys.add(row.stable_key);
+        }
+        const entity = graph().defined_entities[Number(selectedEntity)];
+        const entityKeys = selectedEntity !== '' && entity ? new Set(entity.statement_keys) : null;
+        const subnode = (graph().subnodes || []).find((node) => subnodeId(node) === selectedSubnode);
+        const subnodeKeys = selectedSubnode && subnode ? new Set(subnode.statement_keys) : null;
+        return rows.filter((row) => {
+          if (graphKeys && !graphKeys.has(row.stable_key)) return false;
+          if (entityKeys && !entityKeys.has(row.stable_key)) return false;
+          if (subnodeKeys && !subnodeKeys.has(row.stable_key)) return false;
+          return !query || text(row.statement_text).toLowerCase().includes(query);
         });
       }
-
-      function renderStatementRows(body, rows, selectedStableKey) {
-        body.innerHTML = rows.map((row) => {
-          const active = selectedStableKey && row.stable_key === selectedStableKey ? 'active-row' : '';
-          return `<tr data-stable-key="${esc(row.stable_key || '')}" class="${active}"><td>${esc(row.policy_name)}</td><td>${esc(row.statement_text)}</td></tr>`;
-        }).join('');
+      function addCell(tr, value, className = '') { const td = document.createElement('td'); td.textContent = text(value); if (className) td.className = className; tr.append(td); return td; }
+      function tenancyCellText(row) {
+        if (row.kind !== 'Define') return (row.external_tenancies || []).map((item) => item.alias).join(', ') || '—';
+        const associated = row.tenancy_associations || [];
+        return associated.length ? `${associated.map((item) => item.name).join(', ')}${row.defined_type?.toLowerCase() === 'tenancy' ? '' : ' (deduced)'}` : '<not associated>';
       }
-
-      function formatInspectorValue(value) {
-        if (value === null || value === undefined) return '';
-        if (typeof value === 'object') {
-          try { return JSON.stringify(value, null, 2); } catch (_err) { return String(value); }
-        }
-        return String(value);
+      function renderTable() {
+        const filtered = visibleRows();
+        const body = document.querySelector('#statementsTable tbody');
+        if (!filtered.length) { const tr = document.createElement('tr'); const td = addCell(tr, 'No statements match the current filters.'); td.colSpan = 4; body.replaceChildren(tr); }
+        else body.replaceChildren(...filtered.map((row) => {
+          const tr = document.createElement('tr'); tr.tabIndex = 0; tr.setAttribute('role', 'button');
+          tr.setAttribute('aria-label', `${row.kind || 'Unknown'} statement in ${row.policy_name || 'unnamed policy'}`);
+          if (row.stable_key === selectedKey) tr.classList.add('active-row');
+          const kindCell = document.createElement('td'); const badge = document.createElement('span'); badge.className = `kind-badge ${text(row.kind).toLowerCase()}`; badge.textContent = row.kind || 'Unknown'; kindCell.append(badge); tr.append(kindCell);
+          addCell(tr, row.policy_name || '', 'policy-name'); addCell(tr, row.statement_text || '', 'statement-text');
+          addCell(tr, tenancyCellText(row));
+          const open = () => { selectedKey = row.stable_key; renderDetails(row); renderTable(); };
+          tr.addEventListener('click', open); tr.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
+          return tr;
+        }));
+        const active = rows.find((row) => row.stable_key === selectedKey && filtered.includes(row));
+        if (!active) { selectedKey = ''; renderDetails(null); }
+        const filters = [];
+        if (selectedGraph) filters.push(`${selectedGraph.alias} · ${selectedGraph.direction}`);
+        if (selectedEntity !== '') filters.push(graph().defined_entities[Number(selectedEntity)]?.defined_name || 'defined entity');
+        if (selectedSubnode) filters.push((graph().subnodes || []).find((node) => subnodeId(node) === selectedSubnode)?.name || 'linked entity');
+        if ($('statementSearch').value.trim()) filters.push(`text: ${$('statementSearch').value.trim()}`);
+        $('filterSummary').textContent = `${filtered.length} of ${rows.length} statements${filters.length ? ` · Filtered by ${filters.join(', ')}` : ''}`;
       }
-
-      function renderStatementDetails(type, row) {
-        if (!row) {
-          policyInspector.classList.remove('open');
-          policyLayout.classList.remove('has-selection');
-          inspectorTitle.textContent = 'Statement Details';
-          inspectorEmpty.style.display = 'block';
-          inspectorTable.style.display = 'none';
-          return;
-        }
-
-        policyInspector.classList.add('open');
-        policyLayout.classList.add('has-selection');
-        inspectorTitle.textContent = `${type} Statement Details`;
-
-        const primaryFieldOrder = ['policy_name', 'policy_ocid', 'statement_text', 'creation_time', 'parsed', 'stable_key'];
-        const labelForKey = (k) => String(k || '').replaceAll('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-        const parsedFields = row.parsed_fields && typeof row.parsed_fields === 'object' ? row.parsed_fields : {};
-        const parsedKeys = Object.keys(parsedFields);
-
-        const ordered = [
-          ...primaryFieldOrder.filter((k) => k in row),
-          ...(parsedKeys.length ? ['__separator_parsed__'] : []),
-          ...parsedKeys.sort((a, b) => a.localeCompare(b)),
-        ];
-
-        inspectorTableBody.innerHTML = ordered
-          .map((k) => {
-            if (k === '__separator_parsed__') {
-              return '<tr class="inspector-separator"><th colspan="2">- Parsed Details -</th></tr>';
-            }
-            if (k in row) {
-              const val = k.includes('ocid') ? ocidWithBreaks(row[k]) : esc(formatInspectorValue(row[k]));
-              return `<tr><th>${esc(labelForKey(k))}</th><td>${val}</td></tr>`;
-            }
-            const v = parsedFields[k];
-            const val = k.includes('ocid') ? ocidWithBreaks(v) : esc(formatInspectorValue(v));
-            return `<tr><th>${esc(labelForKey(k))}</th><td>${val}</td></tr>`;
-          })
-          .join('');
-
-        inspectorEmpty.style.display = 'none';
-        inspectorTable.style.display = 'table';
+      function formatValue(value) { if (value === null || value === undefined) return ''; return typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value); }
+      function addDetail(body, label, value) { const tr = document.createElement('tr'); const th = document.createElement('th'); const td = document.createElement('td'); th.textContent = label.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()); td.textContent = formatValue(value); tr.append(th, td); body.append(tr); }
+      function renderDetails(row) {
+        const panel = $('policyInspector');
+        if (!row) { panel.classList.remove('open'); $('policyLayout').classList.remove('has-selection'); $('inspectorTable').hidden = true; $('inspectorEmpty').hidden = false; return; }
+        panel.classList.add('open'); $('policyLayout').classList.add('has-selection'); $('inspectorTitle').textContent = `${row.kind || 'Cross-tenancy'} Statement Details`;
+        const body = document.querySelector('#inspectorTable tbody'); body.replaceChildren();
+        const first = ['policy_name', 'policy_ocid', 'statement_text', 'kind', 'direction', 'principal_identity', 'defined_type', 'defined_name', 'ocid_alias', 'tenancy_associations', 'external_tenancies', 'participants', 'association', 'parsed', 'valid', 'creation_time'];
+        const remaining = Object.keys(row).filter((key) => key !== 'parsed_fields' && !first.includes(key)).sort();
+        for (const key of [...first.filter((key) => key in row), ...remaining]) addDetail(body, key, row[key]);
+        for (const [key, value] of Object.entries(row.parsed_fields || {})) if (!(key in row)) addDetail(body, key, value);
+        $('inspectorTable').hidden = false; $('inspectorEmpty').hidden = true;
       }
-
-      function renderStatements() {
-        const { admits, endorses } = applyAliasFilter();
-        renderStatementRows(admitBody, admits, selectedAdmitStableKey);
-        renderStatementRows(endorseBody, endorses, selectedEndorseStableKey);
-
-        [...admitBody.querySelectorAll('tr')].forEach((tr) => {
-          tr.addEventListener('click', () => {
-            selectedAdmitStableKey = tr.dataset.stableKey || null;
-            selectedInspectorType = 'Admit';
-            const row = admits.find((r) => String(r.stable_key || '') === String(selectedAdmitStableKey || ''));
-            renderStatementDetails('Admit', row);
-            renderStatements();
-          });
+      function renderFindings() {
+        const findings = payload.findings || [];
+        $('findingsSummary').textContent = `Findings: ${findings.length} · ${findings.filter((item) => text(item.Type).includes('Unresolved')).length} unresolved · ${findings.filter((item) => text(item.Type).includes('Ambiguous')).length} ambiguous · ${findings.filter((item) => text(item.Type).includes('Duplicate')).length} duplicate`;
+        const body = document.querySelector('#findingsTable tbody');
+        if (!findings.length) { const tr = document.createElement('tr'); const td = addCell(tr, 'No cross-tenancy findings.'); td.colSpan = 6; body.replaceChildren(tr); renderFindingDetails(null); return; }
+        body.replaceChildren(...findings.map((item, index) => {
+          const tr = document.createElement('tr'); tr.tabIndex = 0; tr.setAttribute('role', 'button');
+          tr.setAttribute('aria-label', `Inspect ${item.Type || 'finding'} for ${item.Alias || 'statement'}`);
+          if (index === selectedFinding) tr.classList.add('active-row');
+          for (const key of ['Type', 'Severity', 'Policy Name', 'Alias', 'Issue', 'Statement Count']) addCell(tr, item[key] || '');
+          const open = () => { selectedFinding = index; renderFindingDetails(item); renderFindings(); };
+          tr.addEventListener('click', open); tr.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
+          return tr;
+        }));
+      }
+      function relatedFindingRows(finding) {
+        const references = finding.related_statements || [];
+        if (references.length) return references.map((ref) => rows.find((row) =>
+          (ref.source_id && row.stable_key === ref.source_id) ||
+          (ref.internal_id && row.internal_id === ref.internal_id) ||
+          (row.statement_text === ref.statement_text && (!ref.policy_ocid || row.policy_ocid === ref.policy_ocid))
+        )).filter(Boolean);
+        const texts = text(finding['Statement Text']).split(/\n\n+/).filter(Boolean);
+        return rows.filter((row) => texts.includes(row.statement_text));
+      }
+      function renderFindingDetails(finding) {
+        const panel = $('findingInspector');
+        if (!finding) { panel.classList.remove('open'); $('findingLayout').classList.remove('has-selection'); $('findingInspectorBody').replaceChildren(); return; }
+        panel.classList.add('open'); $('findingLayout').classList.add('has-selection');
+        $('findingInspectorTitle').textContent = finding.Type || 'Finding Details';
+        const body = $('findingInspectorBody');
+        const table = document.createElement('table'); table.className = 'inspector-table';
+        const tbody = document.createElement('tbody');
+        for (const key of ['Type', 'Severity', 'Policy Name', 'Statement Kind', 'Alias', 'Issue', 'Statement Count']) if (key in finding) addDetail(tbody, key, finding[key]);
+        table.append(tbody); body.replaceChildren(table);
+        const related = relatedFindingRows(finding);
+        const heading = document.createElement('h4'); heading.textContent = `Source statements (${related.length})`; body.append(heading);
+        if (!related.length) { const fallback = document.createElement('pre'); fallback.textContent = text(finding['Statement Text']) || 'Source statement unavailable.'; body.append(fallback); return; }
+        related.forEach((row, index) => {
+          const details = document.createElement('details'); details.className = 'finding-source'; details.open = index === 0;
+          const summary = document.createElement('summary'); summary.textContent = `${row.kind} · ${row.policy_name || 'Unnamed policy'} · ${row.statement_text}`;
+          const sourceTable = document.createElement('table'); sourceTable.className = 'inspector-table';
+          const sourceBody = document.createElement('tbody');
+          for (const [key, value] of Object.entries(row)) if (key !== 'parsed_fields') addDetail(sourceBody, key, value);
+          sourceTable.append(sourceBody); details.append(summary, sourceTable); body.append(details);
         });
-
-        [...endorseBody.querySelectorAll('tr')].forEach((tr) => {
-          tr.addEventListener('click', () => {
-            selectedEndorseStableKey = tr.dataset.stableKey || null;
-            selectedInspectorType = 'Endorse';
-            const row = endorses.find((r) => String(r.stable_key || '') === String(selectedEndorseStableKey || ''));
-            renderStatementDetails('Endorse', row);
-            renderStatements();
-          });
-        });
-
-        if (selectedInspectorType === 'Admit') {
-          const row = admits.find((r) => String(r.stable_key || '') === String(selectedAdmitStableKey || ''));
-          renderStatementDetails('Admit', row || null);
-        } else if (selectedInspectorType === 'Endorse') {
-          const row = endorses.find((r) => String(r.stable_key || '') === String(selectedEndorseStableKey || ''));
-          renderStatementDetails('Endorse', row || null);
-        } else {
-          renderStatementDetails('', null);
-        }
-
-        countAdmits.textContent = `Admit: ${admits.length}`;
-        countEndorses.textContent = `Endorse: ${endorses.length}`;
       }
-
       async function loadCrossTenancy() {
         setStatus('Loading cross-tenancy data...');
         try {
           const response = await fetch('/analysis/cross-tenancy');
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          const payload = await response.json();
-
-          allDefines = Array.isArray(payload.defines) ? payload.defines : [];
-          allAdmits = Array.isArray(payload.admit_statements_basic) ? payload.admit_statements_basic : [];
-          allEndorses = Array.isArray(payload.endorse_statements_basic) ? payload.endorse_statements_basic : [];
-
-          const counts = payload.counts || {};
-          countDefines.textContent = `Defines: ${counts.defines ?? allDefines.length}`;
-          countUnknown.textContent = `Unknown: ${counts.unknown ?? 0}`;
-
-          renderDefines();
-          renderStatements();
+          payload = await response.json();
+          rows = [...(payload.defines || []), ...(payload.admit_statements || []), ...(payload.endorse_statements || []), ...(payload.unknown_statements || [])];
+          selectedGraph = null; selectedEntity = ''; selectedSubnode = ''; selectedKey = ''; selectedFinding = -1; renderFindingDetails(null);
+          $('countDefines').textContent = `Defines: ${(payload.defines || []).length}`;
+          $('countAdmits').textContent = `Admit: ${(payload.admit_statements || []).length}`;
+          $('countEndorses').textContent = `Endorse: ${(payload.endorse_statements || []).length}`;
+          $('countUnknown').textContent = `Unknown: ${(payload.unknown_statements || []).length}`;
+          renderEntityOptions(); renderGraph(); renderTable(); renderFindings();
           setStatus('Cross-tenancy data loaded.', 'success');
-        } catch (err) {
-          setStatus(`Failed to load cross-tenancy data: ${err}`, 'error');
-          allDefines = [];
-          allAdmits = [];
-          allEndorses = [];
-          selectedAliases = new Set();
-          renderDefines();
-          renderStatements();
-          countDefines.textContent = 'Defines: 0';
-          countUnknown.textContent = 'Unknown: 0';
-        }
+        } catch (error) { payload = {}; rows = []; selectedGraph = null; selectedEntity = ''; selectedSubnode = ''; selectedKey = ''; selectedFinding = -1; renderEntityOptions(); renderGraph(); renderTable(); renderFindings(); setStatus(`Failed to load cross-tenancy data: ${error}`, 'error'); }
       }
-
-      document.getElementById('refreshBtn').addEventListener('click', loadCrossTenancy);
-      document.getElementById('clearAliasBtn').addEventListener('click', () => {
-        selectedAliases = new Set();
-        renderDefines();
-        renderStatements();
+      $('refreshBtn').addEventListener('click', loadCrossTenancy);
+      $('generatePolicyBtn').addEventListener('click', () => {
+        const generated = payload.single_policy || { text: '', included: 0, invalid_or_unparsed: 0, unresolved_or_ambiguous: 0, unclassified: 0 };
+        $('singlePolicySummary').textContent = `Included: ${generated.included} valid, resolved Define / Admit / Endorse statements from all loaded policies. Not included: ${generated.invalid_or_unparsed} invalid or unparsed, ${generated.unresolved_or_ambiguous} unresolved or ambiguous, and ${generated.unclassified} unclassified statements.`;
+        const policies = generated.policies || [{ name: 'CrossTenancy-01', text: generated.text || '' }];
+        $('singlePolicySelector').replaceChildren(...policies.map((policy, index) => { const option = document.createElement('option'); option.value = String(index); option.textContent = `${policy.name} · ${policy.included ?? policy.text.split('\\n').length} statements`; return option; }));
+        $('singlePolicySelector').onchange = () => { $('singlePolicyText').value = policies[Number($('singlePolicySelector').value)].text; };
+        $('singlePolicyText').value = policies[0].text || 'No valid, resolved cross-tenancy statements are available.';
+        $('singlePolicyDialog').showModal();
       });
-
+      $('copySinglePolicyBtn').addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText($('singlePolicyText').value);
+          setStatus('Combined cross-tenancy policy copied.', 'success');
+        } catch (error) {
+          $('singlePolicyText').focus(); $('singlePolicyText').select();
+          setStatus(`Clipboard access failed: ${error}. The policy text is selected for manual copying.`, 'error');
+        }
+      });
+      $('clearFiltersBtn').addEventListener('click', () => { selectedGraph = null; selectedEntity = ''; selectedSubnode = ''; $('definedEntityFilter').value = ''; $('statementSearch').value = ''; renderGraph(); renderTable(); });
+      $('definedEntityFilter').addEventListener('change', (event) => { selectedEntity = event.target.value; selectedSubnode = ''; renderGraph(); renderTable(); });
+      $('statementSearch').addEventListener('input', renderTable);
+      $('closeInspectorBtn').addEventListener('click', () => { selectedKey = ''; renderDetails(null); renderTable(); });
+      $('closeFindingInspectorBtn').addEventListener('click', () => { selectedFinding = -1; renderFindingDetails(null); renderFindings(); });
       document.querySelectorAll('[data-help-title], [data-help-body]').forEach((node) => {
-        const title = node.getAttribute('data-help-title') || '';
-        const body = node.getAttribute('data-help-body') || '';
-        node.addEventListener('mouseenter', () => setContextHelp(title, body));
-        node.addEventListener('focusin', () => setContextHelp(title, body));
-        node.addEventListener('mouseleave', () => setContextHelp(defaultContextHelp.title, defaultContextHelp.body));
-        node.addEventListener('focusout', () => setContextHelp(defaultContextHelp.title, defaultContextHelp.body));
+        const title = node.getAttribute('data-help-title') || ''; const body = node.getAttribute('data-help-body') || '';
+        node.addEventListener('mouseenter', () => setHelp(title, body)); node.addEventListener('focusin', () => setHelp(title, body));
+        node.addEventListener('mouseleave', () => setHelp('', '')); node.addEventListener('focusout', () => setHelp('', ''));
       });
-
-      closeInspectorBtn.addEventListener('click', () => {
-        selectedAdmitStableKey = null;
-        selectedEndorseStableKey = null;
-        selectedInspectorType = null;
-        renderStatements();
-      });
-
+      if ('ResizeObserver' in window) new ResizeObserver(() => requestAnimationFrame(drawLines)).observe($('relationshipStage'));
+      window.addEventListener('resize', () => requestAnimationFrame(drawLines));
       loadCrossTenancy();
     </script>
-      <script src="/app-version.js"></script>
-      <script src="/auth-gate.js"></script>
-</body>
-  </html>
+    <script src="/app-version.js"></script>
+    <script src="/auth-gate.js"></script>
+  </body>
+</html>

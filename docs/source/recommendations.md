@@ -4,6 +4,43 @@ The **Recommendations** tab is the central UI for reviewing, understanding, and 
 
 ---
 
+## Qt Recommendations
+
+The native Qt page is available in Standard mode after loading a snapshot. Its
+Summary, Policy risk, Statement risk, Superseded, Cross-tenancy, Consolidation,
+Cleanup / Fix, and Limits tabs use the same `RecommendationsService` payload as
+the web dashboard. Search each table; filter Summary by priority/category,
+Superseded by compartment subtree, and Limits by status. Right-click or
+double-click a finding for its complete read-only details. Policy risk and
+Statement risk findings open a continuous list of every backing-service field,
+including empty values, without collapsible sections or an Additional Details
+bucket. Values remain selectable plain text, and Raw record / Copy JSON preserve
+the complete original finding. Risk/count columns
+sort numerically, and Summary priorities sort by urgency.
+
+**Query foundations** deliberately skips full recommendations and the permissions
+report. Choose **Run analysis** to run the enabled intelligence checks from
+Overview against the current snapshot, with the risk reductions under **Analysis
+settings and coverage**. This rebuilds shared corpora, permissions reports and
+simulation. Existing simulation results are reset; local prospective statements
+and their editor remain available. No source snapshot files or OCI policies are
+written. Configured intelligence checks may use available OCI clients. Reports
+under Tools can then consume the rebuilt permissions and supersession material.
+
+The Supersession details window has separate **Candidate & evidence**, **Permission
+coverage**, and **Raw evidence** tabs. Full original statements, policy/effective
+scope, notes and conditions remain visible and copyable. Coverage lists
+unconditional sources separately from conditional evidence; conditional evidence
+never proves complete supersession. Wrapped permission rows and a complete text
+viewer handle long scope/policy names. Empty findings do not prove a check ran or
+that the tenancy is free of issues; review configured checks and data coverage.
+
+Qt currently follows the web dashboard's read-only finding workflow. Tk's local
+cleanup tracking, ignore/restore actions and consolidation-plan handoff remain
+separate workflows; this Qt page does not expose those actions.
+
+---
+
 ## How Does It Work?
 
 Recommendations and related findings are **dynamically generated** by the Policy Intelligence engine, which evaluates your loaded policies, users, groups, and compartments against a suite of pluggable analytic strategies. These strategies identify risky, invalid, redundant, or overlapping policy statements and aggregate results into a unified model.

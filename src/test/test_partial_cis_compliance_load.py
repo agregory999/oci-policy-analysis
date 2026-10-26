@@ -8,6 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+
 from oci_policy_analysis.application.core.engine.consolidation_engine import ConsolidationEngine
 from oci_policy_analysis.application.core.engine.intelligence_strategies.cleanup_unused_groups import UnusedGroupsCheck
 from oci_policy_analysis.application.core.engine.policy_intelligence_engine import PolicyIntelligenceEngine
@@ -18,9 +19,9 @@ from oci_policy_analysis.application.core.repo.policy_analysis_repository import
 from oci_policy_analysis.application.services.recommendations_service import RecommendationsService
 from oci_policy_analysis.application.services.reports_service import ReportsService
 from oci_policy_analysis.main import App
-from oci_policy_analysis.presentation.desktop.consolidation_workbench_tab import ConsolidationWorkbenchTab
-from oci_policy_analysis.presentation.desktop.policy_recommendations_tab import PolicyRecommendationsTab
-from oci_policy_analysis.presentation.desktop.workload_principals_tab import WorkloadPrincipalsTab
+from oci_policy_analysis.presentation.tk.consolidation_workbench_tab import ConsolidationWorkbenchTab
+from oci_policy_analysis.presentation.tk.policy_recommendations_tab import PolicyRecommendationsTab
+from oci_policy_analysis.presentation.tk.workload_principals_tab import WorkloadPrincipalsTab
 
 
 def _write_csv(path: Path, fieldnames: list[str], rows: list[dict[str, str]]) -> None:
@@ -282,7 +283,7 @@ def test_partial_cis_builds_effective_permissions_from_policy_subject_names(tmp_
     grant_rows = report['findings'][0]['grant_rows']
     assert grant_rows
     assert {row['principal_kind'] for row in grant_rows} == {'group', 'dynamic-group'}
-    assert any('Engineering/PlatformOps' in row['principal_key'] for row in grant_rows)
+    assert any('engineering/platformops' in row['principal_key'] for row in grant_rows)
     assert report['item_count'] == len(grant_rows)
 
 

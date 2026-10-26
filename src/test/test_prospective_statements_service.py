@@ -120,9 +120,9 @@ def test_create_and_validate_and_update_text() -> None:
     assert updated.invalid_reasons == ['Some semantic issue']
     assert isinstance(updated.normalized, dict)
     assert updated.normalized.get('subject_type') == 'group'
-    assert updated.normalized.get('principal_key') == 'group:Default/Dev'
+    assert updated.normalized.get('principal_key') == 'group:default/dev'
     principals = updated.normalized.get('principals') or []
-    assert principals and principals[0].get('principal_key') == 'group:Default/Dev'
+    assert principals and principals[0].get('principal_key') == 'group:default/dev'
     assert updated.effective_path == 'ROOT/Dev'
 
 
@@ -176,3 +176,20 @@ def test_validate_and_update_text_without_engine_marks_unvalidated() -> None:
     assert updated.valid is False
     assert updated.invalid_reasons  # should contain a message about engine not available
     assert updated.effective_path == 'ROOT'
+
+
+def test_builder_root_scope_and_effective_path_boundary():
+    from types import SimpleNamespace
+
+    from oci_policy_analysis.application.services.prospective_builder_service import ProspectiveBuilderService
+
+    builder = ProspectiveBuilderService(SimpleNamespace(regular_statements=[]), None, None)
+    preview = builder.build_preview({'location': 'ROOT', 'effective_path': 'ROOT'})
+    assert preview.statement_text.endswith(' in tenancy')
+    preview = builder.build_preview({'location': 'ROOT', 'effective_path': 'ROOT/Finance/Payroll'})
+    assert preview.statement_text.endswith(' in compartment Finance:Payroll')
+    assert not preview.warnings
+    preview = builder.build_preview({'location': 'ROOT/Finance', 'effective_path': 'ROOT/IT'})
+    assert preview.effective_path == 'ROOT/Finance'
+    assert preview.warnings
+    assert preview.statement_text.endswith(' in compartment Finance')

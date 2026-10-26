@@ -31,6 +31,11 @@ class PolicyBrowserService:
                 continue
             policy_counts_by_compartment[compartment_ocid] = policy_counts_by_compartment.get(compartment_ocid, 0) + 1
 
+        limits = getattr(repo, 'tenancy_policy_limits', {}) or {}
+        try:
+            chain_limit = int(limits.get('policy_statements_per_compartment_chain_count') or 0)
+        except (ValueError, TypeError):
+            chain_limit = 0
         rows: list[dict[str, object]] = []
         for comp in compartments:
             name = str(comp.get('name') or '(Unnamed Compartment)')
@@ -42,9 +47,11 @@ class PolicyBrowserService:
             parent_ocid = str(comp.get('parent_id') or '')
             direct_count = int(comp.get('statement_count_direct') or 0)
             cumulative_count = int(comp.get('statement_count_cumulative') or 0)
-            if cumulative_count > 500:
+            if chain_limit <= 0:
+                limit_state = 'unknown'
+            elif cumulative_count > chain_limit:
                 limit_state = 'over'
-            elif cumulative_count >= 450:
+            elif cumulative_count >= int(chain_limit * 0.85):
                 limit_state = 'warning'
             else:
                 limit_state = 'ok'
@@ -77,6 +84,7 @@ class PolicyBrowserService:
         return {
             'total': len(rows),
             'rows': rows,
+            'tenancy_policy_limits': limits,
         }
 
     def _normalize_compartment_tags(self, compartment: dict[str, Any]) -> list[dict[str, str]]:
@@ -119,7 +127,7 @@ class PolicyBrowserService:
                         continue
                     tags.append({'source': 'legacy', 'name': key_text, 'value': str(value or '')})
 
-        tags.sort(key=lambda item: f"{item.get('name', '')}:{item.get('value', '')}".casefold())
+        tags.sort(key=lambda item: f'{item.get("name", "")}:{item.get("value", "")}'.casefold())
         return tags
 
     def list_tag_namespaces(self) -> dict[str, object]:

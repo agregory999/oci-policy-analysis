@@ -86,13 +86,13 @@ The parser-side model is implemented in
 class TagCondition:
     """Normalized view of a single tag-based condition element."""
 
-    condition_id: str          # e.g. 'c1', 'c2', unique per clause
-    access_type: str           # e.g. 'request.principal.group'
-    tag_namespace: str         # e.g. 'Operations'
-    tag_key: str               # e.g. 'Project'
-    operator: str              # '=', '!=', 'in', 'not in', ...
-    value: str                 # scalar or comma-separated list
-    subexpression: str         # raw single-condition text from the AST
+    condition_id: str  # e.g. 'c1', 'c2', unique per clause
+    access_type: str  # e.g. 'request.principal.group'
+    tag_namespace: str  # e.g. 'Operations'
+    tag_key: str  # e.g. 'Project'
+    operator: str  # '=', '!=', 'in', 'not in', ...
+    value: str  # scalar or comma-separated list
+    subexpression: str  # raw single-condition text from the AST
 ```
 
 Notes:
@@ -218,7 +218,7 @@ def collect_tag_conditions(condition_str: str) -> tuple[str, list[TagCondition]]
 ## Tag-based Access Tab: UI Layout
 
 The tab is implemented as `TagBasedAccessTab(BaseUITab)` under
-`src/oci_policy_analysis/presentation/desktop/tag_based_access_tab.py` and added to the
+`src/oci_policy_analysis/presentation/tk/tag_based_access_tab.py` and added to the
 application's notebook as an **advanced** tab (toggled via Settings).
 
 ### Page-Level Behavior
@@ -334,10 +334,11 @@ def _statement_row_menu(row_index: int) -> tk.Menu:
     row = self._statement_rows[row_index]
     menu = tk.Menu(self.statement_table, tearoff=0)
     menu.add_command(
-        label="Show in condition tester",
+        label='Show in condition tester',
         command=lambda r=row: self._on_statement_show_in_condition_tester(r),
     )
     return menu
+
 
 self.statement_table.row_context_menu_callback = _statement_row_menu
 ```
@@ -345,7 +346,7 @@ self.statement_table.row_context_menu_callback = _statement_row_menu
 The handler `_on_statement_show_in_condition_tester` does:
 
 ```python
-raw = (row.get("Raw Condition") or "").strip()
+raw = (row.get('Raw Condition') or '').strip()
 self._send_condition_to_tester(raw, show_empty_message=True)
 ```
 
@@ -382,10 +383,11 @@ def _condition_row_menu(row_index: int) -> tk.Menu:
     row = self._condition_rows[row_index]
     menu = tk.Menu(self.condition_table, tearoff=0)
     menu.add_command(
-        label="Test individual condition",
+        label='Test individual condition',
         command=lambda r=row: self._on_condition_test_individual(r),
     )
     return menu
+
 
 self.condition_table.row_context_menu_callback = _condition_row_menu
 ```
@@ -393,7 +395,7 @@ self.condition_table.row_context_menu_callback = _condition_row_menu
 The handler `_on_condition_test_individual` does:
 
 ```python
-subexpr = (row.get("Subexpression") or "").strip()
+subexpr = (row.get('Subexpression') or '').strip()
 self._send_condition_to_tester(subexpr, show_empty_message=True)
 ```
 
@@ -611,9 +613,8 @@ Initial implementation will focus on:
 
 Potential follow-ons include:
 
-- Richer explanation text for each TagCondition (e.g. "This policy requires
-  that the request principal group has tag X=Y"), which could leverage the
-  GenAI "AI Assist" flow.
+- Richer deterministic explanation text for each TagCondition (e.g. "This policy requires
+  that the request principal group has tag X=Y").
 - Grouping/visualization of complex expressions where multiple tag
   conditions appear in the same logical group (`AND`/`OR`).
 - Integration with the **Policy Recommendations** and **Intelligence**
@@ -646,13 +647,13 @@ Desktop UX notes:
 
 - Condition parser and tester:
   - `src/oci_policy_analysis/logic/parsers/condition_parser/`
-  - `src/oci_policy_analysis/presentation/desktop/condition_tester_tab.py`
+  - `src/oci_policy_analysis/presentation/tk/condition_tester_tab.py`
   - [`CONTEXT_simulation_engine.md`](CONTEXT_simulation_engine.md)
 
 - Policies tab and filters:
-  - `src/oci_policy_analysis/presentation/desktop/policies_tab.py`
+  - `src/oci_policy_analysis/presentation/tk/policies_tab.py`
   - [`CONTEXT_policies_tab.md`](CONTEXT_policies_tab.md)
 
 - UI architecture and BaseUITab:
-  - `src/oci_policy_analysis/presentation/desktop/base_tab.py`
+  - `src/oci_policy_analysis/presentation/tk/base_tab.py`
   - [`CONTEXT_ui.md`](CONTEXT_ui.md)

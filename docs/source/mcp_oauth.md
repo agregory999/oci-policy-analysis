@@ -55,7 +55,7 @@ scope. OAuth identifies and authorizes the caller; the MCP server still reads
 OCI using its configured profile, instance principal, resource principal, or
 session token.
 
-### OCI Identity Domain issuer/metadata-host compatibility
+## OCI Identity Domain issuer/metadata-host compatibility
 
 There are two unrelated OCI OAuth details that are easy to conflate:
 

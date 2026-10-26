@@ -8,7 +8,7 @@ PORT="${MCP_PORT:-8765}"
 LOG_LEVEL="${MCP_LOG_LEVEL:-WARNING}"
 RECURSIVE="${MCP_RECURSIVE:-true}"
 SAVE_CACHE_AFTER_LOAD="${MCP_SAVE_CACHE_AFTER_LOAD:-false}"
-COMPARTMENT_DOMAIN_SEARCH_DEPTH="${MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH:-1}"
+COMPARTMENT_DOMAIN_SEARCH_DEPTH="${OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH:-1}"
 
 OCI_PROFILE_NAME="${OCI_PROFILE:-}"
 MCP_CACHE_NAME="${MCP_USE_CACHE:-}"
@@ -51,7 +51,7 @@ SERVER_ARGS=(
 )
 
 if [[ ! "${COMPARTMENT_DOMAIN_SEARCH_DEPTH}" =~ ^[0-9]+$ ]] || (( COMPARTMENT_DOMAIN_SEARCH_DEPTH < 1 || COMPARTMENT_DOMAIN_SEARCH_DEPTH > 6 )); then
-  echo "MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH must be an integer between 1 and 6." >&2
+  echo "OPA_COMPARTMENT_DOMAIN_SEARCH_DEPTH must be an integer between 1 and 6." >&2
   exit 2
 fi
 
@@ -79,6 +79,12 @@ fi
 
 if [[ "$(to_lower "${RECURSIVE}")" == "true" ]]; then
   SERVER_ARGS+=("--recursive")
+else
+  if ! python -m oci_policy_analysis.mcp_server --help 2>/dev/null | grep -F -- '--no-recursive' >/dev/null; then
+    echo "This installed release cannot disable recursive loading. Use MCP_RECURSIVE=true or a release supporting --no-recursive." >&2
+    exit 2
+  fi
+  SERVER_ARGS+=("--no-recursive")
 fi
 
 if [[ "$(to_lower "${SAVE_CACHE_AFTER_LOAD}")" != "true" ]]; then
@@ -121,4 +127,4 @@ case "${AUTH_MODE}" in
 esac
 
 echo "Starting OCI Policy Analysis MCP server with auth=${AUTH_MODE}, transport=${TRANSPORT}, host=${HOST}, port=${PORT}, log_level=${LOG_LEVEL}, oauth=${OAUTH_ENABLED}" >&2
-exec python -m oci_policy_analysis.mcp_server "${SERVER_ARGS[@]}"
+exec python -m oci_policy_analysis.mcp_server "${SERVER_ARGS[@]}" "$@"

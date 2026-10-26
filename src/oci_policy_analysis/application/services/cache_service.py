@@ -43,6 +43,73 @@ class CacheService:
         """
         return self.cache.get_preserved_cache_set()
 
+    def maintenance_records(self) -> list[dict[str, Any]]:
+        """List cache names and their current lock state without reading snapshot data.
+
+        Returns:
+            list[dict[str, Any]]: Names and preserved/locked flags from the cache index.
+        """
+        locked = self.get_preserved_cache_set()
+        return [{'name': name, 'locked': name in locked} for name in self.list_caches()]
+
+    def consolidation_records(self) -> list[dict[str, Any]]:
+        """List saved consolidation tenancies and counts without loading inventory.
+
+        Returns:
+            list[dict[str, Any]]: Tenancy IDs with plan and protection counts.
+        """
+        rows = []
+        for tenancy in sorted(self.cache.list_consolidation_tenancy_ocids()):
+            try:
+                state = self.cache.read_consolidation_state(tenancy)
+            except (OSError, ValueError) as exc:
+                rows.append({'tenancy_ocid': tenancy, 'plans': 'Unknown', 'protected': 'Unknown', 'error': str(exc)})
+                continue
+            rows.append(
+                {
+                    'tenancy_ocid': tenancy,
+                    'plans': len(state.get('history') or []),
+                    'protected': len((state.get('protected_set') or {}).get('protected') or []),
+                }
+            )
+        return rows
+
+    def reset_consolidation(self, tenancy_ocid: str) -> dict[str, Any]:
+        """Clear one tenancy's local protection and complete consolidation history.
+
+        Args:
+            tenancy_ocid: Explicitly selected tenancy; must be nonempty.
+
+        Returns:
+            dict[str, Any]: Tenancy ID and number of removed history records.
+
+        Raises:
+            ValueError: If no tenancy is supplied.
+
+        Notes:
+            Uses the existing canonical state format. Inventory caches and OCI
+            policies are unchanged. Removes saved notes, progress, and rollback
+            snapshots along with their plan records; no migration is required.
+        """
+        if not tenancy_ocid or not tenancy_ocid.strip():
+            raise ValueError('Select a tenancy to reset consolidation data.')
+        previous = self.cache.get_or_create_consolidation_state(tenancy_ocid)
+        history_count = len(previous.get('history') or [])
+        self.cache.save_consolidation_state(tenancy_ocid, {'protected_set': {}, 'history': []})
+        return {'tenancy_ocid': tenancy_ocid, 'cleared_history_records': history_count}
+
+    def set_locked(self, cache_name: str, locked: bool) -> bool:
+        """Preserve or release a saved cache for automatic and explicit cleanup.
+
+        Args:
+            cache_name: Existing saved cache name.
+            locked: True to protect the cache, False to allow deletion.
+
+        Returns:
+            bool: Whether the cache lock was updated successfully.
+        """
+        return self.cache.preserve_cache_entry(cache_name, preserve=locked)
+
     def load_cache(self, policy_repo, cache_name: str) -> str:
         """Load a named cache into the provided policy repository.
 

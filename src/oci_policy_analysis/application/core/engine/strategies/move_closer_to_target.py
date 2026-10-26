@@ -131,7 +131,7 @@ class MoveCloserToTargetCompartment(BaseConsolidationStrategy):
                 eff_path_raw = statement.get('effective_path') or ''
                 eff_path_split = [s for s in eff_path_raw.split('/') if s.strip()]
                 logger.info(
-                    f"    Statement {iid} (policy_ocid={statement.get('policy_ocid','')}) "
+                    f'    Statement {iid} (policy_ocid={statement.get("policy_ocid", "")}) '
                     f"statement_text='{statement.get('statement_text', '')[:100]}' "
                     f"effective_path='{eff_path_raw}' parsed={eff_path_split}"
                 )
@@ -175,7 +175,7 @@ class MoveCloserToTargetCompartment(BaseConsolidationStrategy):
                             reason='No safe non-root policy compartment above the shared effective scope.',
                         )
                     )
-                    logger.info(f"  SKIPPED: {iid} ({st_idx[iid].get('statement_text','')[:80]}) - no safe target")
+                    logger.info(f'  SKIPPED: {iid} ({st_idx[iid].get("statement_text", "")[:80]}) - no safe target')
                 continue
 
             target_comp = find_compartment_by_hierarchy_path(lca_comp_path, compartments)
@@ -192,7 +192,7 @@ class MoveCloserToTargetCompartment(BaseConsolidationStrategy):
                         )
                     )
                     logger.info(
-                        f"  SKIPPED: {iid} ({st_idx[iid].get('statement_text','')[:80]}) - compartment for path '{lca_comp_path}' not found"
+                        f"  SKIPPED: {iid} ({st_idx[iid].get('statement_text', '')[:80]}) - compartment for path '{lca_comp_path}' not found"
                     )
                 continue
 
@@ -224,7 +224,7 @@ class MoveCloserToTargetCompartment(BaseConsolidationStrategy):
                         )
                     )
                     logger.info(
-                        f"  SKIPPED: {iid} ({st_idx[iid].get('statement_text','')[:80]}) - target compartment is root or missing"
+                        f'  SKIPPED: {iid} ({st_idx[iid].get("statement_text", "")[:80]}) - target compartment is root or missing'
                     )
                 continue
 

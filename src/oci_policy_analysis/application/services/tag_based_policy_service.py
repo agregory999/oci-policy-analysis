@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from collections import Counter
+from copy import deepcopy
 from typing import Any
 
 from oci_policy_analysis.application.core.models.models import PolicySearch, RegularPolicyStatement
 from oci_policy_analysis.application.core.parser import collect_tag_conditions
 from oci_policy_analysis.application.core.support.logger import get_logger
+from oci_policy_analysis.application.services.condition_tester_service import extract_condition_clause
 
 LOGGER = get_logger(component='tag_based_policy_service')
 
@@ -189,6 +191,61 @@ class TagBasedPolicyService:
                 'tag_namespaces': dict(namespaces),
             },
         }
+
+    @classmethod
+    def inventory(cls, statements: list[RegularPolicyStatement]) -> dict[str, Any]:
+        """Project read-only tag evidence, including unparsed source references.
+
+        Args:
+            statements: Current regular statement records. Originals are never
+                enriched or rewritten as a side effect of this query.
+
+        Returns:
+            dict[str, Any]: Detached tag statements, one row per parsed predicate
+            (or an explicit unparsed reference), and unique namespace counts.
+            Predicates retain the full condition and original statement evidence;
+            an atom alone is not proof that a complete policy condition passes.
+        """
+        sources, predicates, namespaces = [], [], set()
+        for original in statements:
+            if not isinstance(original, dict):
+                continue
+            row = deepcopy(original)
+            clause = extract_condition_clause(
+                row.get('conditions') or row.get('conditions_where_clause') or '', row.get('statement_text') or ''
+            )
+            if not row.get('tag_conditions') and '.tag.' not in clause.casefold():
+                continue
+            row['conditions'] = clause
+            if not row.get('tag_conditions'):
+                row.pop('tag_conditions', None)
+            cls.enrich_statement(row)
+            sources.append(row)
+            for atom in row.get('tag_conditions') or []:
+                namespaces.add(str(atom.get('tag_namespace') or ''))
+                predicates.append(
+                    {
+                        **row,
+                        'tag_predicate': deepcopy(atom),
+                        'tag_scope': atom.get('access_semantics') or atom.get('access_type'),
+                        'tag_namespace': atom.get('tag_namespace'),
+                        'tag_key': atom.get('tag_key'),
+                        'tag_operator': atom.get('operator'),
+                        'tag_value': atom.get('value'),
+                        'tag_expression': atom.get('subexpression') or '',
+                        'tag_parse_status': 'Parsed',
+                    }
+                )
+            if not row.get('tag_conditions'):
+                predicates.append(
+                    {
+                        **row,
+                        'tag_scope': 'Unparsed tag reference',
+                        'tag_expression': '',
+                        'tag_parse_status': 'Unparsed — inspect source',
+                    }
+                )
+        return {'statements': sources, 'conditions': predicates, 'namespace_count': len(namespaces - {''})}
 
     @classmethod
     def context_warnings_for_conditions(cls, tag_conditions: list[dict[str, Any]]) -> list[str]:

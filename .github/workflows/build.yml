@@ -19,8 +19,10 @@ jobs:
       - name: Skip release if docs-only commit
         id: skip_release
         shell: bash
+        env:
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
-          if [[ "${{ github.event.head_commit.message }}" == docs:* ]]; then
+          if [[ "$HEAD_COMMIT_MESSAGE" == docs:* ]]; then
             echo "skip=true" >> $GITHUB_OUTPUT
             echo "Skipping release for docs commit."
           else
@@ -67,8 +69,10 @@ jobs:
       - name: Skip package if docs-only commit
         id: skip_package
         shell: bash
+        env:
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
-          if [[ "${{ github.event.head_commit.message }}" == docs:* ]]; then
+          if [[ "$HEAD_COMMIT_MESSAGE" == docs:* ]]; then
             echo "skip=true" >> $GITHUB_OUTPUT
             echo "Skipping package for docs commit."
           else
@@ -157,8 +161,10 @@ jobs:
       - name: Skip build if docs-only commit
         id: skip_build
         shell: bash
+        env:
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
-          if [[ "${{ github.event.head_commit.message }}" == docs:* ]]; then
+          if [[ "$HEAD_COMMIT_MESSAGE" == docs:* ]]; then
             echo "skip=true" >> $GITHUB_OUTPUT
             echo "Skipping build for docs commit."
           else
@@ -239,7 +245,7 @@ jobs:
               matches=glob.glob(os.path.join(libdir, 'libpython*.dylib')); print(matches[0] if matches else '')")
             echo "Found Python dylib: $PY_LIB"
             pyinstaller \
-              --name="OCI Policy Analysis" \
+              --name="oci-policy-analysis-tk" \
               --windowed \
               --clean --noconfirm --noconsole \
               --icon=icons/oci-policy-dg-viewer.icns \
@@ -250,14 +256,14 @@ jobs:
               --add-data "src/oci_policy_analysis/application/core/resources/mcp_tools_list:oci_policy_analysis/application/core/resources/mcp_tools_list" \
               --add-data "src/oci_policy_analysis/application/core/resources/parsers:oci_policy_analysis/application/core/resources/parsers" \
               --add-binary="$PY_LIB:Frameworks/Python" \
-              src/oci_policy_analysis/main.py
+              src/oci_policy_analysis/presentation/tk/main.py
           else
             echo "🐧 Linux build..."
             PY_SO=$(python3 -c "import sysconfig, glob, os; libdir=sysconfig.get_config_var('LIBDIR'); \
               matches=glob.glob(os.path.join(libdir, 'libpython*.so*')); print(matches[0] if matches else '')")
             echo "Found Python so: $PY_SO"
             pyinstaller \
-              --name="oci-policy-analysis" \
+              --name="oci-policy-analysis-tk" \
               --onefile \
               --clean --noconfirm \
               --noconsole \
@@ -269,7 +275,7 @@ jobs:
               --collect-all=sys \
               --copy-metadata fastmcp \
               --add-binary="$PY_SO:." \
-              src/oci_policy_analysis/main.py
+              src/oci_policy_analysis/presentation/tk/main.py
           fi
 
       - name: Build (Windows)
@@ -282,7 +288,7 @@ jobs:
           Write-Host "Found Python DLL: $pyDll"
 
           pyinstaller `
-            --name "OCI Policy Analysis" `
+            --name "oci-policy-analysis-tk" `
             --onefile `
             --clean --noconfirm `
             --noconsole `
@@ -294,23 +300,23 @@ jobs:
             --add-data "src\oci_policy_analysis\application\core\resources\mcp_tools_list;oci_policy_analysis\application\core\resources\mcp_tools_list" `
             --add-data "src\oci_policy_analysis\application\core\resources\parsers;oci_policy_analysis\application\core\resources\parsers" `
             --add-binary "$pyDll;." `
-            src\oci_policy_analysis\main.py
+            src\oci_policy_analysis\presentation\tk\main.py
 
       - name: Verify frozen desktop startup (macOS/Linux)
         if: steps.skip_build.outputs.skip != 'true' && runner.os != 'Windows'
         shell: bash
         run: |
           if [[ "${{ matrix.platform }}" == "macos" ]]; then
-            "dist/OCI Policy Analysis.app/Contents/MacOS/OCI Policy Analysis" --help
+            "dist/oci-policy-analysis-tk.app/Contents/MacOS/oci-policy-analysis-tk" --help
           else
-            dist/oci-policy-analysis --help
+            dist/oci-policy-analysis-tk --help
           fi
 
       - name: Verify frozen desktop startup (Windows)
         if: steps.skip_build.outputs.skip != 'true' && runner.os == 'Windows'
         shell: pwsh
         run: |
-          $process = Start-Process -FilePath "dist\OCI Policy Analysis.exe" -ArgumentList '--help' -Wait -PassThru
+          $process = Start-Process -FilePath "dist\oci-policy-analysis-tk.exe" -ArgumentList '--help' -Wait -PassThru
           if ($process.ExitCode -ne 0) { throw "Frozen desktop startup failed: exit $($process.ExitCode)" }
 
       - name: Package artifact
@@ -319,7 +325,7 @@ jobs:
         run: |
           VERSION=${{ needs.release.outputs.version }}
           PLATFORM=${{ matrix.platform }}
-          NAME="oci-policy-analysis-${PLATFORM}-${VERSION}"
+          NAME="oci-policy-analysis-tk-${PLATFORM}-${VERSION}"
 
           echo "📦 Packaging for ${PLATFORM} (version ${VERSION})"
           ls -lh dist
@@ -328,12 +334,12 @@ jobs:
             macos)
               # Quote name with spaces to include entire .app bundle
               cd dist
-              tar -czf "${NAME}.app.tar.gz" "OCI Policy Analysis.app"
+              tar -czf "${NAME}.app.tar.gz" "oci-policy-analysis-tk.app"
               cd ..
               ;;
             linux)
               cd dist
-              tar -czf "${NAME}.tar.gz" "oci-policy-analysis"
+              tar -czf "${NAME}.tar.gz" "oci-policy-analysis-tk"
               cd ..
               ;;
             windows)
@@ -350,12 +356,12 @@ jobs:
         run: |
           $VERSION = "${{ needs.release.outputs.version }}"
           $PLATFORM = "${{ matrix.platform }}"
-          $NAME = "oci-policy-analysis-${PLATFORM}-${VERSION}"
+          $NAME = "oci-policy-analysis-tk-${PLATFORM}-${VERSION}"
           echo "Compressing and renaming Windows executable to dist/${NAME}.zip"
-          Compress-Archive -Path "dist/OCI Policy Analysis.exe" -Destination dist/${NAME}.zip -Force
+          Compress-Archive -Path "dist/oci-policy-analysis-tk.exe" -Destination dist/${NAME}.zip -Force
           dir dist
           Write-Host "🔍 Checking for Python DLL inside EXE..."
-          strings "dist\OCI Policy Analysis.exe" | Select-String python3
+          strings "dist\oci-policy-analysis-tk.exe" | Select-String python3
 
 
       - name: Upload artifact
@@ -369,16 +375,91 @@ jobs:
             dist/oci-policy-analysis-*.zip
           retention-days: 30
 
+  build_qt:
+    needs: release
+    if: needs.release.outputs.version != ''
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: macos
+            architecture: arm64
+            mode: standalone
+            nuitka_mode: app-dist
+          - os: windows-latest
+            platform: windows
+            architecture: x64
+            mode: onefile
+            nuitka_mode: onefile
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          architecture: ${{ matrix.architecture }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+      - name: Install ccache for macOS
+        if: runner.os == 'macOS'
+        run: brew install ccache
+      - name: Prepare version, dependencies and offline source smoke test
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          node scripts/prepare_release_version.cjs "$RELEASE_VERSION"
+          python -m pip install -e '.[qt,qt-build,web,mcp]'
+          python -m pip check
+          python run-build/build_qt_executable.py --mode '${{ matrix.mode }}' --prepare-only
+      - name: Compile Qt workbench with Nuitka
+        uses: Nuitka/Nuitka-Action@bb65ca8023bef5f41a2114acd387b5f36d860145
+        with:
+          nuitka-version: '4.2.2'
+          script-name: run-build/qt_entry.py
+          mode: ${{ matrix.nuitka_mode }}
+          output-dir: build/qt/${{ matrix.mode }}/native
+          output-file: oci-policy-analysis-qt${{ runner.os == 'Windows' && '.exe' || '' }}
+          jobs: 3
+          caching-key: qt-nuitka-4.2.2${{ matrix.mode == 'onefile' && '-onefile' || '' }}
+      - name: Verify native executable and archive it
+        run: python run-build/build_qt_executable.py --mode '${{ matrix.mode }}' --package-only
+      - name: Upload verified Qt application
+        uses: actions/upload-artifact@v6
+        with:
+          name: oci-policy-analysis-qt-${{ matrix.platform }}-${{ matrix.mode }}
+          path: |
+            dist/qt/*.zip
+            dist/qt/*.tar.gz
+            dist/qt/build-result-${{ matrix.mode }}.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload Nuitka diagnostic report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: qt-nuitka-report-${{ matrix.platform }}-${{ matrix.mode }}
+          path: build/qt/nuitka-report.xml
+          if-no-files-found: ignore
+          retention-days: 7
+
   publish_github_release:
-    needs: [release, build_desktop]
-    if: github.ref_name == 'main' || github.ref_name == 'develop'
+    needs: [release, build_desktop, build_qt]
+    if: github.ref_name == 'main' || github.ref_name == 'develop' || startsWith(github.ref_name, 'feature/')
     runs-on: ubuntu-latest
     steps:
       - name: Skip publish if docs-only commit
         id: skip_publish
         shell: bash
+        env:
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
-          if [[ "${{ github.event.head_commit.message }}" == docs:* ]]; then
+          if [[ "$HEAD_COMMIT_MESSAGE" == docs:* ]]; then
             echo "skip=true" >> $GITHUB_OUTPUT
             echo "Skipping publish for docs commit."
           else
@@ -400,20 +481,13 @@ jobs:
         if: steps.skip_publish.outputs.skip != 'true'
         run: ls -lhR dist
 
-      - name: Create GitHub Release
+      - name: Publish verified native archives to the existing release
         if: steps.skip_publish.outputs.skip != 'true'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ needs.release.outputs.version }}
-          files: |
-            dist/oci-policy-analysis-linux/oci-policy-analysis-linux-${{ needs.release.outputs.version }}.tar.gz
-            dist/oci-policy-analysis-macos/oci-policy-analysis-macos-${{ needs.release.outputs.version }}.app.tar.gz
-            dist/oci-policy-analysis-windows/oci-policy-analysis-windows-${{ needs.release.outputs.version }}.zip
-          draft: false
-          prerelease: ${{ needs.release.outputs.prerelease == 'true' }}
-          overwrite_files: false
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: v${{ needs.release.outputs.version }}
+          IS_PRERELEASE: ${{ needs.release.outputs.prerelease }}
+        run: python3 run-build/publish_release.py --tag "$RELEASE_TAG" --prerelease "$IS_PRERELEASE" --artifacts-dir dist
 
   publish_pypi:
     needs: [release, package]
@@ -423,8 +497,10 @@ jobs:
       - name: Skip PyPI publish if docs-only commit
         id: skip_pypi
         shell: bash
+        env:
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
-          if [[ "${{ github.event.head_commit.message }}" == docs:* ]]; then
+          if [[ "$HEAD_COMMIT_MESSAGE" == docs:* ]]; then
             echo "skip=true" >> $GITHUB_OUTPUT
             echo "Skipping PyPI publish for docs commit."
           else

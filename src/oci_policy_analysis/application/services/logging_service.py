@@ -10,7 +10,6 @@ CANONICAL_COMPONENT_ALIASES: dict[str, tuple[str, ...]] = {
     # Core repo
     'data_repo': ('core.repo.policy_analysis_repository',),
     'reference_data_repo': ('core.repo.reference_data_repo',),
-    'ai_repo': ('core.repo.ai_repo',),
     # Core engines/parsers
     'policy_intelligence': ('core.engine.policy_intelligence_engine',),
     'policy_simulation_engine': ('core.engine.policy_simulation_engine',),
@@ -26,6 +25,7 @@ CANONICAL_COMPONENT_ALIASES: dict[str, tuple[str, ...]] = {
     'load_service': ('application.services.load',),
     'logging_service': ('application.services.logging',),
     'policy_browser_service': ('application.services.policy_browser',),
+    'policy_graph_service': ('application.services.policy_graph',),
     'principal_analysis_service': ('application.services.principal_analysis',),
     'recommendations_service': ('application.services.recommendations',),
     'reference_data_service': ('application.services.reference_data',),
@@ -84,19 +84,22 @@ class LoggingService:
             'always_log_api_calls': bool(self.settings.get('always_log_api_calls', False)),
         }
 
-    def update_log_settings(self, updates: dict) -> dict:
+    def update_log_settings(self, updates: dict, *, verbose_override: bool | None = None) -> dict:
         """Update logging configuration and apply runtime logger levels.
 
         Args:
             updates: Partial logging settings payload.
+            verbose_override: Explicit CLI verbosity lock, or None for legacy
+                root-DEBUG behavior. False restores saved levels exactly.
 
         Returns:
             dict: Updated effective logging settings.
         """
         self.logger.info('Updating logging settings with keys=%s', sorted(updates.keys()))
+        runtime_options = {} if verbose_override is None else {'verbose_override': verbose_override}
         if 'global_log_level' in updates:
             self.settings['global_log_level'] = updates['global_log_level']
-            set_log_level(updates['global_log_level'])
+            set_log_level(updates['global_log_level'], **runtime_options)
 
         # Optional explicit reset of per-component overrides.
         if updates.get('clear_log_levels'):
@@ -109,7 +112,7 @@ class LoggingService:
             canonical_levels = _canonicalize_component_levels(updates['log_levels'])
             self.settings['log_levels'].update(canonical_levels)
             for comp, level in canonical_levels.items():
-                set_component_level(comp, level)
+                set_component_level(comp, level, **runtime_options)
 
         if 'always_log_timings' in updates:
             self.settings['always_log_timings'] = bool(updates['always_log_timings'])

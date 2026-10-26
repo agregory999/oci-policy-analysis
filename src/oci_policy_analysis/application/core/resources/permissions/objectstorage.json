@@ -161,6 +161,7 @@
     },
     "families": {
         "object-family": {
+            "aliases": ["object storage", "object-storage"],
             "resources": [
                 "objectstorage-namespaces",
                 "buckets",

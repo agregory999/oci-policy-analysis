@@ -3,6 +3,7 @@
 from types import MethodType, SimpleNamespace
 
 import pytest
+
 from oci_policy_analysis.application.core.engine.recommendation_actions import (
     current_supersession_identities,
     reconcile_cleanup_actions,
@@ -10,7 +11,7 @@ from oci_policy_analysis.application.core.engine.recommendation_actions import (
 )
 from oci_policy_analysis.application.core.support.caching import CacheManager
 from oci_policy_analysis.application.services.cleanup_progress_service import CleanupProgressService
-from oci_policy_analysis.presentation.desktop.policy_recommendations_tab import PolicyRecommendationsTab
+from oci_policy_analysis.presentation.tk.policy_recommendations_tab import PolicyRecommendationsTab
 
 
 def _statement(internal_id='1'):

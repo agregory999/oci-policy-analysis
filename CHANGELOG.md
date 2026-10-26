@@ -1,3 +1,198 @@
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.22](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.21...v7.0.0-7-0-0-policy-corpus-cross-tenancy.22) (2026-10-23)
+
+
+### Bug Fixes
+
+* package Tk entry point in GitHub builds ([7384a6b](https://github.com/agregory999/oci-policy-analysis/commit/7384a6b1f440c487bb5b0ddd017ebc402beba5c6))
+
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.21](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.20...v7.0.0-7-0-0-policy-corpus-cross-tenancy.21) (2026-10-23)
+
+
+### Features
+
+* reorganize desktop packaging and guides for 7.0 ([f7e4a73](https://github.com/agregory999/oci-policy-analysis/commit/f7e4a73aac539411c54082f6b69ebc827ad2d3d6))
+
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.20](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.19...v7.0.0-7-0-0-policy-corpus-cross-tenancy.20) (2026-10-22)
+
+
+### Bug Fixes
+
+* format OCI Audit event details ([333106e](https://github.com/agregory999/oci-policy-analysis/commit/333106eba7270b92bedcb59a0b10651a83921db8))
+
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.19](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.18...v7.0.0-7-0-0-policy-corpus-cross-tenancy.19) (2026-10-22)
+
+
+### Bug Fixes
+
+* bound Audit command paging by default ([bc510fa](https://github.com/agregory999/oci-policy-analysis/commit/bc510fa680ceb3bc67f93168e601f8c401bfb61f))
+
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.18](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.17...v7.0.0-7-0-0-policy-corpus-cross-tenancy.18) (2026-10-22)
+
+
+### Bug Fixes
+
+* correct certificate bundle permission mapping ([7855a73](https://github.com/agregory999/oci-policy-analysis/commit/7855a739df85f89a7f7f8b5ab89b647530eaf780))
+
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.17](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.16...v7.0.0-7-0-0-policy-corpus-cross-tenancy.17) (2026-10-22)
+
+
+### Features
+
+* add MCP reference lookup tools ([593fd87](https://github.com/agregory999/oci-policy-analysis/commit/593fd87d6d9b91449874a62729e2ba2a25379190))
+
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.16](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.15...v7.0.0-7-0-0-policy-corpus-cross-tenancy.16) (2026-10-22)
+
+
+### Bug Fixes
+
+* publish Windows Qt onefile builds as archives only ([cf54199](https://github.com/agregory999/oci-policy-analysis/commit/cf54199e06cc75807c8ec5c4e2fd2d00c51f39c8))
+* resolve desktop build resources from repository paths ([4d6c509](https://github.com/agregory999/oci-policy-analysis/commit/4d6c50953d58d134081f4153045d8bd79ee8c8b0))
+* retain comment-only edits in historical policy comparisons ([b1dbfb5](https://github.com/agregory999/oci-policy-analysis/commit/b1dbfb54e7640f22abbdaacba971d9893a680801))
+
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.15](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.14...v7.0.0-7-0-0-policy-corpus-cross-tenancy.15) (2026-10-22)
+
+
+### Features
+
+* make embedded Claude and Codex assistants work on macOS and Windows ([86737c2](https://github.com/agregory999/oci-policy-analysis/commit/86737c271d0682b6e670075d0f679358247a15bf))
+
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.14](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.13...v7.0.0-7-0-0-policy-corpus-cross-tenancy.14) (2026-10-22)
+
+
+### Features
+
+* add embedded Claude CLI chat and server MCP activity ([92b5d79](https://github.com/agregory999/oci-policy-analysis/commit/92b5d79cd77205d1a31096ffa240bcf4403a2351))
+
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.13](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.12...v7.0.0-7-0-0-policy-corpus-cross-tenancy.13) (2026-10-22)
+
+
+### Features
+
+* add external desktop assistant launch options to Qt ([a220062](https://github.com/agregory999/oci-policy-analysis/commit/a22006209e89cf3c4785d7ef2d5e94e64b2ef64b))
+
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.12](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.11...v7.0.0-7-0-0-policy-corpus-cross-tenancy.12) (2026-10-21)
+
+
+### Features
+
+* expand Qt analysis workflows and Windows onefile releases ([1fe051a](https://github.com/agregory999/oci-policy-analysis/commit/1fe051acc3331f86bbc7bdc7ff25109581eb4ad4))
+
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.11](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.10...v7.0.0-7-0-0-policy-corpus-cross-tenancy.11) (2026-10-19)
+
+
+### Features
+
+* persist Qt overview settings and improve policy evidence display ([5de97bf](https://github.com/agregory999/oci-policy-analysis/commit/5de97bf58ba2c4f4bb754d4dea5491de0149e48d))
+
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.10](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.9...v7.0.0-7-0-0-policy-corpus-cross-tenancy.10) (2026-10-19)
+
+
+### Bug Fixes
+
+* identify Tk and web usage tracking interfaces ([2891614](https://github.com/agregory999/oci-policy-analysis/commit/2891614c7132187bc1b003c53c230dec83d8f035))
+
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.9](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.8...v7.0.0-7-0-0-policy-corpus-cross-tenancy.9) (2026-10-17)
+
+
+### Features
+
+* restore Qt usage publication and add portable analytics viewer ([90894ac](https://github.com/agregory999/oci-policy-analysis/commit/90894acd94cdcee1763045bc18aa23b6ed780b03))
+
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.8](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.7...v7.0.0-7-0-0-policy-corpus-cross-tenancy.8) (2026-10-17)
+
+
+### Features
+
+* add Qt cache maintenance and reveal incomplete snapshot differences ([350d9ab](https://github.com/agregory999/oci-policy-analysis/commit/350d9ab0b527b2fa80286216ad309d18b31d888e))
+
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.7](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.6...v7.0.0-7-0-0-policy-corpus-cross-tenancy.7) (2026-10-17)
+
+
+### Bug Fixes
+
+* always save a cache after Qt live tenancy loads ([1628256](https://github.com/agregory999/oci-policy-analysis/commit/1628256a5fc86c6c4184185a8a917718bb008d4b))
+
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.6](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.5...v7.0.0-7-0-0-policy-corpus-cross-tenancy.6) (2026-10-17)
+
+
+### Features
+
+* add advanced historical comparison with JSON inspection ([c057314](https://github.com/agregory999/oci-policy-analysis/commit/c05731439551e18dabfcc3b8a8a0ec702616369d))
+
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.5](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.4...v7.0.0-7-0-0-policy-corpus-cross-tenancy.5) (2026-10-17)
+
+
+### Features
+
+* add native Recommendations and supersession evidence views ([d48b255](https://github.com/agregory999/oci-policy-analysis/commit/d48b25528dd155749b4d8d9f2a9f1b3d5d9b506b))
+
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.4](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.3...v7.0.0-7-0-0-policy-corpus-cross-tenancy.4) (2026-10-17)
+
+
+### Features
+
+* add Qt reports and harden native release publishing ([06b1fcb](https://github.com/agregory999/oci-policy-analysis/commit/06b1fcbce30e376fd4044f9543192d7734d13635))
+
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.3](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.2...v7.0.0-7-0-0-policy-corpus-cross-tenancy.3) (2026-10-16)
+
+
+### Features
+
+* add Qt workbench and native prerelease builds ([1a89243](https://github.com/agregory999/oci-policy-analysis/commit/1a89243c012d741f43ae184dcae7291cc9dfb1e9))
+
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.2](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0-7-0-0-policy-corpus-cross-tenancy.1...v7.0.0-7-0-0-policy-corpus-cross-tenancy.2) (2026-10-14)
+
+
+### Bug Fixes
+
+* rebuild incomplete cached association scopes ([b5bf6ba](https://github.com/agregory999/oci-policy-analysis/commit/b5bf6baf7b7713785f613ce233e4958675e5a599))
+
+## [7.0.0-7-0-0-policy-corpus-cross-tenancy.1](https://github.com/agregory999/oci-policy-analysis/compare/v6.5.7...v7.0.0-7-0-0-policy-corpus-cross-tenancy.1) (2026-10-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* Remove the legacy oci_policy_analysis.common and
+oci_policy_analysis.logic Python import packages; integrations must use
+application.core. Published command names and the version-2/schema-3 saved
+cache format remain supported.
+
+### Features
+
+* introduce shared policy corpora and graphical search ([aec14b4](https://github.com/agregory999/oci-policy-analysis/commit/aec14b47bd1f0d8241305cd79384e30417d7631a))
+
+## 7.0.0.dev0 — Unreleased
+
+### Features
+
+* Compile regular policies into a shared permission corpus with canonical principal keys, source provenance, direct and inherited facts, and explicit exclusions.
+* Add graphical policy search to web and desktop: filter principals, resources or permissions, and effective paths; discover matching principals and paths across all result pages; inspect original statements and complete permission lists.
+* Show all matching graphical-search grants in scrollable tables, identify conditional grants, and send their conditions to the existing Condition Tester from the row context menu.
+* Add a separate cross-tenancy corpus and shared relationship projection for web, the desktop Canvas explorer, findings, and the JSON Debugger.
+* Expand MCP policy-set search descriptions, structured inputs, examples, and bounded result contracts.
+* Consolidate local run, build, clean, image publishing, and Container Instance deployment under `run/`, using one configuration in `run-build/.env`.
+* Support an explicit pinned-PyPI image build alongside the default local-source build, and display image tag and build time in the web footer.
+
+### Fixes
+
+* Normalize named principal keys without changing original statement text, preventing case variants from appearing as separate principals.
+* Run desktop post-load policy intelligence once and render Recommendations from the completed results. Preserve explicit recalculation and apply saved strategy/risk settings during the first pass.
+* Align permissions analysis and simulation with the shared corpus, including partial CIS imports and parsed principal types.
+* Retain MCP identity-domain discovery depth in the shared deployment configuration and detect runtime changes when replacing containers.
+* Add shared graph search logging and desktop graph construction summaries; compact the desktop Platform logger controls into one column.
+
+### Compatibility
+
+* Keep the 6.5.7 combined-cache format (`version: 2`, `schema_version: 3`) and existing saved snapshots supported. Corpora and intelligence are rebuilt at runtime.
+* Reconstruct association endpoints from older cross-tenancy statement text without rewriting cache files, and preserve the primary scope of Endorse associations.
+* Remove the legacy `oci_policy_analysis.common` and `oci_policy_analysis.logic` Python import packages. Integrations must use `application.core`; published command names remain stable.
+* Attach desktop installer assets to feature-branch prereleases; PyPI publishing remains restricted to `main`.
+
+### Validation and documentation
+
+* Add corpus, graph, principal-normalization, MCP contract, runtime, and image-build coverage, including desktop/web graph parity and the desktop intelligence single-run regression.
+* Update usage, MCP, logging, architecture, and operations documentation. Exclude generated ANTLR parsers consistently from lint and format hooks.
+
 ## [6.5.7](https://github.com/agregory999/oci-policy-analysis/compare/v6.5.6...v6.5.7) (2026-10-14)
 
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from oci_policy_analysis.web.api import routes_core
+from oci_policy_analysis.presentation.web.api import routes_core
 
 
 class _Repo:

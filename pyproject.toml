@@ -5,11 +5,11 @@ readme = "README.md"
 authors = [{ name = "Andrew Gregory" }]
 requires-python = ">=3.12"
 license = { text = "UPL-1.0" }
-version = "6.5.7"
+version = "7.0.0.dev22"
 
 dependencies = [
     "oci==2.168.0",
-    # FastMCP 2.12.5's MCP SDK imports private typing helpers removed by newer Pydantic.
+    # FastMCP 2.12.5 requires typing helpers retained in this Pydantic range.
     "pydantic>=2.11.7,<2.13",
     "deepdiff==8.5.0",
     "antlr4-python3-runtime==4.13.2",
@@ -28,6 +28,9 @@ classifiers = [
 [project.optional-dependencies]
 core = []
 ui = []
+qt = ["PySide6>=6.8,<7"]
+# Nuitka 4.3 regresses compiled PySide6 signal connections; retain the tested stable compiler.
+qt-build = ["Nuitka==4.2.2", "zstandard>=0.25,<1", "ordered-set>=4.1,<5"]
 web = [
     "fastapi>=0.110",
     "uvicorn>=0.29",
@@ -56,10 +59,15 @@ test = [
     "pytest"
 ]
 
+[dependency-groups]
+dev = ["pytest", "ruff"]
+
 [project.scripts]
-oci-policy-analysis-ui = "oci_policy_analysis.main:main"
+oci-policy-analysis-legacy-ui = "oci_policy_analysis.presentation.tk.main:main"
+oci-policy-analysis-analytics = "oci_policy_analysis.analytics.qt_launcher:main"
+oci-policy-analysis-ui = "oci_policy_analysis.presentation.qt.launcher:main"
 oci-policy-analysis-cli = "oci_policy_analysis.cli:main"
-oci-policy-analysis-web = "oci_policy_analysis.web.main:main"
+oci-policy-analysis-web = "oci_policy_analysis.presentation.web.main:main"
 oci-policy-analysis-mcp = "oci_policy_analysis.mcp_server:main"
 
 [build-system]
@@ -72,15 +80,14 @@ include = ["oci_policy_analysis*"]
 
 [tool.setuptools.package-data]
 "oci_policy_analysis" = [
+    "assets/icons/*.png",
+    "presentation/qt/data/*.json",
+    "presentation/qt/README.md",
     "version.txt",
     "application/core/resources/permissions/*.json",
     "application/core/resources/mcp_tools_list/*.json",
     "application/core/resources/parsers/*.txt",
     "application/core/resources/parsers/*.jar",
-    "logic/permissions/*.json",
-    "logic/mcp_tools_list/*.json",
-    "logic/parsers/*.txt",
-    "logic/parsers/*.jar",
     "ui/*.txt",
     "ai_tested_models.json",
 ]

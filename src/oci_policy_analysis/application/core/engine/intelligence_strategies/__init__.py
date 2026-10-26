@@ -21,6 +21,9 @@ from oci_policy_analysis.application.core.engine.intelligence_strategies.cleanup
 from oci_policy_analysis.application.core.engine.intelligence_strategies.consolidation_suggestion import (
     ConsolidationSuggestionStrategy,
 )
+from oci_policy_analysis.application.core.engine.intelligence_strategies.cross_tenancy_findings import (
+    CrossTenancyFindingsStrategy,
+)
 from oci_policy_analysis.application.core.engine.intelligence_strategies.recommendations import (
     OverallRecommendationStrategy,
 )
@@ -34,6 +37,7 @@ def get_default_intelligence_strategies():
         RiskScoreStrategy(),
         SupersessionStrategy(),
         ConsolidationSuggestionStrategy(),
+        CrossTenancyFindingsStrategy(),
         InvalidStatementsCheck(),
         UnusedGroupsCheck(),
         UnusedDynamicGroupsCheck(),
@@ -46,5 +50,6 @@ def get_default_intelligence_strategies():
 __all__ = [
     'IntelligenceStrategy',
     'SupersessionStrategy',
+    'CrossTenancyFindingsStrategy',
     'get_default_intelligence_strategies',
 ]

@@ -200,6 +200,7 @@
         usageTracking.checked = Boolean(settings.usage_tracking_enabled ?? true);
         defaultProfile.value = String(settings.named_profile || '');
         defaultCompartmentDepth.value = String(settings.domain_compartment_depth || '1');
+        defaultCompartmentDepth.disabled = Boolean(payload.domain_compartment_depth_locked);
         riskWhereReductionPct.value = String(settings.risk_where_clause_reduction_pct ?? 50);
         riskServiceReductionPct.value = String(settings.risk_service_principal_reduction_pct ?? 50);
         renderStrategyChecks(settings);

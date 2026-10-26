@@ -1,0 +1,31 @@
+{
+    "resources": {
+        "audit-events": {
+            "verbs": {
+                "inspect": [],
+                "read": [
+                    "AUDIT_EVENT_READ"
+                ],
+                "use": [],
+                "manage": []
+            },
+            "catalog_status": "documented",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/auditpolicyreference.htm",
+            "notes": "Inspect grants no permissions. Read covers ListEvents; use and manage add no permissions beyond read.",
+            "search_terms": [
+                "audit",
+                "audit logs",
+                "audit events"
+            ]
+        }
+    },
+    "operations": {
+        "ListEvents": {
+            "permissions": [
+                "AUDIT_EVENT_READ"
+            ],
+            "notes": "Reads Audit events; inspect audit-events does not grant this permission.",
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/auditpolicyreference.htm"
+        }
+    }
+}

@@ -1,0 +1,4 @@
+# PyPI builds use docker/ as context and need only these launch scripts.
+**
+!web-entrypoint.sh
+!mcp-entrypoint.sh

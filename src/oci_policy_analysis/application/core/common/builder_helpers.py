@@ -24,7 +24,7 @@ def build_tag_variable_and_snippet(
     if op.upper() in {'IN', 'NOT IN'}:
         raw_parts = [p.strip() for p in val.split(',') if p.strip()] if val else []
         values = [p if (len(p) >= 2 and p[0] == '/' and p[-1] == '/') else f"'{p}'" for p in raw_parts]
-        list_part = f"({','.join(values)})" if values else '()'
+        list_part = f'({",".join(values)})' if values else '()'
         return var_name, f'all {{ {var_name} {op} {list_part} }}'
 
     value_part = f"'{val}'" if val else "''"
@@ -61,6 +61,8 @@ def build_location_clause(location_path: str, effective_path: str) -> tuple[str,
 
     def _split(path: str) -> list[str]:
         parts = [p for p in (path or '').split('/') if p]
+        if parts and parts[0].casefold() == 'root':
+            parts[0] = 'root'
         return parts or ['root']
 
     loc_parts = _split(location_path or 'root')
