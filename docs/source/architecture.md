@@ -72,6 +72,8 @@ Validation describes what the tool can establish from the current input; it is n
 
 ## Policy corpora
 
+For a practical introduction, see [Understanding the policy corpus](policy_corpus.md).
+
 The repository preserves the input and its findings. A corpus compiles that input into a stable, shared representation for downstream analysis. This separation lets a policy remain available for diagnosis without contributing unsupported permission facts to reports or search.
 
 ### Regular policy corpus

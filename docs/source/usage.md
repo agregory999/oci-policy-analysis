@@ -22,6 +22,9 @@ compartment depth for identity-domain searches. Advanced options include
 loading all users and all compartments, and choosing the policy-loading scope.
 Select **Load from OCI** when the options are ready.
 
+For CIS imports, see [Limited Compliance Loading](limited_modes.md#limited-compliance-loading)
+for the available data and its limits.
+
 After a successful load, the **Active Data Set** card shows the current source,
 profile or connection, status, data summary, and recent load activity. A failed
 load leaves the last successfully loaded data active. Other analysis pages
@@ -103,7 +106,10 @@ as table columns.
 - **Historical Comparison** — compare two saved snapshots or JSON files. Use
   the change tables and details to see what changed. For a policy change,
   **Find OCI Audit Records** can prepare an OCI Logging Search command using
-  the policy and compartment information from the selected change.
+  the policy and compartment information from the selected change. Choose
+  POSIX shell or PowerShell output, and enable instance-principal
+  authentication when running the command from an OCI instance with the
+  required permissions.
 
 These pages analyze the selected snapshot and any explicitly included
 prospective statements. They do not update OCI policies or perform the service

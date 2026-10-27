@@ -18,6 +18,7 @@ Full documentation
    :maxdepth: 1
    :caption: Advanced Topics
 
+   policy_corpus
    simulation
    core_integration
    consolidation

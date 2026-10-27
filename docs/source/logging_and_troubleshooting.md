@@ -2,7 +2,7 @@
 
 This page provides guidance on logging configuration, debugging, and troubleshooting for the application.
 
-## Qt live log dock and separate API calls
+## New UI live logs and API calls
 
 Open **View → Logs**, **Show live log** on Overview & Settings, or
 **Tools → Logging → Show live log**. The resizable Logs dock stays available
@@ -11,13 +11,13 @@ window, or dock it at the top or bottom. Hiding it does not stop capture.
 
 | Tab | What it shows |
 | --- | --- |
-| Live log | Component log messages at INFO and above, subject to logging settings; choose all application components or Qt-only output |
+| Live log | Component log messages at INFO and above, subject to logging settings; choose all application components or UI-only output |
 | Load activity | Load progress and stage messages from the background worker |
 | API Calls | Completed, instrumented OCI SDK requests in a sortable table, independent of component log levels |
 
-Qt separates routine API success/timing messages from the live text log so a
+The New UI separates routine API success/timing messages from the live text log so a
 large collection does not bury other messages. Those text messages use DEBUG in
-Qt; the **API Calls** table still captures the metadata without enabling DEBUG
+the New UI; the **API Calls** table still captures the metadata without enabling DEBUG
 or **Always log API calls**. Other application diagnostics and failures can still
 appear in the component log.
 
@@ -49,10 +49,10 @@ traffic from separate assistant applications is not captured here. See
 You can enable or adjust logging granularity across different components within the system. Logging levels can typically be set (ERROR, WARNING, INFO, DEBUG) to control verbosity.
 
 - Each major code component/module supports logging, allowing for tracking of operations and detection of issues.
-- Logs may be viewed on the console shell or UI Console tab if started via command line 
-- If started via an executable, there is not a shell, so the Console UI tab provides logs
+- Logs may be viewed in the shell when started from the command line.
+- In the New UI, use the live log dock. In the Legacy UI, use the Console tab.
 
-In the Tkinter desktop, the Console UI has a tab, available via Settings -> Show Console/Debugger Tab, which shows all logs depending on configured level for each component.
+In the Legacy UI, open **Settings → Show Console/Debugger Tab** to view logs and logging controls.
 
 There is a single Global Logger dropdown, which if set, will change the log level for all componenets to the configured level.
 
@@ -82,7 +82,7 @@ Due to the volume of logging, DEBUG output, if set, is only available on the she
 
 ### API and timing logging
 
-The Qt API Calls journal described above is independent of these text-log settings.
+The New UI's API Calls journal described above is independent of these text-log settings.
 
 In addition to standard component-based logging levels, the application offers dedicated logging for specific events such as API calls (external integrations, requests to OCI, etc.) and timing/performance data.
 
@@ -166,17 +166,19 @@ The desktop application, web server, CLI, and MCP server use the same applicatio
 
 | Mode | Useful startup options | Where to inspect issues |
 |---|---|---|
-| Modern desktop | `oci-policy-analysis-ui --verbose` | Live Log and the application log; verbose detail is available when launched from a shell. |
-| Legacy Tkinter desktop | `oci-policy-analysis-legacy-ui --verbose` | Console/Debugger tab and the application log. |
+| New UI | `oci-policy-analysis-ui --verbose` | Live Log and the application log; verbose detail is available when launched from a shell. |
+| Legacy UI | `oci-policy-analysis-legacy-ui --verbose` | Console/Debugger tab and the application log. |
 | Web UI | `oci-policy-analysis-web --host 127.0.0.1 --port 8000` | Server terminal/application log, browser developer console, and the web **Logging** page. `--reload` is for local development only. |
 | CLI | `oci-policy-analysis-cli --log-level INFO`, `--verbose`, `--app-log` | Terminal output by default; use `--app-log` when the application log is needed. |
 | MCP | `oci-policy-analysis-mcp --log-level INFO` | Server terminal/application log and the MCP client’s connection or tool-call error output. |
 
 Use `--help` with each command for the complete option list. For web startup, a runtime access key is printed in the server log; it is required to unlock the browser session and rotates after every server restart.
 
-## JSON Debugger tab
+## JSON Debugger tab (Legacy UI only)
 
-- The *JSON Debugger* tab in the desktop UI is primarily a troubleshooting tool, intended to help developers and advanced users debug and inspect the application's internal state.
+The JSON Debugger is available only in the Legacy UI. Open **Settings → Show Console/Debugger Tab** to access it. The New UI does not include a JSON debugger.
+
+- The *JSON Debugger* tab is primarily a troubleshooting tool, intended to help developers and advanced users debug and inspect the application's internal state.
 - This tab displays internal JSON objects and data structures used by the app for policy analysis, simulation history, reference data, and policy intelligence overlays.
 - These objects are shown in their raw or near-raw form for maximum diagnostic value, making it possible to review exact internal representations, nested relationships, and unprocessed values that may not appear in regular user-facing UI components.
 
@@ -193,7 +195,7 @@ For a large **Policy Corpus**, the debugger opens on a count summary. Choose `fa
 
 ## Troubleshooting topics
 
-- **Common Errors:** Review logs for full error traces or use the Console and JSON Debugger for more details.
+- **Common Errors:** Review the live log in the New UI, or the Console and JSON Debugger in the Legacy UI.
 - **No Output or Silent Failure:**  
   - Ensure logging is not set to ERROR or CRITICAL for all components.
   - Check that the appropriate components are enabled.
@@ -202,7 +204,8 @@ For a large **Policy Corpus**, the debugger opens on a count summary. Choose `fa
   - Use INFO level for the affected component(s), repeat the action, and consult logs/Console output.
   - DEBUG logging is available with the shell only, and should be used with caution as it is very verbose.
 - **UI Not Responding:**
-  - Desktop: check the Console/Debugger tab or shell logs.
+  - New UI: check **View → Logs** or shell logs.
+  - Legacy UI: check the Console/Debugger tab or shell logs.
   - Web: check the server log, browser console, and `GET /health` when hosted behind a proxy or load balancer.
 - **Web login blocked:** confirm that the runtime access key came from the current server startup, not an earlier restart.
 

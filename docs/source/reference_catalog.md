@@ -1,12 +1,19 @@
-# Reference catalog coverage and review
+# Reference catalog
 
-The bundled JSON catalog relates OCI policy resource types, families, IAM verbs,
-permission identifiers and API operations. It is reference evidence used by
-analysis, not an authoritative OCI authorization engine or a complete inventory
-of every service. An operation can require permissions on several resources,
-in different compartments, with additional checks depending on its parameters.
+The bundled JSON catalog maps OCI resource types and families to IAM verbs,
+permission identifiers, and API operations. Entries also carry source links,
+aliases, coverage notes, and related permission checks where available.
 
-The same catalog is now available through `resource_reference`,
+These mappings let the application expand a policy such as `use virtual-network-family`
+into individual permissions, look up the permissions required by an API operation,
+and suggest policy candidates during simulation. The [policy corpus](policy_corpus.md)
+uses the catalog to build searchable permission facts from loaded statements.
+
+Coverage varies by service. An operation can require permissions on several
+resources, in different compartments, with additional checks depending on its
+parameters. The catalog records known gaps; it does not replace OCI authorization.
+
+The catalog is available through the MCP tools `resource_reference`,
 `operation_reference` and `permission_reference`. See [MCP lookup examples](mcp.md#reference-discovery-and-reverse-lookup).
 These tools do not require a loaded tenancy and keep catalog coverage separate
 from snapshot coverage. Typed results retain mapping gaps, provenance and notes.

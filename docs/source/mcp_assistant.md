@@ -1,6 +1,6 @@
 # MCP Assistant in the New Desktop App
 
-The new desktop app includes an **MCP & Assistant** page for asking questions
+The new desktop app (7.0+) includes an **MCP & Assistant** page for asking questions
 about the snapshot currently loaded in the app. It can connect the snapshot to
 MCP clients, run a conversation inside the app with Codex CLI or Claude Code, or
 open a separately configured desktop assistant.
@@ -42,6 +42,8 @@ shown on the page. Install and sign in to the desktop application, then
 configure its MCP connection using the endpoint and instructions shown by the
 workbench. The **Open** action launches the separate application; it does not
 install, sign in, or configure its MCP connection for you.
+
+### Desktop Assistant configuration
 
 ## What the answers mean
 

@@ -15,6 +15,10 @@ line and continues to work as designed.
 - **MCP Assistant.** Connect supported assistants to the loaded snapshot or
   start an in-app Codex CLI or Claude Code conversation. The assistant uses
   your existing CLI setup and account.
+- **Shared policy corpus.** Explore policy relationships in the graph and test
+  requests in simulation using the same permission mappings and source evidence.
+  See [Understanding the policy corpus](policy_corpus.md) for what it contains,
+  what it leaves out, and how these tools use it.
 - **History/Audit.** Generate an OCI Audit Log search that corresponds to a historical policy change
 - **Build on the same core.** The analysis services can be embedded in Python
   applications. See the [embedding guide](core_integration.md).
