@@ -1153,6 +1153,7 @@ def test_core_browser_filters_and_graph_evidence(workbench):
     assert nodes
     nodes[0].setSelected(True)
     assert 'corporate-network' in graph.detail.toPlainText()
+    _wait_until(application, lambda: graph.statements.model.rowCount() == 1)
     assert graph.statements.model.rowCount() == 1
     assert window.drawer.record is None
     record = graph.statements.model.records[0]
@@ -1235,10 +1236,12 @@ def test_graph_all_results_exclusions_and_unresolved_source_survive_import(workb
         if isinstance(item.data(0), dict) and str(item.data(0).get('statement_id', '')).startswith('extra-')
     ]
     assert nodes
+    principal = nodes[0].data(0)['principal']
     nodes[0].setSelected(True)
+    _wait_until(application, lambda: graph.statements.model.rowCount() == 16)
     assert graph.statements.model.rowCount() == 16
     assert all(record['permission_facts'] for record in graph.statements.model.records)
-    assert graph.filters['principal'].text() == nodes[0].data(0)['principal']
+    assert graph.filters['principal'].text() == principal
     graph.reset_filters()
     assert graph.statements.model.rowCount() == 0
     assert 'invalid-evidence' in graph.exclusions.toPlainText()
@@ -2230,6 +2233,7 @@ def test_graph_service_labels_keep_canonical_node_selection(workbench):
         and 'statement_id' not in item.data(0)
     )
     node.setSelected(True)
+    _wait_until(application, lambda: page.statements.model.rowCount() == 1)
     assert page.filters['principal'].text() == 'service:cloudguard'
     assert page.visible_grants[0]['principal'] == 'service:none/cloudguard'
     assert page.statements.model.rowCount() == 1
@@ -2395,11 +2399,11 @@ def test_expanded_sample_resource_principal_workflows(workbench, monkeypatch):
     assert {len(user['groups']) for user in snapshot['users']} == {1, 2, 3, 4}
     assert all(user['email'].endswith('@example.invalid') for user in snapshot['users'])
     snapshot['groups'].clear()
-    assert len(expanded_sample()['groups']) == 25
+    assert len(expanded_sample()['groups']) == 26
     monkeypatch.setattr('oci_policy_analysis.presentation.qt.loading.sample_snapshot', expanded_sample)
     window.settings_page.load_sample()
     _wait_for_load(application, window)
-    assert window.browser_page.model.rowCount() == 325
+    assert window.browser_page.model.rowCount() == len(expanded_sample()['policy_statements']) == 335
     window.show()
     window.resize(1100, 760)
     application.processEvents()
@@ -2818,7 +2822,7 @@ def test_users_groups_inventory_memberships_policies_and_reload(workbench, monke
     assert [page.tabs.tabText(i) for i in range(2)] == ['Group-based View', 'User-based View']
     user_view, group_view = page.user_view, page.group_view
     assert user_view.inventory.model.rowCount() == 50
-    assert group_view.inventory.model.rowCount() == 25
+    assert group_view.inventory.model.rowCount() == len(context.policy_repo.groups) == 26
     assert user_view.statements.model.rowCount() == 0
     assert user_view.memberships.editTriggers() == QAbstractItemView.EditTrigger.NoEditTriggers
     page.tabs.setCurrentIndex(1)
@@ -2926,6 +2930,8 @@ def test_navigation_access_headers_and_extra_large_fixed_font(workbench):
     panel.fixed_width.setChecked(True)
     panel.compact.setChecked(True)
     panel.apply_settings()
+    assert window.width() >= 1600
+    assert window.minimumWidth() == 1280
     window.resize(1100, 760)
     window.show()
     for _ in range(5):
@@ -4162,9 +4168,11 @@ def test_graph_live_search_complete_principal_index_and_conditional_evidence(wor
     node = next(
         item for item in page.scene.items() if isinstance(item.data(0), dict) and 'statement_id' in item.data(0)
     )
+    evidence = dict(node.data(0))
     node.setSelected(True)
-    assert page.filters['principal'].text() == node.data(0)['principal']
-    assert page.filters['path'].text() == node.data(0)['path']
+    _wait_until(application, lambda: page.statements.model.rowCount() > 0)
+    assert page.filters['principal'].text() == evidence['principal']
+    assert page.filters['path'].text() == evidence['path']
     assert page.statements.model.headers[2] == 'Conditional'
     assert all(row['conditional'] is True for row in page.statements.model.records)
     assert all(
@@ -4517,7 +4525,7 @@ def test_tag_based_advanced_page_filters_hands_off_conditions_and_reloads(workbe
     from copy import deepcopy
 
     application, window = workbench
-    assert 'Preview' in window.windowTitle()
+    assert window.windowTitle() == 'OCI Policy Analysis'
     index = window.page_index('tag_based')
     assert window.navigation.item(index).isHidden()
     window.controller.start_load('sample', {}, 'Sample')

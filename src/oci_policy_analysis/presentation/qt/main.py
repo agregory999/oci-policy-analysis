@@ -709,6 +709,9 @@ class WorkbenchWindow(QMainWindow):
     @Slot(dict)
     def _apply_appearance(self, settings: dict) -> None:
         size = {'Small': 11, 'Medium': 13, 'Large': 15, 'Extra Large': 20}.get(settings.get('font_size'), 13)
+        self.setMinimumSize(1280 if size == 20 else 1100, 800 if size == 20 else 760)
+        if size == 20:
+            self.resize(max(self.width(), 1600), max(self.height(), 1000))
         style = apply_theme(settings.get('qt_theme', 'Light'), size, settings.get('qt_color_theme', 'Forest'))
         if settings.get('qt_fixed_width_font', False):
             family = fixed_width_family()
