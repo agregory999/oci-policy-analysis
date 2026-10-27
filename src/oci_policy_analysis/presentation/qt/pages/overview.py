@@ -374,7 +374,7 @@ class OverviewSettingsPage(QScrollArea):
         header.addWidget(_label('Active Data Set', 'eyebrow'))
         header.addStretch()
         self.load_status = _label(self._loaded_status, 'muted', wrap=True)
-        self.load_status.setMinimumWidth(380)
+        self.load_status.setMinimumWidth(560)
         self.load_status.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         header.addWidget(self.load_status)
         layout.addLayout(header)
