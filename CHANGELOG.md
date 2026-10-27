@@ -1,3 +1,13 @@
+## [7.0.1](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0...v7.0.1) (2026-10-27)
+
+
+### Bug Fixes
+
+* accommodate extra large text and update desktop regression checks ([e939e51](https://github.com/agregory999/oci-policy-analysis/commit/e939e5195eee6ae66eda2f046f846b2cf8534f5c))
+* generate reliable PowerShell audit commands with optional instance auth ([1ac79ee](https://github.com/agregory999/oci-policy-analysis/commit/1ac79ee2c14e3da0e5964049a410213348f81b8e))
+* Powershell Audit command and window close issues ([1b019ee](https://github.com/agregory999/oci-policy-analysis/commit/1b019ee487fb422906a0be959fcb4d67fd088df9))
+* widen the right-aligned data loading status ([029388b](https://github.com/agregory999/oci-policy-analysis/commit/029388bf3770b61ba5e647007328876e2fdbd700))
+
 ## [7.0.0](https://github.com/agregory999/oci-policy-analysis/compare/v6.5.7...v7.0.0) (2026-10-26)
 
 
