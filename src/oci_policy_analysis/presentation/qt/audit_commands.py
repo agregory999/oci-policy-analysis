@@ -2,6 +2,7 @@
 
 from PySide6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QComboBox,
     QDialog,
     QFormLayout,
@@ -49,6 +50,8 @@ class AuditCommandsDialog(QDialog):
         self.shell.addItem('POSIX shell', 'posix')
         self.shell.addItem('PowerShell', 'powershell')
         form.addRow('Command shell', self.shell)
+        self.instance_principal = QCheckBox('Use instance principal authentication')
+        form.addRow('Authentication', self.instance_principal)
         layout.addLayout(form)
         self.status = label(
             'Generate contiguous windows of at most 14 days. Times expand to minute boundaries.', 'muted', wrap=True
@@ -71,6 +74,7 @@ class AuditCommandsDialog(QDialog):
         for field in self.fields.values():
             field.textChanged.connect(self._invalidate)
         self.shell.currentIndexChanged.connect(self._invalidate)
+        self.instance_principal.toggled.connect(self._invalidate)
 
     def _invalidate(self, *_):
         self.output.clear()
@@ -83,6 +87,7 @@ class AuditCommandsDialog(QDialog):
                 {
                     **{key: field.text() for key, field in self.fields.items()},
                     'shell': self.shell.currentData(),
+                    'instance_principal': self.instance_principal.isChecked(),
                 }
             )
         except ValueError as exc:

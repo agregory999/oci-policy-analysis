@@ -79,6 +79,7 @@ class AuditCommandService:
             'region': '',
             'profile': '',
             'shell': 'posix',
+            'instance_principal': False,
         }
 
     @staticmethod
@@ -97,7 +98,7 @@ class AuditCommandService:
 
         Args:
             inputs: compartment_id, optional resource_id/region/profile,
-                start_time/end_time with timezone, and posix or powershell shell.
+                start_time/end_time with timezone, shell, and instance_principal.
 
         Returns:
             dict: Commands, normalized minute boundaries, warning and reference.
@@ -113,13 +114,17 @@ class AuditCommandService:
         shell = inputs.get('shell', 'posix')
         if shell not in {'posix', 'powershell'}:
             raise ValueError('Choose POSIX shell or PowerShell.')
+        instance_principal = inputs.get('instance_principal', False)
+        if isinstance(instance_principal, str):
+            instance_principal = instance_principal.strip().lower() in {'1', 'true', 'yes', 'on'}
+        else:
+            instance_principal = bool(instance_principal)
         start, end = (cls._time(inputs.get(key) or '') for key in ('start_time', 'end_time'))
         if end <= start or end - start > timedelta(days=366):
             raise ValueError('Choose an increasing date range of at most 366 days.')
         start = start.replace(second=0, microsecond=0)
         if end.second or end.microsecond:
             end = end.replace(second=0, microsecond=0) + timedelta(minutes=1)
-        quote = shlex.quote if shell == 'posix' else lambda value: "'" + value.replace("'", "''") + "'"
         search = f'search "{compartment}/_Audit"'
         if resource:
             search += f" | where data.resourceId = '{resource}'"
@@ -139,29 +144,44 @@ class AuditCommandService:
         while start < end:
             stop = min(start + timedelta(days=14), end)
             first, last = (value.strftime('%Y-%m-%dT%H:%M:00Z') for value in (start, stop))
-            args = [
-                'oci',
-                'logging-search',
-                'search-logs',
-                '--search-query',
-                search,
-                '--time-start',
-                first,
-                '--time-end',
-                last,
-                '--is-return-field-info',
-                'false',
-                '--limit',
-                '100',
-            ]
+            args = ['oci', 'logging-search', 'search-logs']
+            if instance_principal:
+                args.extend(['--auth', 'instance_principal'])
             for flag, field in [('--region', 'region'), ('--profile', 'profile')]:
                 value = str(inputs.get(field) or '').strip()
                 if any(ord(char) < 32 for char in value):
                     raise ValueError('Profile and region cannot contain control characters.')
                 if value:
                     args.extend([flag, value])
-            args.extend(['--output', 'table', '--query', 'data.results[].data'])
-            commands.append(' '.join(quote(arg) for arg in args))
+            if shell == 'posix':
+                args.extend(
+                    [
+                        '--search-query',
+                        search,
+                        '--time-start',
+                        first,
+                        '--time-end',
+                        last,
+                        '--is-return-field-info',
+                        'false',
+                        '--limit',
+                        '100',
+                        '--output',
+                        'table',
+                        '--query',
+                        'data.results[].data',
+                    ]
+                )
+                commands.append(' '.join(shlex.quote(arg) for arg in args))
+            else:
+                commands.append(
+                    cls._powershell_command(
+                        search,
+                        first,
+                        last,
+                        args[3:],
+                    )
+                )
             windows.append({'start_time': first, 'end_time': last})
             start = stop
         return {
@@ -171,3 +191,57 @@ class AuditCommandService:
             'note': cls.NOTE,
             'documentation': cls.DOCUMENTATION,
         }
+
+    @staticmethod
+    def _powershell_quote(value: str) -> str:
+        """Return a safely single-quoted PowerShell string literal."""
+        return "'" + value.replace("'", "''") + "'"
+
+    @classmethod
+    def _powershell_command(cls, search: str, start: str, end: str, cli_options: list[str]) -> str:
+        """Build the JSON-file invocation used by OCI CLI PowerShell examples."""
+        request_lines = [
+            '    searchQuery       = $searchQuery',
+            f'    timeStart         = {cls._powershell_quote(start)}',
+            f'    timeEnd           = {cls._powershell_quote(end)}',
+            '    isReturnFieldInfo = $false',
+            '    limit             = 100',
+        ]
+        command_options = [
+            '--from-json',
+            '"file://$jsonPath"',
+            '--output',
+            'table',
+            '--query',
+            "'data.results[].data'",
+        ]
+        for index in range(0, len(cli_options), 2):
+            flag, value = cli_options[index : index + 2]
+            if flag == '--region':
+                command_options.extend([flag, cls._powershell_quote(value)])
+            elif flag == '--profile':
+                command_options.extend([flag, cls._powershell_quote(value)])
+            elif flag == '--auth':
+                command_options.extend([flag, value])
+        command = 'oci logging-search search-logs ' + ' '.join(command_options)
+        return '\n'.join(
+            [
+                "$searchQuery = @'",
+                search,
+                "'@",
+                '',
+                '$request = @{',
+                *request_lines,
+                '}',
+                '',
+                "$jsonPath = Join-Path $env:TEMP 'oci-log-search.json'",
+                '$utf8 = New-Object System.Text.UTF8Encoding($false)',
+                '[System.IO.File]::WriteAllText(',
+                '    $jsonPath,',
+                '    ($request | ConvertTo-Json -Depth 5),',
+                '    $utf8',
+                ')',
+                '',
+                command,
+            ]
+        )

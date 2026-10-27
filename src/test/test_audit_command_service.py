@@ -77,6 +77,32 @@ def test_command_quoting_retains_literal_profile_and_query():
     assert "work'' profile; $(touch nope)" in powershell['commands'][0]
 
 
+@pytest.mark.parametrize('enabled', [True, 'true', 'on', False, 'false', ''])
+def test_instance_principal_auth_is_optional_for_both_shells(enabled):
+    expected = enabled in (True, 'true', 'on')
+    for shell in ('posix', 'powershell'):
+        result = AuditCommandService.generate(inputs(shell=shell, instance_principal=enabled))
+        assert all(('--auth instance_principal' in command) == expected for command in result['commands'])
+
+
+def test_powershell_json_request_preserves_query_and_each_time_window():
+    posix = AuditCommandService.generate(inputs())
+    powershell = AuditCommandService.generate(inputs(shell='powershell', region='us-ashburn-1'))
+    assert powershell['windows'] == posix['windows']
+    for command, original, window in zip(powershell['commands'], posix['commands'], powershell['windows'], strict=True):
+        args = shlex.split(original)
+        search = args[args.index('--search-query') + 1]
+        assert f"$searchQuery = @'\n{search}\n'@" in command
+        assert f"timeStart         = '{window['start_time']}'" in command
+        assert f"timeEnd           = '{window['end_time']}'" in command
+        assert 'searchQuery       = $searchQuery' in command
+        assert 'isReturnFieldInfo = $false' in command
+        assert 'limit             = 100' in command
+        assert 'System.Text.UTF8Encoding($false)' in command
+        assert '--from-json "file://$jsonPath"' in command
+        assert "--region 'us-ashburn-1' --profile 'DEFAULT'" in command
+
+
 def test_audit_minute_rounding_does_not_drop_fractional_capture_times():
     result = AuditCommandService.generate(inputs(start_time='2026-10-01T12:00:53Z', end_time='2026-10-01T12:01:09Z'))
     assert result['windows'] == [{'start_time': '2026-10-01T12:00:00Z', 'end_time': '2026-10-01T12:02:00Z'}]

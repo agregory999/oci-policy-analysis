@@ -61,6 +61,7 @@
         <label>Region (blank uses CLI configuration)<input name="region"></label>
         <label>Profile (blank uses CLI configuration)<input name="profile"></label>
         <label>Shell<select name="shell"><option value="posix">POSIX shell</option><option value="powershell">PowerShell</option></select></label>
+        <label><span>Authentication</span><span><input type="checkbox" name="instance_principal" value="true"> Use instance principal</span></label>
         <button type="submit">Generate commands (14-day windows)</button>
       </form>
       <p id="auditStatus" role="status"></p>
@@ -174,7 +175,12 @@
         const response = await fetch('/analysis/audit-command-defaults', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({change:item,metadata:comparisonPayload?.metadata || {}})});
         if (!response.ok) { statusEl.textContent = 'Could not prepare the Audit command helper.'; return; }
         const defaults = await response.json();
-        Object.entries(defaults).forEach(([key,value]) => { if (form.elements.namedItem(key)) form.elements.namedItem(key).value = value; });
+        Object.entries(defaults).forEach(([key,value]) => {
+          const control = form.elements.namedItem(key);
+          if (!control) return;
+          if (control.type === 'checkbox') control.checked = Boolean(value);
+          else control.value = value;
+        });
         document.getElementById('auditOutput').value = '';
         document.getElementById('copyAudit').disabled = true;
         document.getElementById('auditStatus').textContent = 'Edit the time range and scope, then generate. Times expand to minute boundaries.';
