@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import argparse
 import logging
+import signal
 import sys
 
-from PySide6.QtCore import Qt, QTimer, Slot
+from PySide6.QtCore import QCoreApplication, QEvent, Qt, QTimer, Slot
 from PySide6.QtGui import QCloseEvent, QFontMetrics
 from PySide6.QtWidgets import (
     QApplication,
@@ -821,8 +822,32 @@ def main(argv: list[str] | None = None) -> int:
     application.setWindowIcon(application_icon())
     window = WorkbenchWindow(verbose=args.verbose, record_usage=True)
     window.show()
+    # Python handles signals only when control returns from Qt to Python.
+    # Record the request here; close from the timer to avoid reentrant teardown.
+    interrupted = False
+
+    def request_close(_signum, _frame):
+        nonlocal interrupted
+        interrupted = True
+
+    def process_interrupt():
+        nonlocal interrupted
+        if interrupted:
+            interrupted = False
+            window.close()
+
+    previous_sigint = signal.signal(signal.SIGINT, request_close)
+    interrupt_timer = QTimer()
+    interrupt_timer.timeout.connect(process_interrupt)
+    interrupt_timer.start(200)
     try:
         return application.exec()
     finally:
+        interrupt_timer.stop()
+        signal.signal(signal.SIGINT, previous_sigint)
         if window.usage:
             window.usage.close(wait=True)
+        # Destroy the complete widget tree while QApplication and Python
+        # callbacks are still alive, before PySide's interpreter-exit cleanup.
+        window.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)

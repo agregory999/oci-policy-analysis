@@ -87,7 +87,7 @@ class PolicyGraphPage(QWidget):
             field = QLineEdit()
             field.setPlaceholderText(title)
             field.returnPressed.connect(self.search)
-            field.textChanged.connect(lambda *_: self.search_timer.start())
+            field.textChanged.connect(self._schedule_search)
             field.setClearButtonEnabled(True)
             self.filters[key] = field
             fields.addWidget(field, index // 2, index % 2)
@@ -95,7 +95,7 @@ class PolicyGraphPage(QWidget):
         controls = QHBoxLayout()
         self.effect = QComboBox()
         self.effect.addItems(['All effects', 'allow', 'deny'])
-        self.effect.currentIndexChanged.connect(lambda *_: self.search_timer.start())
+        self.effect.currentIndexChanged.connect(self._schedule_search)
         controls.addWidget(self.effect)
         reset = QPushButton('Reset')
         reset.clicked.connect(self.reset_filters)
@@ -174,8 +174,13 @@ class PolicyGraphPage(QWidget):
 
     def search(self) -> None:
         """Search all matches in the current snapshot after a short typing debounce."""
+        self.cancel_pending_selection()
         self.search_timer.stop()
         self._refresh()
+
+    def _schedule_search(self, *_args) -> None:
+        self.cancel_pending_selection()
+        self.search_timer.start()
 
     def reset_filters(self) -> None:
         """Clear graph search independently of policy-browser filters."""
@@ -323,7 +328,7 @@ class PolicyGraphPage(QWidget):
                 y,
                 ('[Prospective] ' if grant.get('prospective') else '')
                 + format_compartment_policy_name(source.get('compartment_path'), grant['policy_name']),
-                f'{grant["effect"]} {source.get("verb") or ""} {grant["resource"]}'
+                f'{grant["effect"]} {source.get("verb") or ""} {grant["resource"] or "<PERMISSIONS>"}'
                 + (' · conditional' if grant['condition_clause'] else ''),
                 color,
                 grant,
@@ -396,11 +401,17 @@ class PolicyGraphPage(QWidget):
         self.effect.setCurrentIndex(max(0, self.effect.findText(selection_query.get('effect') or 'All effects')))
         self.effect.blockSignals(False)
         self.search_timer.stop()
+        transform = self.view.transform()
+        horizontal = self.view.horizontalScrollBar().value()
+        vertical = self.view.verticalScrollBar().value()
         self.search()
+        self.view.setTransform(transform)
+        self.view.horizontalScrollBar().setValue(horizontal)
+        self.view.verticalScrollBar().setValue(vertical)
         self.detail.setPlainText(json.dumps(evidence, indent=2, ensure_ascii=False))
         service = PolicyGraphService(self._corpus)
         # Retain every source contributing to the selected graph combination.
-        grants = service.get_page(**self._graph_query, all_results=True)['grants']
+        grants = self.visible_grants
         keys = ('principal', 'path', 'resource', 'effect') if 'statement_id' in evidence else ('principal', 'path')
         grants = [row for row in grants if all(row[key] == evidence[key] for key in keys if key in evidence)]
         sources = list(self.context.policy_repo.regular_statements)

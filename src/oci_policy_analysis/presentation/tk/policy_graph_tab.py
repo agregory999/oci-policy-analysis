@@ -375,7 +375,7 @@ class PolicyGraphTab(BaseUITab):
                     lane + 8,
                     y,
                     lane - 20,
-                    f'{row["effect"].upper()} · {row["resource"]}',
+                    f'{row["effect"].upper()} · {row["resource"] or "<PERMISSIONS>"}',
                     f'{row["policy_name"]} · {len(row["permissions"])} permission(s)'
                     f'{" · conditional" if row["condition"] else ""} · click to filter',
                     {'resource': row['resource'], 'effect': row['effect']},

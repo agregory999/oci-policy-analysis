@@ -86,3 +86,6 @@ run/container.env
 # Local OCI credentials and application cache/settings
 .oci/
 .oci-policy-analysis/
+
+# Local resource-alias audit candidates
+/resource-alias-candidates.md

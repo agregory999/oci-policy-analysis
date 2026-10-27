@@ -55,3 +55,56 @@ def test_launcher_does_not_hide_an_unrelated_missing_dependency(monkeypatch):
 
     with pytest.raises(ModuleNotFoundError, match='Missing backend dependency'):
         main([])
+
+
+def test_launcher_destroys_widgets_before_return_and_handles_sigint(tmp_path):
+    """Exercise real event loops and interpreter exit outside pytest's shared app."""
+    code = r"""
+import logging, os, signal, sys
+from pathlib import Path
+logging.basicConfig()
+os.environ['QT_QPA_PLATFORM'] = 'offscreen'
+from PySide6.QtCore import QTimer
+from shiboken6 import isValid
+from oci_policy_analysis.application.core.support import caching, config
+from oci_policy_analysis.presentation.qt import main as ui
+root = Path(sys.argv[1])
+caching.CACHE_DIR = root / 'cache'
+config.SETTINGS_PATH = str(root / 'settings.json')
+original = ui.WorkbenchWindow
+windows = []
+class Window(original):
+    def __init__(self, **kwargs):
+        super().__init__(**{**kwargs, 'record_usage': False})
+        windows.append(self)
+        if sys.argv[2].startswith('loaded-'):
+            sys.path.insert(0, sys.argv[3])
+            from qt_compact_sample import sample_snapshot
+            from oci_policy_analysis.presentation.qt import loading
+            loading.sample_snapshot = sample_snapshot
+            self.settings_page.load_sample()
+        QTimer.singleShot(100, self.finish)
+
+    def finish(self):
+        if self.controller.worker is not None:
+            QTimer.singleShot(100, self.finish)
+        elif sys.argv[2].endswith('button'):
+            self.close()
+        else:
+            os.kill(os.getpid(), signal.SIGINT)
+ui.WorkbenchWindow = Window
+previous = signal.getsignal(signal.SIGINT)
+assert ui.main([]) == 0
+assert signal.getsignal(signal.SIGINT) == previous
+assert len(windows) == 1 and not isValid(windows[0])
+print('CLEAN_EXIT')
+"""
+    for mode in ('button', 'sigint', 'loaded-button', 'loaded-sigint'):
+        result = subprocess.run(
+            [sys.executable, '-c', code, str(tmp_path), mode, str(ROOT / 'src' / 'test')],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert result.returncode == 0, result.stderr
+        assert 'CLEAN_EXIT' in result.stdout

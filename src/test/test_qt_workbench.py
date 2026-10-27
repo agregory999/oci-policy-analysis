@@ -1251,6 +1251,68 @@ def test_graph_all_results_exclusions_and_unresolved_source_survive_import(workb
     assert window.browser_page.model.rowCount() == 1
 
 
+def test_graph_selection_preserves_zoom_and_queries_once(workbench, monkeypatch):
+    from oci_policy_analysis.application.services.policy_graph_service import PolicyGraphService
+
+    application, window = workbench
+    window.settings_page.load_sample()
+    _wait_for_load(application, window)
+    page = window.graph_page
+    window.navigation.setCurrentRow(window.page_index('graph'))
+    window.show()
+    application.processEvents()
+    page.view.scale(1.5, 1.5)
+    transform = page.view.transform()
+    page.view.horizontalScrollBar().setValue(page.view.horizontalScrollBar().maximum())
+    page.view.verticalScrollBar().setValue(page.view.verticalScrollBar().maximum())
+    horizontal = page.view.horizontalScrollBar().value()
+    vertical = page.view.verticalScrollBar().value()
+    original = PolicyGraphService.get_page
+    calls = []
+
+    def query(service, **kwargs):
+        calls.append(kwargs)
+        return original(service, **kwargs)
+
+    monkeypatch.setattr(PolicyGraphService, 'get_page', query)
+    node = next(
+        item for item in page.scene.items() if isinstance(item.data(0), dict) and 'statement_id' in item.data(0)
+    )
+    node.setSelected(True)
+    _wait_until(application, lambda: page.statements.model.rowCount() > 0)
+    assert page.view.transform() == transform
+    for scrollbar, previous in (
+        (page.view.horizontalScrollBar(), horizontal),
+        (page.view.verticalScrollBar(), vertical),
+    ):
+        assert scrollbar.value() == max(scrollbar.minimum(), min(previous, scrollbar.maximum()))
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize('action', ['type', 'reset', 'reload'])
+def test_graph_new_input_cancels_queued_node_selection(workbench, action):
+    application, window = workbench
+    window.settings_page.load_sample()
+    _wait_for_load(application, window)
+    page = window.graph_page
+    node = next(
+        item for item in page.scene.items() if isinstance(item.data(0), dict) and 'statement_id' in item.data(0)
+    )
+    node.setSelected(True)
+    if action == 'type':
+        page.filters['resource'].setText('SECRET_BUNDLE_READ')
+    elif action == 'reset':
+        page.reset_filters()
+    else:
+        page.set_context(window.controller.context)
+    _wait_until(application, lambda: not page._selection_timer.isActive() and not page.search_timer.isActive())
+    assert not page.filters['principal'].text()
+    assert page.statements.model.rowCount() == 0
+    if action == 'type':
+        assert page.filters['resource'].text() == 'SECRET_BUNDLE_READ'
+        assert all('SECRET_BUNDLE_READ' in grant['permissions'] for grant in page.visible_grants)
+
+
 def test_settings_start_collapsed_and_widgets_apply_session_values(workbench):
     application, window = workbench
     page = window.settings_page
@@ -4134,7 +4196,10 @@ def test_cross_tenancy_graph_provenance_paging_findings_and_reload(workbench):
         and item.data(0).get('alias') == 'Partner'
         and not item.data(0).get('direction')
     )
+    page.view.scale(1.5, 1.5)
+    transform = page.view.transform()
     node.setSelected(True)
+    assert page.view.transform() == transform
     assert page.tables['statements'].model.rowCount() == 3
     assert window.drawer.record is None
     admit_row = next(row for row in page.tables['statements'].model.records if row.get('kind') == 'Admit')
@@ -5031,3 +5096,53 @@ def test_recommendation_findings_show_all_service_fields_without_sections(workbe
     assert json.dumps(record, sort_keys=True) == before
     drawer.show_record({'statement_text': 'allow group A to read buckets in tenancy', 'valid': True})
     assert drawer.scroll.widget().findChildren(CollapsibleSection)
+
+
+def test_direct_permission_graph_labels_and_filters_in_both_desktops(qt_application):
+    from dataclasses import replace
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    from test_policy_graph_desktop import _corpus, _tab
+
+    from oci_policy_analysis.presentation.qt.pages.graph import PolicyGraphPage
+    from oci_policy_analysis.presentation.tk.policy_graph_tab import PolicyGraphTab
+
+    corpus = _corpus()
+    corpus = replace(corpus, facts=tuple(replace(fact, resource='') for fact in corpus.facts))
+    context = SimpleNamespace(corpus=corpus, policy_repo=SimpleNamespace(regular_statements=[], tenancy_ocid=''))
+    page = PolicyGraphPage()
+    try:
+        page.set_context(context)
+        page.filters['resource'].setText('object_create')
+        page.search()
+        assert len(page.visible_grants) == 1
+        assert any('<PERMISSIONS>' in item.text() for item in page.scene.items() if hasattr(item, 'text'))
+        grant = page.visible_grants[0]
+        assert grant['resource'] == ''
+        assert grant['permissions'] == ['OBJECT_CREATE', 'OBJECT_READ']
+        node = next(item for item in page.scene.items() if item.data(0) == grant)
+        node.setSelected(True)
+        qt_application.processEvents()
+        assert page.statements.model.rowCount() == 1
+        assert len(page.statements.model.records[0]['permission_facts']) == 2
+
+        tab = _tab(corpus)
+        tab.filters['resource'].set('object_create')
+        tab.refresh_view()
+        tab._pending_draw = None
+        tab._card = MagicMock(return_value=(0, 0, 200, 100))
+        tab.canvas.winfo_width.return_value = 800
+        tab.path_canvas.winfo_width.return_value = 400
+        for canvas in (tab.canvas, tab.path_canvas):
+            canvas.winfo_height.return_value = 300
+            canvas.canvasy.return_value = 0
+            canvas.bbox.return_value = (0, 0, 400, 300)
+        PolicyGraphTab._draw_graph(tab)
+        assert any('<PERMISSIONS>' in call.args[4] for call in tab._card.call_args_list)
+        assert tab._rows['0']['permissions'] == ['OBJECT_CREATE', 'OBJECT_READ']
+    finally:
+        page.cancel_pending_selection()
+        page.search_timer.stop()
+        page.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)

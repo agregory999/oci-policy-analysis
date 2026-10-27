@@ -10,6 +10,9 @@ the collected statements, including invalid or unresolved ones. The corpus holds
 the parts the application can represent as permissions, along with reasons for
 excluding the rest.
 
+**NOTE:** The policy corpus is not the real OCI IAM Policy Engine, but comes as close
+to it as we can get using static information that this tool ships with.
+
 ## What it contains
 
 Each permission fact records:

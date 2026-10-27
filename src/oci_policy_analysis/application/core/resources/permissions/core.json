@@ -326,6 +326,9 @@
             }
         },
         "volumes": {
+            "aliases": [
+                "volume"
+            ],
             "verbs": {
                 "inspect": [
                     "VOLUME_INSPECT"
@@ -788,6 +791,9 @@
             "notes": "Verb permission increments reviewed against the linked service policy reference; broader verbs include lower-verb permissions."
         },
         "network-security-groups": {
+            "aliases": [
+                "network-security-group"
+            ],
             "verbs": {
                 "inspect": [
                     "NETWORK_SECURITY_GROUP_INSPECT"
@@ -996,6 +1002,9 @@
             "notes": "Verb permission increments reviewed against the linked service policy reference; broader verbs include lower-verb permissions."
         },
         "subnets": {
+            "aliases": [
+                "subnet"
+            ],
             "verbs": {
                 "inspect": [
                     "SUBNET_READ"
@@ -1082,6 +1091,9 @@
             }
         },
         "vnics": {
+            "aliases": [
+                "vnic"
+            ],
             "verbs": {
                 "inspect": [
                     "VNIC_READ"

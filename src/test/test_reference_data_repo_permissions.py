@@ -138,7 +138,14 @@ def test_operation_listing_includes_related_checks():
 
 def test_explicit_resource_aliases_share_permissions_and_provenance():
     repo = _load_repo()
-    for alias, canonical in [('instance', 'instances'), ('object', 'objects')]:
+    for alias, canonical in [
+        ('instance', 'instances'),
+        ('object', 'objects'),
+        ('vnic', 'vnics'),
+        ('subnet', 'subnets'),
+        ('network-security-group', 'network-security-groups'),
+        ('volume', 'volumes'),
+    ]:
         for verb in repo.verb_set:
             for action in ('allow', 'deny'):
                 assert set(repo.get_permissions(alias.upper(), verb, action)) == set(
