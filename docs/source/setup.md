@@ -79,6 +79,34 @@ Use the principal appropriate to where the application runs:
 
 Use a named profile or session token for a workstation. Use an instance or resource principal for OCI-hosted workloads so credentials are not stored in the runtime environment.
 
+### Session-token profiles on the desktop
+
+Run `oci session authenticate` with the OCI CLI and note the config profile name
+it creates. That profile in `~/.oci/config` references `security_token_file`,
+`key_file`, and a region. The app reads those local files to build its session
+signer. Enter the **profile name** in the UI; keep token contents in the file
+managed by the CLI.
+
+In Qt, choose **Session token profile** under Authentication and select that
+profile. In the legacy Tk app, enter it in **Session-token profile name (OCI
+config)** and choose **Load session-token profile**; leave Instance Principal
+unchecked. Leave the session-profile field empty when using API-key profile
+loading. A profile name may match the ordinary Profile selector: the selected
+authentication method determines whether the app uses API-key or session-token
+signing. An API-key-only profile lacks the session token file required for session
+authentication.
+
+Sessions expire. Renew or recreate the session with the OCI CLI, then reload in
+the app. The desktop does not launch a browser login or renew credentials for
+you. See Oracle’s [CLI session-token documentation](https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/clitoken.htm)
+for the authentication and renewal workflow.
+
+A session authenticates the OCI user; it does not add IAM permissions. Both
+API-key and session-token users need the group policies under
+[Permissions required](#permissions-required). Instance and resource principals
+use their workload policies instead. Qt offers instance principal for Compute;
+resource principal is used by the hosted web/MCP interfaces.
+
 ## Permissions required
 
 Permissions are required **only for live OCI loads**. Cache and CIS Compliance imports do not require OCI credentials or IAM policies for this tool.

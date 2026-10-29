@@ -165,9 +165,12 @@ def main(argv: list[str] | None = None) -> int:
         timeout=180,
     )
     smoke_seconds = time.perf_counter() - smoke_started
+    archive_os = {'Darwin': 'macos', 'Windows': 'windows', 'Linux': 'linux'}.get(
+        platform.system(), platform.system().lower()
+    )
     archive_base = (
         args.output_dir.resolve()
-        / f'oci-policy-analysis-qt-{platform.system().lower()}-{platform.machine()}-{version("oci-policy-analysis")}-{args.mode}'
+        / f'oci-policy-analysis-qt-{version("oci-policy-analysis")}-{archive_os}-{platform.machine()}-{args.mode}'
     )
     archive_format = 'zip' if sys.platform == 'win32' else 'gztar'
     archive = shutil.make_archive(str(archive_base), archive_format, root_dir=bundle.parent, base_dir=bundle.name)

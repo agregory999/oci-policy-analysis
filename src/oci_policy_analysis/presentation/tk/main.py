@@ -883,24 +883,32 @@ class App(tk.Tk):
         frame = ttk.Frame(dialog, padding=16)
         frame.pack(fill='both', expand=True)
 
-        ttk.Label(frame, text=intro_text).pack(anchor='w')
-        ttk.Label(frame, textvariable=self._policy_reload_message_var, foreground='blue').pack(anchor='w', pady=(8, 8))
+        ttk.Label(frame, text=intro_text, wraplength=760).pack(anchor='w')
+        ttk.Label(frame, textvariable=self._policy_reload_message_var, foreground='blue', wraplength=760).pack(
+            anchor='w', pady=(8, 8)
+        )
 
         bar = ttk.Progressbar(frame, mode='indeterminate', length=735)
         bar.pack(fill='x')
         bar.start(12)
+        self._policy_reload_progressbar = bar
+        self._policy_reload_dismiss_button = ttk.Button(
+            frame, text='Dismiss', command=self._close_policy_reload_progress_dialog
+        )
 
         # Prevent manual close while reload is active.
         dialog.protocol('WM_DELETE_WINDOW', lambda: None)
 
         # Center dialog over parent.
         self.update_idletasks()
+        dialog.update_idletasks()
         try:
-            width = 828
-            height = 120
+            width = dialog.winfo_reqwidth()
+            height = dialog.winfo_reqheight()
             x = self.winfo_rootx() + (self.winfo_width() // 2) - (width // 2)
             y = self.winfo_rooty() + (self.winfo_height() // 2) - (height // 2)
-            dialog.geometry(f'{width}x{height}+{max(0, x)}+{max(0, y)}')
+            # Keep natural sizing so wrapped completion messages and Dismiss fit.
+            dialog.geometry(f'+{max(0, x)}+{max(0, y)}')
         except Exception:
             pass
 
@@ -943,13 +951,24 @@ class App(tk.Tk):
             self.after(0, lambda m=message, fn=cb: fn(m))
 
     def _finalize_operation_popup(self, show_popup: bool, success: bool, final_message: str = ''):
-        """Set final popup message and close popup after a readable delay."""
+        """Finish on the UI thread; leave failures visible until manually dismissed."""
         if not show_popup:
             return
-        if final_message:
-            self.after(0, lambda m=final_message: self._set_policy_reload_progress_message(m))
-        close_delay_ms = 2200 if success else 1800
-        self.after(close_delay_ms, self._close_policy_reload_progress_dialog)
+
+        def finish():
+            dialog = getattr(self, '_policy_reload_dialog', None)
+            if dialog is None or not dialog.winfo_exists():
+                return
+            self._set_policy_reload_progress_message(final_message or ('Load complete.' if success else 'Load failed.'))
+            self._policy_reload_progressbar.stop()
+            if success:
+                self.after(2200, self._close_policy_reload_progress_dialog)
+            else:
+                self._policy_reload_dismiss_button.pack(anchor='e', pady=(12, 0))
+                self._policy_reload_dismiss_button.focus_set()
+                dialog.protocol('WM_DELETE_WINDOW', self._close_policy_reload_progress_dialog)
+
+        self.after(0, finish)
 
     def reload_policies_and_compartments_and_update_cache_async(  # noqa: C901
         self, callback: dict | None = None, show_popup: bool = True, reload_iam: bool = False
@@ -1015,17 +1034,15 @@ class App(tk.Tk):
                     msg = f'Reload completed but refreshing analysis tabs failed: {ui_error}'
                     logger.exception(msg)
                 finally:
-                    # Briefly show final "Done" status before closing the dialog.
-                    close_delay_ms = 1800 if success else 1200
+                    App._finalize_operation_popup(self, show_popup, success, msg)
 
                     def _close_dialog_and_mark_done():
-                        self._close_policy_reload_progress_dialog()
                         self._policy_reload_in_progress = False
                         tab = getattr(self, 'policy_recommendations_tab', None)
                         if tab:
                             tab._update_reload_all_button_state()
 
-                    self.after(close_delay_ms, _close_dialog_and_mark_done)
+                    self.after(1800 if success else 0, _close_dialog_and_mark_done)
 
                 if success:
                     cb = callback.get('complete') if callback else None

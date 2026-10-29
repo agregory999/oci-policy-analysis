@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import http.client
 import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlsplit
+
+from oci.auth.signers import InstancePrincipalsSecurityTokenSigner
 
 from oci_policy_analysis.application.context import AppContext
 from oci_policy_analysis.application.core.engine import PolicyIntelligenceEngine, PolicySimulationEngine
@@ -14,6 +18,24 @@ from oci_policy_analysis.application.core.support.logger import get_logger
 from oci_policy_analysis.application.post_load import run_minimal_post_load_enrichment, run_post_load_pipeline
 
 PostLoadProfile = str
+
+
+def _instance_metadata_available() -> bool:
+    """Probe the SDK's metadata region endpoint with short timeouts and no retries.
+
+    Uses a direct HTTP connection so workstation proxy settings cannot make an
+    unrelated proxy appear to be OCI metadata. Reachability does not validate IAM.
+    """
+    endpoint = urlsplit(InstancePrincipalsSecurityTokenSigner.GET_REGION_URL)
+    connection_type = http.client.HTTPSConnection if endpoint.scheme == 'https' else http.client.HTTPConnection
+    connection = connection_type(endpoint.hostname, endpoint.port, timeout=0.5)
+    try:
+        connection.request('GET', endpoint.path, headers={'Authorization': 'Bearer Oracle'})
+        return connection.getresponse().status == 200
+    except (OSError, http.client.HTTPException):
+        return False
+    finally:
+        connection.close()
 
 
 @dataclass
@@ -278,6 +300,11 @@ class LoadService:
             LoadResult: Load status and data summary.
 
         Notes:
+            Instance principal loads first probe OCI metadata with 0.5-second
+            connect/read timeouts and no retries. An unavailable endpoint returns
+            a failed result before resetting the snapshot or creating the signer.
+            A successful probe does not validate the instance principal or IAM.
+
             Attempts to retrieve policy limits after policy collection, before
             enrichment and cache saving, for every post-load profile. Unavailable
             limits produce a warning without failing the policy load. Offline load
@@ -300,6 +327,15 @@ class LoadService:
             recursive,
         )
         self._emit_stage(stage='Initializing', detail='Configuring OCI client', on_stage=on_stage)
+        if use_instance_principal and not use_resource_principal and not _instance_metadata_available():
+            message = (
+                'Instance principal requires an OCI Compute instance with a valid instance principal. '
+                'The OCI metadata service could not be reached. On a workstation, choose an OCI config '
+                'profile or session-token profile instead.'
+            )
+            self.logger.error(message)
+            self._emit_stage(stage='Failed', detail=message, state='error', on_stage=on_stage)
+            return LoadResult(success=False, message=message)
         repo = self.context.policy_repo
         self._reset_repo_state_before_load()
         repo.policy_load_method = method

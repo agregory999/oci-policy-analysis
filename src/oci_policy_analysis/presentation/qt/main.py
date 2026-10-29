@@ -56,7 +56,7 @@ from oci_policy_analysis.presentation.qt.pages.users_groups import UsersGroupsPa
 from oci_policy_analysis.presentation.qt.pages.workflows import ToolsPage
 from oci_policy_analysis.presentation.qt.preferences import load_preferences, save_preferences
 from oci_policy_analysis.presentation.qt.themes import apply_theme, fixed_width_family
-from oci_policy_analysis.presentation.qt.widgets import label
+from oci_policy_analysis.presentation.qt.widgets import DOCS_ROOT, label, linked_label
 
 logger = get_logger(component='qt.main')
 
@@ -200,7 +200,11 @@ class WorkbenchWindow(QMainWindow):
         body.setContentsMargins(30, 28, 30, 16)
         body.setSpacing(14)
         self.heading = label('Overview & Settings', 'title')
-        body.addWidget(self.heading)
+        heading_row = QHBoxLayout()
+        heading_row.addWidget(self.heading, 1)
+        self.page_help = linked_label('', 'Usage guide', f'{DOCS_ROOT}/usage.html#overview')
+        heading_row.addWidget(self.page_help)
+        body.addLayout(heading_row)
         self.progress = QProgressBar()
         self.progress.setRange(0, 0)
         self.progress.hide()
@@ -404,6 +408,8 @@ class WorkbenchWindow(QMainWindow):
         self.drawer.clear()
         self.pages.setCurrentIndex(index)
         self.heading.setText(self.page_specs[index][1])
+        anchor = self.page_specs[index][0].replace('_', '-')
+        self.page_help.setText(f'<a href="{DOCS_ROOT}/usage.html#{anchor}">Usage guide</a>')
         if self.usage:
             self.usage.view(self.page_specs[index][0])
         logger.debug('Navigated to page=%s', self.page_specs[index][0])
@@ -483,6 +489,7 @@ class WorkbenchWindow(QMainWindow):
         if self.usage:
             self.usage.operation('data_load', success=False)
         self.statusBar().showMessage(f'Load failed · {message}')
+        self.settings_page._loaded_status = f'Load failed: {message}'
         self.settings_page.load_status.setText(f'Load failed: {message}')
 
     @Slot(bool)

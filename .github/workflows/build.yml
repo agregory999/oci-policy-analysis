@@ -325,7 +325,7 @@ jobs:
         run: |
           VERSION=${{ needs.release.outputs.version }}
           PLATFORM=${{ matrix.platform }}
-          NAME="oci-policy-analysis-tk-${PLATFORM}-${VERSION}"
+          NAME="oci-policy-analysis-legacy-tk-${VERSION}-${PLATFORM}"
 
           echo "📦 Packaging for ${PLATFORM} (version ${VERSION})"
           ls -lh dist
@@ -356,7 +356,7 @@ jobs:
         run: |
           $VERSION = "${{ needs.release.outputs.version }}"
           $PLATFORM = "${{ matrix.platform }}"
-          $NAME = "oci-policy-analysis-tk-${PLATFORM}-${VERSION}"
+          $NAME = "oci-policy-analysis-legacy-tk-${VERSION}-${PLATFORM}"
           echo "Compressing and renaming Windows executable to dist/${NAME}.zip"
           Compress-Archive -Path "dist/oci-policy-analysis-tk.exe" -Destination dist/${NAME}.zip -Force
           dir dist
@@ -368,11 +368,11 @@ jobs:
         if: steps.skip_build.outputs.skip != 'true'
         uses: actions/upload-artifact@v6
         with:
-          name: oci-policy-analysis-${{ matrix.platform }}
+          name: oci-policy-analysis-legacy-tk-${{ needs.release.outputs.version }}-${{ matrix.platform }}
           path: |
             # dist/oci-policy-analysis.exe
-            dist/oci-policy-analysis-*.tar.gz
-            dist/oci-policy-analysis-*.zip
+            dist/oci-policy-analysis-legacy-tk-*.tar.gz
+            dist/oci-policy-analysis-legacy-tk-*.zip
           retention-days: 30
 
   build_qt:
@@ -432,7 +432,7 @@ jobs:
       - name: Upload verified Qt application
         uses: actions/upload-artifact@v6
         with:
-          name: oci-policy-analysis-qt-${{ matrix.platform }}-${{ matrix.mode }}
+          name: oci-policy-analysis-qt-${{ needs.release.outputs.version }}-${{ matrix.platform }}
           path: |
             dist/qt/*.zip
             dist/qt/*.tar.gz

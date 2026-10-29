@@ -607,7 +607,7 @@ names are unchanged; no migration is required and old snapshots remain readable.
 
 Overview restores the shared `named_profile`, `instance_principal`, `recursive`,
 `load_all_users` and `domain_compartment_depth` preferences at startup. Qt retains
-profile/instance-principal selection in `qt_auth_mode`. Changes save after a short debounce;
+profile/session-token-profile/instance-principal selection in `qt_auth_mode`. Changes save after a short debounce;
 an explicit OCI load or orderly close flushes pending edits. Unchanged controls do
 not overwrite newer settings written by another interface. All saves merge only
 the affected keys. No authentication or collection happens while restoring them.
@@ -707,3 +707,7 @@ not establish OCI authorization. Tag-based consolidation is deferred.
 Desktop loading offers profiles/session tokens and Instance Principal. Stale saved Resource
 Principal selections fall back to profiles. Container web/MCP authentication is unchanged.
 The legacy desktop OCI GenAI query pane and configuration were removed in 7.0.
+
+Each page header links to its stable section in the new desktop usage guide.
+Session token loading uses the selected OCI config profile name and the shared
+LoadService session signer. Token contents are read from the CLI-managed file.

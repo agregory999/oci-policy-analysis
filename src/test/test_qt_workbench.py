@@ -4638,18 +4638,18 @@ def test_tag_based_advanced_page_filters_hands_off_conditions_and_reloads(workbe
     assert not page.test_full.isEnabled() and not page.test_atom.isEnabled()
 
 
-def test_qt_authentication_offers_profiles_and_instance_principal_only(workbench):
+def test_qt_authentication_offers_profiles_sessions_and_instance_principal(workbench):
     from oci_policy_analysis.presentation.qt.loading import LoadWorker
 
     _application, window = workbench
     auth = window.settings_page.auth
-    assert [auth.itemData(index) for index in range(auth.count())] == ['profile', 'instance_principal']
+    assert [auth.itemData(index) for index in range(auth.count())] == ['profile', 'session_token', 'instance_principal']
     failures, loaded = [], []
     worker = LoadWorker('oci', {'auth': 'resource_principal'}, {}, window)
     worker.failed.connect(failures.append)
     worker.loaded.connect(lambda *_: loaded.append(True))
     worker.run()
-    assert len(failures) == 1 and 'profiles or instance principal only' in failures[0]
+    assert len(failures) == 1 and 'session-token profile' in failures[0]
     assert not loaded
 
 
@@ -5146,3 +5146,63 @@ def test_direct_permission_graph_labels_and_filters_in_both_desktops(qt_applicat
         page.search_timer.stop()
         page.deleteLater()
         QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+
+@pytest.mark.parametrize('auth', ['profile', 'session_token'])
+def test_qt_session_profile_reaches_shared_loader(workbench, monkeypatch, auth):
+    from oci_policy_analysis.presentation.qt.loading import LoadWorker
+
+    _application, window = workbench
+    page = window.settings_page
+    page.auth.setCurrentIndex(page.auth.findData(auth))
+    page.profile.setCurrentText('TEMP_SESSION')
+    page.set_busy(True)
+    assert not page.profile.isEnabled()
+    page.set_busy(False)
+    assert page.profile.isEnabled()
+    captured = {}
+
+    def capture(_service, **kwargs):
+        captured.update(kwargs)
+        return LoadResult(success=False, message='Stopped after capturing inputs')
+
+    monkeypatch.setattr(LoadService, 'load_from_tenancy', capture)
+    worker = LoadWorker('oci', page.load_options(), {}, window)
+    worker.run()
+    assert captured['profile'] == 'TEMP_SESSION'
+    assert captured['session_token'] == ('TEMP_SESSION' if auth == 'session_token' else None)
+    assert captured['use_instance_principal'] is False
+
+
+def test_profile_reload_discovers_new_session_and_preserves_typed_name(workbench, tmp_path):
+    _application, window = workbench
+    page = window.settings_page
+    page.profile.setCurrentText('MY_TYPED_PROFILE')
+    config_dir = tmp_path / '.oci'
+    config_dir.mkdir()
+    (config_dir / 'config').write_text('[NEW_SESSION]\nsecurity_token_file=/unused/token\n')
+    page.reload_profiles_button.click()
+    assert page.profile.findText('NEW_SESSION') >= 0
+    assert page.profile.currentText() == 'MY_TYPED_PROFILE'
+    page.profile.setCurrentText('NEW_SESSION')
+    page.reload_profiles_button.click()
+    assert page.profile.currentText() == 'NEW_SESSION'
+    page.set_busy(True)
+    assert not page.reload_profiles_button.isEnabled()
+    page.set_busy(False)
+    assert page.reload_profiles_button.isEnabled()
+
+
+def test_instance_principal_metadata_failure_unlocks_load_and_keeps_status(workbench, monkeypatch):
+    from oci_policy_analysis.application.services import load_service
+
+    application, window = workbench
+    monkeypatch.setattr(load_service, '_instance_metadata_available', lambda: False)
+    page = window.settings_page
+    page.auth.setCurrentIndex(page.auth.findData('instance_principal'))
+    page._load_oci()
+    _wait_for_load(application, window)
+    assert 'OCI Compute instance with a valid instance principal' in page.load_status.text()
+    assert page.load_button.isEnabled()
+    page._refresh_active_status()
+    assert 'OCI Compute instance with a valid instance principal' in page.load_status.text()

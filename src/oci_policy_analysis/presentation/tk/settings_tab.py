@@ -38,7 +38,7 @@ CONTEXT_HELP = {
     'RECURSIVE_LOAD': 'If checked, load policies from all compartments.\nUncheck for root compartment only.',
     'CACHE_LABEL': "A (P) before a cache means it is 'preserved' and will not be automatically overwritten or deleted. To update or manage the cache list, use the Maintenance Tab.",
     'CACHE_DROPDOWN': "A (P) before a cache means it is 'preserved' and will not be automatically overwritten or deleted. To update or manage the cache list, use the Maintenance Tab.",
-    'SESSION_TOKEN': "Paste temporary token from 'oci session authenticate'. Use for cloud OCI CLI auth.",
+    'SESSION_TOKEN': "Enter the OCI config profile name created by 'oci session authenticate'. The profile contains security_token_file and key_file. This can be the same name as the Profile selector; this button selects session-token signing. Leave empty for API-key profile loading.",
     'COMPLIANCE_OUTPUT': (
         'Load from the output of an unzipped CIS Complaince run - these scripts are provided by Oracle as part of MAP engagement, '
         'or freely downloadable from https://github.com/oci-landing-zones/oci-cis-landingzone-quickstart/blob/main/README.md'
@@ -530,7 +530,7 @@ class SettingsTab(BaseUITab):
         session_doc_url = 'https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/clitoken.htm'
         session_auth_link_label = self.create_doc_link_label(
             label_frm_tenancy_config,
-            text='Session Token (oci session authenticate)',
+            text='Session-token profile name (OCI config)',
             url=session_doc_url,
             row=2,
             column=0,
@@ -546,10 +546,16 @@ class SettingsTab(BaseUITab):
         self.session_token_var = tk.StringVar()
         self.session_token_entry = ttk.Entry(label_frm_tenancy_config, textvariable=self.session_token_var, width=25)
         self.session_token_entry.grid(row=2, column=2, padx=5, pady=3)
+        self.add_context_help(self.session_token_entry, CONTEXT_HELP['SESSION_TOKEN'])
+        ttk.Label(
+            label_frm_tenancy_config,
+            text='Enter a config profile name, e.g. DEFAULT. It may match Profile above; leave empty for API-key loading.',
+            wraplength=600,
+        ).grid(row=4, column=0, columnspan=4, padx=5, pady=3, sticky='w')
         ttk.Button(
             label_frm_tenancy_config,
             width=25,
-            text='Load via Session Token',
+            text='Load session-token profile',
             command=lambda: self._on_load_clicked(use_cache=False),
         ).grid(row=2, column=3, padx=5, pady=5, sticky='w')
 

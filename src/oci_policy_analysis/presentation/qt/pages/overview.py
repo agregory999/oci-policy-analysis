@@ -3,7 +3,7 @@
 import configparser
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import QSignalBlocker, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QBoxLayout,
     QCheckBox,
@@ -18,6 +18,8 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSpinBox,
+    QStyle,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -29,7 +31,7 @@ from oci_policy_analysis.application.services.load_service import LoadResult
 from oci_policy_analysis.presentation.qt.preferences import save_preferences
 from oci_policy_analysis.presentation.qt.profiles import profile_names
 from oci_policy_analysis.presentation.qt.settings_panels import AppearancePanel, IntelligencePanel
-from oci_policy_analysis.presentation.qt.widgets import CollapsibleSection, SegmentedControl
+from oci_policy_analysis.presentation.qt.widgets import CollapsibleSection, SegmentedControl, linked_label
 from oci_policy_analysis.presentation.qt.widgets import label as _label
 
 
@@ -176,6 +178,7 @@ class OverviewSettingsPage(QScrollArea):
         self.auth = QComboBox()
         for title, mode in [
             ('OCI config profile', 'profile'),
+            ('Session token profile', 'session_token'),
             ('Instance principal', 'instance_principal'),
         ]:
             self.auth.addItem(title, mode)
@@ -190,16 +193,36 @@ class OverviewSettingsPage(QScrollArea):
         mode = self.settings.get('qt_auth_mode')
         if self.settings.get('instance_principal', False):
             mode = 'instance_principal'
-        elif mode != 'profile':
+        elif mode not in {'profile', 'session_token'}:
             mode = 'profile'
         self.auth.setCurrentIndex(self.auth.findData(mode))
-        self.profile.setEnabled(mode == 'profile')
-        self.auth.currentIndexChanged.connect(lambda index: self.profile.setEnabled(index == 0))
+        self.profile.setEnabled(mode in {'profile', 'session_token'})
+        self.auth.currentIndexChanged.connect(
+            lambda _index: self.profile.setEnabled(self.auth.currentData() in {'profile', 'session_token'})
+        )
         self.profile.setMinimumWidth(160)
         grid.addWidget(_label('Authentication'), 0, 0)
         grid.addWidget(self.auth, 0, 1, 1, 2)
         grid.addWidget(_label('Profile'), 0, 3)
-        grid.addWidget(self.profile, 0, 4, 1, 2)
+        profile_row = QHBoxLayout()
+        profile_row.addWidget(self.profile, 1)
+        self.reload_profiles_button = QToolButton()
+        self.reload_profiles_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload))
+        self.reload_profiles_button.setAccessibleName('Reload OCI profiles')
+        self.reload_profiles_button.setToolTip(
+            'Reload profiles from ~/.oci/config. After session authentication creates a profile, '
+            'reload to see it in this list.'
+        )
+        self.reload_profiles_button.clicked.connect(self._reload_profiles)
+        profile_row.addWidget(self.reload_profiles_button)
+        grid.addLayout(profile_row, 0, 4, 1, 2)
+        self.auth_help = linked_label(
+            'For session authentication, choose the config profile that contains the session token.',
+            'Usage guide',
+            'https://agregory999.github.io/oci-policy-analysis/usage.html#overview',
+            wrap=True,
+        )
+        grid.addWidget(self.auth_help, 3, 0, 1, 6)
         grid.setColumnStretch(1, 1)
         grid.setColumnStretch(2, 1)
         grid.setColumnStretch(4, 1)
@@ -458,6 +481,20 @@ class OverviewSettingsPage(QScrollArea):
             self._refresh_active_status()
         self.preference_timer.start()
 
+    def _reload_profiles(self) -> None:
+        """Refresh config profile names while preserving the current selection or typed name."""
+        try:
+            names = profile_names()
+        except (OSError, configparser.Error) as exc:
+            self.profile.setToolTip(f'Could not read OCI profiles: {exc}. Enter a profile name manually.')
+            return
+        selected = self.profile.currentText()
+        with QSignalBlocker(self.profile):
+            self.profile.clear()
+            self.profile.addItems(names)
+            self.profile.setCurrentText(selected)
+        self.profile.setToolTip('')
+
     def _connection_signature(self) -> tuple[str, str]:
         """Return the authentication inputs used to identify an OCI connection."""
         return (str(self.auth.currentData() or ''), self.profile.currentText().strip() or 'DEFAULT')
@@ -533,6 +570,8 @@ class OverviewSettingsPage(QScrollArea):
         description = (
             f'OCI profile: {options["profile"]}'
             if options['auth'] == 'profile'
+            else f'Session token profile: {options["profile"]}'
+            if options['auth'] == 'session_token'
             else options['auth'].replace('_', ' ').title()
         )
         self.load_requested.emit('oci', options, description)
@@ -566,6 +605,7 @@ class OverviewSettingsPage(QScrollArea):
         # settings panels only lock while a background load is active.
         for widget in (
             self.auth,
+            self.reload_profiles_button,
             self.profile,
             self.recursive,
             self.load_all_users,
@@ -581,7 +621,7 @@ class OverviewSettingsPage(QScrollArea):
             self.cis_users,
         ):
             widget.setEnabled(not busy)
-        self.profile.setEnabled(not busy and self.auth.currentData() == 'profile')
+        self.profile.setEnabled(not busy and self.auth.currentData() in {'profile', 'session_token'})
         self.cache_button.setEnabled(not busy and self.cache_list.currentData() is not None)
         for panel in (self.logging_panel, self.intelligence_panel):
             panel.setEnabled(not self._busy)
@@ -597,7 +637,7 @@ class OverviewSettingsPage(QScrollArea):
         self.results.show()
         self._loaded_connection_signature = (
             self._connection_signature()
-            if description.startswith('OCI profile:') or description == 'Instance Principal'
+            if description.startswith(('OCI profile:', 'Session token profile:')) or description == 'Instance Principal'
             else None
         )
         self._loaded_status = 'Loaded'
