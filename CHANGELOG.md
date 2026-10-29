@@ -1,3 +1,10 @@
+## [7.0.2](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.1...v7.0.2) (2026-10-29)
+
+
+### Bug Fixes
+
+* restore desktop session authentication and improve load feedback ([0d7601d](https://github.com/agregory999/oci-policy-analysis/commit/0d7601d6a2cf494aa430cfce249e3b73b8a67187))
+
 ## [7.0.1](https://github.com/agregory999/oci-policy-analysis/compare/v7.0.0...v7.0.1) (2026-10-27)
 
 
